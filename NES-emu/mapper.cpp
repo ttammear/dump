@@ -105,26 +105,28 @@ void mapper001_write(u16 adr, u8 val)
                     }
                     break;
                 case 0xE: // prg
-                    /*switch(prgBankMode)
+                    printf("PRG to %04d / %04d\n", shiftRegister, emu.prgRamBlockCount);
+                    switch(prgBankMode)
                     {
                         case 0:
                             assert((shiftRegister&0xE)+1 < emu.prgRamBlockCount);
                             emu.currentPrg1Ptr = emu.prgRamBlocks[shiftRegister&0xE];
-                            emu.currentPrg2Ptr = emu.prgRamBlocks[shiftRegister&0xE]+1;
+                            emu.currentPrg2Ptr = emu.prgRamBlocks[(shiftRegister&0xE) + 1];
                             break;
                         case 2:
-                            assert(shiftRegister&0xF < emu.prgRamBlockCount);
+                            assert((shiftRegister&0xF) < emu.prgRamBlockCount);
                             emu.currentPrg1Ptr = emu.prgRamBlocks[0];
                             emu.currentPrg2Ptr = emu.prgRamBlocks[shiftRegister&0xF];
                             break;
                         case 3: 
-                            assert(shiftRegister&0xF < emu.prgRamBlockCount);
+                            //assert((shiftRegister&0xF) < emu.prgRamBlockCount);
+                            if((shiftRegister&0xF) >= emu.prgRamBlockCount)
+                                break;
                             emu.currentPrg1Ptr = emu.prgRamBlocks[shiftRegister&0xF];
-                            emu.currentPrg2Ptr = emu.prgRamBlocks[1];
+                            emu.currentPrg2Ptr = emu.prgRamBlocks[emu.prgRamBlockCount-1];
                             break;
                         default: break;
-                    }*/
-                    printf("PRG to %02x\n", shiftRegister);
+                    }
                     break;
             }
             //TODO: change bank

@@ -15,12 +15,59 @@ PPU ppu;
 APU apu;
 Emulator emu;
 
+extern "C"
+{
+    b32 platform_choose_file(char *buffer, int bufSize);
+}
+
+void show_error(const char* title, const char* error)
+{
+    printf("Error: %s, Internal: %s", title, error);
+}
+
+void emu_set_nt_mirroring(u32 mirroring)
+{
+    switch(mirroring)
+    {
+        case NAMETABLE_MIRRORING_SINGLE_LOW:
+            emu.currentNtPtr[0] = ppu_internal_ram;
+            emu.currentNtPtr[1] = ppu_internal_ram;
+            emu.currentNtPtr[2] = ppu_internal_ram;
+            emu.currentNtPtr[3] = ppu_internal_ram;
+            break;
+        case NAMETABLE_MIRRORING_SINGLE_HIGH:
+            emu.currentNtPtr[0] = ppu_internal_ram+0x400;
+            emu.currentNtPtr[1] = ppu_internal_ram+0x400;
+            emu.currentNtPtr[2] = ppu_internal_ram+0x400;
+            emu.currentNtPtr[3] = ppu_internal_ram+0x400;
+            break;
+        case NAMETABLE_MIRRORING_VERTICAL:
+            emu.currentNtPtr[0] = ppu_internal_ram;
+            emu.currentNtPtr[1] = ppu_internal_ram;
+            emu.currentNtPtr[2] = ppu_internal_ram+0x400;
+            emu.currentNtPtr[3] = ppu_internal_ram+0x400;
+            break;
+        case NAMETABLE_MIRRORING_HORIZONTAL:
+            emu.currentNtPtr[0] = ppu_internal_ram;
+            emu.currentNtPtr[1] = ppu_internal_ram+0x400;
+            emu.currentNtPtr[2] = ppu_internal_ram;
+            emu.currentNtPtr[3] = ppu_internal_ram+0x400;
+            break;
+        default:
+            show_error("Error", "Invalid nametable mirroring requested");
+            break;
+    }
+}
+
 void nes_init()
 {
+    char fileNameBuffer[4096];
+    platform_choose_file(fileNameBuffer, 4096);
+
     // TODO: read ROM
     char * buffer = 0;
     long length;
-    FILE * f = fopen ("rom.nes", "rb");
+    FILE * f = fopen (fileNameBuffer, "rb");
     printf("Reading ROM from rom.nes\n");
 
     if (f)
@@ -53,6 +100,7 @@ void nes_init()
         u8 f9 = buffer[9];
         u8 f10 = buffer[10];
         bool hasTrainer = (0x04&f6)!=0;
+        bool ntMirroring = f6&1; // 0 = horizontal, 1 = vertical
         u8 mapperNumber = (f7&0xF0) | (f6 >> 4);
         bool isPal = (0x01&f9)!=0;
 
@@ -71,11 +119,23 @@ void nes_init()
         // TODO: support trainer
         assert(!hasTrainer);
         // TODO: support 8k and more advanced mappings
-        assert(prgSize == 2 || prgSize == 1);
+        assert(prgSize > 0);
         u32 start = 16;
-        for(int i = 0; i < 2; i++)
+
+        // TODO: free
+        emu.prgRamBlocks = new u8*[prgSize];
+        emu.prgRamBlockCount = prgSize;
+
+        for(int i = 0; i < prgSize; i++)
         {
-            if(i == 0)
+            // TODO: free
+            emu.prgRamBlocks[i] = new u8[16384];
+            for(int j = 0; j < 0x4000; j++) // 16K
+            {
+                emu.prgRamBlocks[i][j] = buffer[start++];
+            }
+
+/*            if(i == 0)
             {
                 u32 adr = 0x8000;
                 for(int j = 0; j < 16384; j++)
@@ -94,13 +154,26 @@ void nes_init()
                     memory[adr+j] = buffer[start+j];
                 }
                 start+= 16384;
-            }
+            }*/
+        }
+
+        if(prgSize == 1)
+        {
+            emu.currentPrg1Ptr = emu.prgRamBlocks[0];
+            emu.currentPrg2Ptr = emu.prgRamBlocks[0];
+        }
+        else
+        {
+            emu.currentPrg1Ptr = emu.prgRamBlocks[0];
+            emu.currentPrg2Ptr = emu.prgRamBlocks[emu.prgRamBlockCount-1];
         }
 
         assert(chrSize > 0);
+        // TODO: free
         emu.chrRomBlocks = new u8*[chrSize];
         for(int i = 0; i < chrSize; i++)
         {
+            // TODO: free
             emu.chrRomBlocks[i] = new u8[8192];
             for(int j = 0; j < 8192; j++)
             {
@@ -109,17 +182,10 @@ void nes_init()
         }
         emu.currentChrLowPtr = emu.chrRomBlocks[0];
         emu.currentChrHiPtr = &emu.chrRomBlocks[0][4096];
+        emu.chrRomBlockCount = chrSize;
 
-        /*for(int i = 0; i < 1; i++)
-        {
-            u32 adr = 0x0000;
-            for(int j = 0; j < 8192; j++)
-            {
-                ppu_memory[adr+j] = buffer[start+j];
-            }
-            start += 8192;
-        }*/
-
+        emu_set_nt_mirroring(ntMirroring ? NAMETABLE_MIRRORING_VERTICAL : NAMETABLE_MIRRORING_HORIZONTAL);
+        mapper_init(mapperNumber);
     }
     else
     {
