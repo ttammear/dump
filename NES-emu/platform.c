@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-#include "libs/ttTypes.h"
+#include "ttTypes.h"
 
 #ifdef __linux__
 b32 linux_choose_file(char *buffer, int bufSize) {
