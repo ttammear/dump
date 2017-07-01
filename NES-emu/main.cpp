@@ -15,9 +15,9 @@
 
 #include <assert.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "libs/stb_image.h"
-#include "libs/ttTypes.h"
+//#define STB_IMAGE_IMPLEMENTATION
+//#include "libs/stb_image.h"
+#include "ttTypes.h"
 #include "nes.h"
 
 #define FALSE 0

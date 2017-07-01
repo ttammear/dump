@@ -43,14 +43,14 @@ void emu_set_nt_mirroring(u32 mirroring)
             break;
         case NAMETABLE_MIRRORING_VERTICAL:
             emu.currentNtPtr[0] = ppu_internal_ram;
-            emu.currentNtPtr[1] = ppu_internal_ram;
-            emu.currentNtPtr[2] = ppu_internal_ram+0x400;
+            emu.currentNtPtr[1] = ppu_internal_ram+0x400;
+            emu.currentNtPtr[2] = ppu_internal_ram;
             emu.currentNtPtr[3] = ppu_internal_ram+0x400;
             break;
         case NAMETABLE_MIRRORING_HORIZONTAL:
             emu.currentNtPtr[0] = ppu_internal_ram;
-            emu.currentNtPtr[1] = ppu_internal_ram+0x400;
-            emu.currentNtPtr[2] = ppu_internal_ram;
+            emu.currentNtPtr[1] = ppu_internal_ram;
+            emu.currentNtPtr[2] = ppu_internal_ram+0x400;
             emu.currentNtPtr[3] = ppu_internal_ram+0x400;
             break;
         default:
@@ -134,27 +134,6 @@ void nes_init()
             {
                 emu.prgRamBlocks[i][j] = buffer[start++];
             }
-
-/*            if(i == 0)
-            {
-                u32 adr = 0x8000;
-                for(int j = 0; j < 16384; j++)
-                {
-                    memory[adr+j] = buffer[start+j];
-                }
-                if(prgSize == 2)
-                    start += 16384;
-            }
-            else if(i==1) // TODO: mirror, don't copy
-            {
-                u32 adr = 0xC000;
-                int j;
-                for(j = 0; j < 16384; j++)
-                {
-                    memory[adr+j] = buffer[start+j];
-                }
-                start+= 16384;
-            }*/
         }
 
         if(prgSize == 1)

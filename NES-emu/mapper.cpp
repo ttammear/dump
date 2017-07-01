@@ -111,7 +111,7 @@ void mapper001_write(u16 adr, u8 val)
                         case 0:
                             assert((shiftRegister&0xE)+1 < emu.prgRamBlockCount);
                             emu.currentPrg1Ptr = emu.prgRamBlocks[shiftRegister&0xE];
-                            emu.currentPrg2Ptr = emu.prgRamBlocks[(shiftRegister&0xE) + 1];
+                            emu.currentPrg2Ptr = emu.prgRamBlocks[(shiftRegister&0xE)+1];
                             break;
                         case 2:
                             assert((shiftRegister&0xF) < emu.prgRamBlockCount);

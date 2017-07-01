@@ -240,7 +240,7 @@ inline void ppu_eval_sprites(i32 sl)
     for(int i = 0; i < 64; i++)
     {
         // TODO: implement 8x16 sprites, also below when rendering
-        assert((ppu.CTRL & 0x20) == 0);
+        //assert((ppu.CTRL & 0x20) == 0);
         u32 spriteY = ppu_read_oam_data(4*i);
         if(sl >= spriteY && sl < spriteY+8)
         {
@@ -311,9 +311,15 @@ inline void ppu_render_pixel(i32 sl, i32 col)
     // sprites
     if((ppu.MASK & 0x10) != 0 && (!isLeftEdge || (ppu.MASK&0x4) != 0))
     {
+
         Eval_Sprite *sprites = sld->sprites;
         for(int i = 0; i < sld->spriteCount; i++)
         {
+            u16 spriteTblAdr;
+            if((ppu.CTRL&0x20) == 0)
+                spriteTblAdr = ppu.spriteTblAdr;
+            else
+                spriteTblAdr = (sprites[i].idx&1)==0?0x0000:0x1000;
             if(x >= sprites[i].xPos && x < sprites[i].xPos+8)
             {
                 u32 yOfst = (y-1)-(sprites[i].yPos);
@@ -323,8 +329,8 @@ inline void ppu_render_pixel(i32 sl, i32 col)
                 u8 vFlip = yOfst;
                 if((0x80 & sprites[i].attr) != 0)
                     vFlip = 7 - yOfst;
-                u8 slowSR = ppu_read_byte((sprites[i].idx<<4)+vFlip+ppu.spriteTblAdr);
-                u8 shighSR = ppu_read_byte((sprites[i].idx<<4)+vFlip+ppu.spriteTblAdr+8);
+                u8 slowSR = ppu_read_byte((sprites[i].idx<<4)+vFlip+spriteTblAdr);
+                u8 shighSR = ppu_read_byte((sprites[i].idx<<4)+vFlip+spriteTblAdr+8);
                 u8 sft=7-xOfst;
                 if((0x40 & sprites[i].attr) != 0) // horizontal flip
                     sft = xOfst;

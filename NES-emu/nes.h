@@ -1,6 +1,6 @@
 #pragma once 
 
-#include "libs/ttTypes.h"
+#include "ttTypes.h"
 
 #define TV_SYSTEM_NTSC  0
 #define TV_SYSTEM_PAL   1
@@ -71,6 +71,7 @@ struct Eval_Sprite
     u8 attr;
     u8 xPos;
     u8 isSprite0;
+    u8 isFirstPart; // false if second part of 8x16 sprite
 };
 
 struct Scanline_Data
