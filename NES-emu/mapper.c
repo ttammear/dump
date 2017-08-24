@@ -149,7 +149,7 @@ void mapper003_write(u16 adr, u8 val)
         emu.currentChrHiPtr = emu.chrRomBlocks[val]+4096;
     }
     else
-        assert(false);
+        assert(FALSE);
 }
 
 b32 mapper_init(u32 mapperId)

@@ -15,3 +15,6 @@ typedef long long i64;
 typedef float r32;
 typedef double r64;
 
+#define TRUE    1
+#define FALSE   0
+

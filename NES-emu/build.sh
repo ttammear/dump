@@ -1,5 +1,5 @@
 set -e # break on error
-gcc main.cpp nes.cpp cpu.cpp ppu.cpp apu.cpp mapper.cpp platform.c -lGL -lSDL2 -lGLU -lGLEW -lm -lstdc++ -ggdb
+gcc main.c nes.c cpu.c ppu.c apu.c mapper.c platform.c -lGL -lSDL2 -lGLU -lGLEW -lm -lstdc++ -ggdb
 if [ $1 == 'run' ]
 then
 ./a.out

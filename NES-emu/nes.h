@@ -15,7 +15,7 @@
 typedef u8   (*cartridgeReadFunc)(u16);
 typedef void (*cartridgeWriteFunc)(u16, u8);
 
-struct Emulator
+typedef struct Emulator
 {
     u32 tvSystem;
     r64 secondsSinceStart;
@@ -35,9 +35,9 @@ struct Emulator
 
     cartridgeReadFunc crRead;
     cartridgeWriteFunc crWrite;
-};
+} Emulator;
 
-struct CPU
+typedef struct CPU
 {
     // computational state
     u8 A; // accumulator
@@ -62,9 +62,9 @@ struct CPU
     u32 clockHz;
     u32 suspClocks; // clocks left to complete instruction
 
-} __attribute__((packed));
+} __attribute__((packed)) CPU;
 
-struct Eval_Sprite
+typedef struct Eval_Sprite
 {
     u8 yPos;
     u8 idx;
@@ -72,9 +72,9 @@ struct Eval_Sprite
     u8 xPos;
     u8 isSprite0;
     u8 isFirstPart; // false if second part of 8x16 sprite
-};
+} Eval_Sprite;
 
-struct Scanline_Data
+typedef struct Scanline_Data
 {
     u32 palIdx;
     u8 indexBits;
@@ -82,9 +82,9 @@ struct Scanline_Data
     u8 highSR;
     Eval_Sprite sprites[8];
     u32 spriteCount;
-};
+} Scanline_Data;
 
-struct PPU
+typedef struct PPU
 {
     u8 CTRL;
     u8 MASK;
@@ -115,22 +115,22 @@ struct PPU
 
     Scanline_Data slData;
 
-} __attribute__((packed));
+} __attribute__((packed)) PPU;
 
-struct SweepUnit
+typedef struct SweepUnit
 {
     u8 reload;
     u8 divider;
-};
+} SweepUnit;
 
-struct EnvelopeUnit
+typedef struct EnvelopeUnit
 {
     u8 startFlag;
     u8 divider;
     u8 decay;
-};
+} EnvelopeUnit;
 
-struct APU
+typedef struct APU
 {
     u8 PULSE1[4];       // 0x4000
     u8 PULSE2[4];       // 0x4004
@@ -171,7 +171,7 @@ struct APU
     u32 frameClkCount;
     // keeps track of the 4 or 5 frame counter tick sequence
     u32 frameCounter;
-} __attribute__((packed));
+} __attribute__((packed)) APU;
 
 extern Emulator emu;
 extern CPU cpu;
@@ -200,7 +200,7 @@ void ppu_set_register(u8 reg, u8 value);
 void apu_set_register(u8 reg, u8 value);
 void apu_init();
 void cpu_cycle();
-bool ppu_cycle();
+b32 ppu_cycle();
 void apu_cycle();
 void cpu_nmi_trigger();
 u8 ppu_read_oam_data(u8 adr);

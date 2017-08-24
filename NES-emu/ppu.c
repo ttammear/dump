@@ -149,12 +149,12 @@ u8 ppu_read_oam_data(u8 adr)
     return val;
 }
 
-inline u8 ppu_read_nametable_byte(u16 adr)
+static inline u8 ppu_read_nametable_byte(u16 adr)
 {
     return emu.currentNtPtr[(adr&0xFFF)>>10][adr&0x3FF];
 }
 
-inline void ppu_write_nametable_byte(u16 adr, u8 val)
+static inline void ppu_write_nametable_byte(u16 adr, u8 val)
 {
     emu.currentNtPtr[(adr&0xFFF)>>10][adr&0x3FF] = val;
 }
@@ -193,7 +193,7 @@ u8 ppu_read_byte(u16 adr)
     }
     else
     {
-        assert(false); // ppu memory region not set
+        assert(FALSE); // ppu memory region not set
         return 0;
     }
 }
@@ -233,7 +233,7 @@ void ppu_write_byte(u16 adr, u8 value)
     }
 }
 
-inline void ppu_eval_sprites(i32 sl)
+static inline void ppu_eval_sprites(i32 sl)
 {
     Scanline_Data *sld = &ppu.slData;
     u32 sc = 0;
@@ -261,7 +261,7 @@ inline void ppu_eval_sprites(i32 sl)
     sld->spriteCount = sc;
 }
 
-inline void ppu_render_pixel(i32 sl, i32 col)
+static inline void ppu_render_pixel(i32 sl, i32 col)
 {
     Scanline_Data *sld = &ppu.slData;
     u32 bgColor = palette[ppu_read_byte(0x3F00)];
@@ -357,9 +357,9 @@ inline void ppu_render_pixel(i32 sl, i32 col)
 }
 
 
-bool ppu_cycle() 
+b32 ppu_cycle() 
 {
-    bool ret = false;
+    b32 ret = FALSE;
     u32 slClk = ppu.clk%341;
     if(ppu.scanline == -1 && slClk == 1)
     {
@@ -384,7 +384,7 @@ bool ppu_cycle()
         if(ppu.scanline == 261) // last scanline
         {
             ppu.scanline = -1;
-            ret = true;
+            ret = TRUE;
         }
         else
             ppu.scanline++;

@@ -15,10 +15,7 @@ PPU ppu;
 APU apu;
 Emulator emu;
 
-extern "C"
-{
-    b32 platform_choose_file(char *buffer, int bufSize);
-}
+b32 platform_choose_file(char *buffer, int bufSize);
 
 void show_error(const char* title, const char* error)
 {
@@ -99,10 +96,10 @@ void nes_init()
         u8 prgRAMSize = buffer[8]; // 0 means 8k, number of 8k units
         u8 f9 = buffer[9];
         u8 f10 = buffer[10];
-        bool hasTrainer = (0x04&f6)!=0;
-        bool ntMirroring = f6&1; // 0 = horizontal, 1 = vertical
+        b32 hasTrainer = (0x04&f6)!=0;
+        b32 ntMirroring = f6&1; // 0 = horizontal, 1 = vertical
         u8 mapperNumber = (f7&0xF0) | (f6 >> 4);
-        bool isPal = (0x01&f9)!=0;
+        b32 isPal = (0x01&f9)!=0;
 
         emu.tvSystem = isPal ? TV_SYSTEM_PAL : TV_SYSTEM_NTSC;
         cpu.clockHz = isPal ? 1662607 : 1789773;
@@ -123,13 +120,13 @@ void nes_init()
         u32 start = 16;
 
         // TODO: free
-        emu.prgRamBlocks = new u8*[prgSize];
+        emu.prgRamBlocks = malloc(prgSize);
         emu.prgRamBlockCount = prgSize;
 
         for(int i = 0; i < prgSize; i++)
         {
             // TODO: free
-            emu.prgRamBlocks[i] = new u8[16384];
+            emu.prgRamBlocks[i] = malloc(16384);
             for(int j = 0; j < 0x4000; j++) // 16K
             {
                 emu.prgRamBlocks[i][j] = buffer[start++];
@@ -149,11 +146,11 @@ void nes_init()
 
         assert(chrSize > 0);
         // TODO: free
-        emu.chrRomBlocks = new u8*[chrSize];
+        emu.chrRomBlocks = malloc(chrSize * sizeof(u8*));
         for(int i = 0; i < chrSize; i++)
         {
             // TODO: free
-            emu.chrRomBlocks[i] = new u8[8192];
+            emu.chrRomBlocks[i] = malloc(8192);
             for(int j = 0; j < 8192; j++)
             {
                 emu.chrRomBlocks[i][j] = buffer[start++];
@@ -169,7 +166,7 @@ void nes_init()
     else
     {
         printf("Loading ROM failed\n");
-        assert(false);
+        assert(FALSE);
     }
     free(buffer);
     
@@ -183,7 +180,7 @@ void nes_init()
 void nes_frame()
 {  
     u32 i; 
-    for(i = 0; ppu_cycle() == false; i++)
+    for(i = 0; ppu_cycle() == FALSE; i++)
     {
         if(i%3 == 0) // cpu runs at 3x lower clock than ppu
         {

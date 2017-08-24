@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <time.h>
 
-void apu_half_frame();
-void apu_quarter_frame();
+static void apu_half_frame();
+static void apu_quarter_frame();
 
 u8 lengthTable[32] =
 {
@@ -214,7 +214,7 @@ void apu_set_register(u8 reg, u8 value)
     }
 }
 
-inline void apu_length_tick()
+static inline void apu_length_tick()
 {
     if((apu.PULSE1[0] & 0x20) == 0 && apu.p1Length > 0) // length halt bit clear
         apu.p1Length--;
@@ -226,7 +226,7 @@ inline void apu_length_tick()
         apu.nLength--;
 }
 
-inline void sweep(SweepUnit *su, u8 chReg[], u32 channel)
+static inline void sweep(SweepUnit *su, u8 chReg[], u32 channel)
 {
     u16 shiftAmount = ((chReg[1])&0x7);
     u16 timer = (chReg[2] | ((chReg[3]&0x07)<<8));
@@ -249,7 +249,7 @@ inline void sweep(SweepUnit *su, u8 chReg[], u32 channel)
     } // TODO: else send 0 to mixer
 }
 
-inline void sweep_tick(SweepUnit *su, u8 chReg[], u32 channel)
+static inline void sweep_tick(SweepUnit *su, u8 chReg[], u32 channel)
 {
     u8 sweepCtrl = chReg[1];
     if(su->reload)
@@ -273,7 +273,7 @@ inline void sweep_tick(SweepUnit *su, u8 chReg[], u32 channel)
     }
 }
 
-inline void envelope_tick(EnvelopeUnit *env, u8 ctrlReg)
+static inline void envelope_tick(EnvelopeUnit *env, u8 ctrlReg)
 {
     if(!env->startFlag) // start flag clear, clock divider
     {
@@ -297,7 +297,7 @@ inline void envelope_tick(EnvelopeUnit *env, u8 ctrlReg)
 }
 
 // triangle channel linear counter
-inline void apu_linear_counter_tick()
+static inline void apu_linear_counter_tick()
 {
     if(apu.tLinReloadFlag)
         apu.tLinCounter = apu.TRIANGLE[0] & 0x7F;
@@ -310,14 +310,14 @@ inline void apu_linear_counter_tick()
         apu.tLinReloadFlag = 0;
 }
 
-inline void apu_half_frame()
+static inline void apu_half_frame()
 {
     apu_length_tick();
     sweep_tick(&apu.p1Sweep, apu.PULSE1, 1);
     sweep_tick(&apu.p2Sweep, apu.PULSE2, 2);
 }
 
-inline void apu_quarter_frame()
+static inline void apu_quarter_frame()
 {
     envelope_tick(&apu.p1Env, apu.PULSE1[0]);
     envelope_tick(&apu.p2Env, apu.PULSE2[0]);

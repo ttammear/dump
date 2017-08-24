@@ -102,14 +102,14 @@
 #define SET_SIGN_FLAG_VAL(x) (cpu.signFlag = ((x)&0x80)!=0)
 #define SET_ZERO_FLAG_VAL(x) (cpu.zeroFlag = ((x)==0))
 
-inline void PUSH_BYTE(u8 b)
+static inline void PUSH_BYTE(u8 b)
 {
     u16 adr = 0x100 | cpu.S;
     write_byte(adr, b);
     cpu.S--;
 }
 
-inline u8 POP_BYTE()
+static inline u8 POP_BYTE()
 {
     u8 prev = ++cpu.S;
     u16 adr = 0x100|prev;
@@ -418,7 +418,7 @@ u8 read_byte(u16 adr)
         switch(adr)
         {
             case 0x4014:
-                assert(false);
+                assert(FALSE);
                 break;
             case 0x4015:
                 ret = apu.CONTROL;
@@ -476,15 +476,15 @@ void write_byte(u16 adr, u8 value)
     else if(adr >= 0x4020) // cartridge
         emu.crWrite(adr, value);
     else
-        assert(false);
+        assert(FALSE);
 }
 
-inline u8 cpu_get_status()
+static inline u8 cpu_get_status()
 {
     return (cpu.carryFlag) | (cpu.zeroFlag<<1) | (cpu.intFlag<<2) | (cpu.decimalFlag<<3) | (cpu.overflowFlag<<6) | (cpu.signFlag<<7) | 0x20;
 }
 
-inline u8 cpu_set_status(u8 status)
+static inline u8 cpu_set_status(u8 status)
 {
     cpu.carryFlag = status&0x1;
     cpu.zeroFlag = (status&0x2)>>1;
@@ -603,7 +603,7 @@ void cpu_cycle()
                 adr = (adrhigh << 8) | adrlow;
             } break;
         default:
-            assert(false); // unknown addressing mode
+            assert(FALSE); // unknown addressing mode
             break;
     }
 
@@ -949,7 +949,7 @@ void cpu_cycle()
         default:
             fprintf(stderr, "Execute %s(0x%02x) %s clk: %d\n", inst_to_string(instr), op, adr_mode_to_string(adrMode), clk);
             fprintf(stderr, "Unknown instruction \n");
-            assert(false);
+            assert(FALSE);
             break;
     }
     assert(cpu.suspClocks != 0);
