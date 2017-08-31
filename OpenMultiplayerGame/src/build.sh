@@ -2,5 +2,5 @@ g++ main.cpp application.cpp Renderer/OpenGL/renderer.cpp game.cpp Renderer/mesh
 
 if [ $1 == 'run' ]
 then
-sh -c 'cd .. && ./game.out'
+gnome-terminal -e './game.out' --working-directory '/keep/Projects/OpenMultiplayerGame'
 fi

@@ -13,6 +13,7 @@ public:
     void unloadChunk(IVec3 chunkId);
     void blockDirty(IVec3 block);
     void blockChanged(IVec3 block);
+    void chunkChanged(IVec3 chunkId);
     void update();
     void render();
 

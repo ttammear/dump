@@ -7,6 +7,9 @@
 #include "world.h"
 #include <cstring>
 
+#include <SFML/System/Time.hpp>
+#include <SFML/System/Clock.hpp>
+
 namespace
 {
     extern Vec3 sideOffsets[6];
@@ -38,9 +41,9 @@ Chunk::~Chunk()
 IVec3 Chunk::getChunkId(IVec3 block)
 {
     IVec3 ret;
-    ret.x = ((int)floor(block.x / (float)CHUNK_STORE_SIZE)) * CHUNK_STORE_SIZE;
-    ret.y = ((int)floor(block.y / (float)CHUNK_STORE_SIZE)) * CHUNK_STORE_SIZE;
-    ret.z = ((int)floor(block.z / (float)CHUNK_STORE_SIZE)) * CHUNK_STORE_SIZE;
+    ret.x = ((int)myfloorf(block.x / (float)CHUNK_STORE_SIZE)) * CHUNK_STORE_SIZE;
+    ret.y = ((int)myfloorf(block.y / (float)CHUNK_STORE_SIZE)) * CHUNK_STORE_SIZE;
+    ret.z = ((int)myfloorf(block.z / (float)CHUNK_STORE_SIZE)) * CHUNK_STORE_SIZE;
     return ret;
 }
 
@@ -50,7 +53,7 @@ IVec3 Chunk::getLocalOffset(IVec3 block)
     return IVec3(block.x - chunk.x, block.y - chunk.y, block.z - chunk.z);
 }
 
-bool isTransparent(uint8_t blockId)
+inline bool isTransparent(uint8_t blockId)
 {
     switch(blockId)
     {
@@ -98,13 +101,22 @@ void Chunk::regenerateMesh()
     int transIndexCount = 0;
 
     int size = this->size;
+
+    int sizep1 = size+1;
+    uint8_t blockBuf[sizep1*sizep1*sizep1];
+    for(int i = 0; i < sizep1; i++)
+    for(int j = 0; j < sizep1; j++)
+    for(int k = 0; k < sizep1; k++)
+    {
+        blockBuf[i*sizep1*sizep1 + j*sizep1 + k] = world->getBlockId(IVec3(offset.x+i, offset.y+j, offset.z+k));
+    }
+
     for(int i = 0; i < size; i++)
     for(int j = 0; j < size; j++)
     for(int k = 0; k < size; k++)
     {
         Vec3 localOffset(i, j, k);
-        IVec3 blockV((int)offset.x+i, (int)offset.y+j, (int)offset.z+k);
-        int blockId = world->getBlockId(blockV);
+        int blockId = blockBuf[i*sizep1*sizep1 + j*sizep1 + k];
         bool blockEmpty = blockId == 0;
         bool blockTransparent = isTransparent(blockId);
         
@@ -112,7 +124,8 @@ void Chunk::regenerateMesh()
 
         for(int dir = 0; dir < 3; dir++)
         {
-            uint8_t dirBlockId = world->getBlockId(IVec3(blockV.x+(int)directions[dir].x, blockV.y+(int)directions[dir].y, blockV.z+(int)directions[dir].z));
+            IVec3 dof (IVec3(i+(int)directions[dir].x, j+(int)directions[dir].y, k+(int)directions[dir].z));
+            uint8_t dirBlockId = blockBuf[dof.x*sizep1*sizep1 + dof.y*sizep1 + dof.z];
             Block *dirBlock = blockStore->getBlock(dirBlockId);
             bool dirEmpty = dirBlockId == 0;
             bool dirTransparent = isTransparent(dirBlockId);

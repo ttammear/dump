@@ -407,3 +407,8 @@ float perlin2D(Vec3 point, float frequency);
 
 #define mymin(x, y) (x < y ? x : y)
 #define mymax(x, y) (x > y ? x : y)
+
+static inline int myfloorf(float x)
+{
+    return (int) x - (x < (int) x);
+}

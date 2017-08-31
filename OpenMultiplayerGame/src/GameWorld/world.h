@@ -6,7 +6,8 @@
 #include "../Maths/maths.h"
 #include "chunk.h"
 #include "chunkmanager.h"
-#include "worldgenerator.h"
+#include "worldgenerator.h" 
+#include <assert.h>
 
 struct ChunkData
 {
@@ -18,6 +19,12 @@ struct ChunkData
     ChunkData(IVec3 offset)
     {
         this->offset = offset;
+    }
+
+    void setBlock(int x, int y, int z, uint8_t value)
+    {
+        assert(x < CHUNK_STORE_SIZE && y < CHUNK_STORE_SIZE && z < CHUNK_STORE_SIZE);
+        data[x*CHUNK_STORE_SIZE*CHUNK_STORE_SIZE + y*CHUNK_STORE_SIZE + z] = value;
     }
 
     int flags;
@@ -39,6 +46,7 @@ public:
     ~World();
 
     class ChunkData* getOrCreateChunkData(IVec3 chunkId);
+    void markChunkDirty(IVec3 chunkId);
     uint8_t getBlockId(IVec3 block);
     uint8_t setBlockId(IVec3 block, uint8_t newId);
     bool lineCast(RaycastHit& hit, Vec3 start, Vec3 end);

@@ -66,10 +66,15 @@ uint8_t World::setBlockId(IVec3 block, uint8_t newId)
 
     const int s = CHUNK_STORE_SIZE;
     uint8_t ret = cdata->data[localOffset.x*s*s + localOffset.y*s + localOffset.z];
-    cdata->data[localOffset.x*s*s + localOffset.y*s + localOffset.z] = newId;
+    cdata->setBlock(localOffset.x, localOffset.y, localOffset.z, newId);
     if(ret != newId)
         chunkManager.blockChanged(block);
     return ret;
+}
+
+void World::markChunkDirty(IVec3 chunkId)
+{
+    chunkManager.chunkChanged(chunkId);
 }
 
 bool World::lineCast(RaycastHit &hit, Vec3 start, Vec3 end)
@@ -84,7 +89,7 @@ bool World::lineCast(RaycastHit &hit, Vec3 start, Vec3 end)
     for(int i = 0; i < steps; i++)
     {
         Vec3 point = start + progress*ray;
-        IVec3 blockV((int)floor(point.x), (int)floor(point.y), (int)floor(point.z));
+        IVec3 blockV((int)myfloorf(point.x), (int)myfloorf(point.y), (int)myfloorf(point.z));
         if(!(blockV == lastBlock))
         {
             uint8_t bid = getBlockId(blockV);    

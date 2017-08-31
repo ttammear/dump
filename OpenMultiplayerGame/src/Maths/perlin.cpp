@@ -39,8 +39,8 @@ const static Vec2 gradients2D[] =
 float perlin2D(Vec3 point, float frequency) 
 {
 		point *= frequency;
-		int ix0 = (int)floorf(point.x);
-		int iy0 = (int)floorf(point.y);
+		int ix0 = (int)myfloorf(point.x);
+		int iy0 = (int)myfloorf(point.y);
 		float tx0 = point.x - ix0;
 		float ty0 = point.y - iy0;
 		float tx1 = tx0 - 1.0f;

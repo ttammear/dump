@@ -32,7 +32,7 @@ bool ChunkManager::loadChunk(IVec3 chunkId)
         chunk = new Chunk(blockStore, world, chunkId, 16);
         chunk->regenerateMesh();
         loadedChunks.insert({chunkId, chunk});
-        printf("Load chunk %d %d %d\n", chunkId.x, chunkId.y, chunkId.z);
+        //printf("Load chunk %d %d %d\n", chunkId.x, chunkId.y, chunkId.z);
         return true;
     }
     return false;
@@ -44,7 +44,7 @@ void ChunkManager::unloadChunk(IVec3 chunkId)
     if(fchunk != loadedChunks.end())
     {
         delete fchunk->second;
-        printf("Unload chunk %d %d %d\n", chunkId.x, chunkId.y, chunkId.z);
+        //printf("Unload chunk %d %d %d\n", chunkId.x, chunkId.y, chunkId.z);
         loadedChunks.erase(fchunk);
     }
 }
@@ -65,6 +65,15 @@ void ChunkManager::blockChanged(IVec3 block)
     blockDirty(block + IVec3(0, -1, 0));
     blockDirty(block + IVec3(0, 0, -1));
     blockDirty(block);
+}
+    
+void ChunkManager::chunkChanged(IVec3 chunkId)
+{
+    auto fchunk = loadedChunks.find(chunkId);
+    if(fchunk != loadedChunks.end())
+    {
+        fchunk->second->flags |= Chunk::Flags::Dirty;
+    }
 }
 
 void ChunkManager::update()
