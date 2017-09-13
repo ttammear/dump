@@ -23,7 +23,6 @@
 
 static SDL_Renderer* displayRenderer;
 static SDL_Texture* texture;
-static SDL_Surface *surface;
 
 u32 buffer[400][400];
 
@@ -130,13 +129,16 @@ int main(int argc, char *argv[])
 
     SDL_Window* displayWindow;
     SDL_RendererInfo displayRendererInfo;
-    SDL_CreateWindowAndRenderer(800, 600, SDL_WINDOW_OPENGL, &displayWindow, &displayRenderer);
-    SDL_GetRendererInfo(displayRenderer, &displayRendererInfo);
-    /*TODO: Check that we have OpenGL */
-    if ((displayRendererInfo.flags & SDL_RENDERER_ACCELERATED) == 0 || 
+    displayWindow = SDL_CreateWindow("NES emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600, 0);
+    displayRenderer = SDL_CreateRenderer(displayWindow, -1, SDL_RENDERER_SOFTWARE);
+//    SDL_CreateWindowAndRenderer(800, 600, 0, &displayWindow, &displayRenderer);
+/*    SDL_GetRendererInfo(displayRenderer, &displayRendererInfo);
+    //TODO: Check that we have OpenGL */
+    /*if ((displayRendererInfo.flags & SDL_RENDERER_ACCELERATED) == 0 || 
         (displayRendererInfo.flags & SDL_RENDERER_TARGETTEXTURE) == 0) {
-        /*TODO: Handle this. We have no render surface and not accelerated. */
-    }
+        //TODO: Handle this. We have no render surface and not accelerated.
+        printf("WARNING: unaccelerated renderer\n");
+    }*/
     
     /*i32 x,y,n;
     unsigned char *data = stbi_load("tux.png", &x, &y, &n, 3);
@@ -149,7 +151,6 @@ int main(int argc, char *argv[])
     u32 timeOff = SDL_GetTicks();
     
     texture = SDL_CreateTexture(displayRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, 256, 240); 
-    surface = SDL_CreateRGBSurfaceFrom(NULL, 256, 240, 32, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
 
 #ifdef __EMSCRIPTEN__
     // void emscripten_set_main_loop(em_callback_func func, int fps, int simulate_infinite_loop);
@@ -173,6 +174,8 @@ int main(int argc, char *argv[])
         startTime = curTime;
     }
 #endif
+
+    SDL_DestroyTexture(texture);
 
     CleanupAudio();
     SDL_DestroyWindow(displayWindow);
