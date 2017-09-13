@@ -484,7 +484,7 @@ static inline u8 cpu_get_status()
     return (cpu.carryFlag) | (cpu.zeroFlag<<1) | (cpu.intFlag<<2) | (cpu.decimalFlag<<3) | (cpu.overflowFlag<<6) | (cpu.signFlag<<7) | 0x20;
 }
 
-static inline u8 cpu_set_status(u8 status)
+static inline void cpu_set_status(u8 status)
 {
     cpu.carryFlag = status&0x1;
     cpu.zeroFlag = (status&0x2)>>1;

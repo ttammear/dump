@@ -58,8 +58,9 @@ void emu_set_nt_mirroring(u32 mirroring)
 
 void nes_init()
 {
-    char fileNameBuffer[4096];
-    platform_choose_file(fileNameBuffer, 4096);
+    //char fileNameBuffer[4096];
+    //platform_choose_file(fileNameBuffer, 4096);
+    char *fileNameBuffer = "Dr. Mario (Japan, USA).nes";
 
     // TODO: read ROM
     char * buffer = 0;
@@ -78,6 +79,10 @@ void nes_init()
             fread (buffer, 1, length, f);
         }
         fclose (f);
+    }
+    else
+    {
+        printf("fopen failed\n");
     }
 
     if (buffer)
