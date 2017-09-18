@@ -6,7 +6,7 @@
 class ChunkManager
 {
 public:
-    ChunkManager(class Renderer* renderer, class Camera* camera, class BlockStore *blockStore, class World *world);
+    ChunkManager(class Renderer *renderer, class BlockStore *blockStore, class World *world);
     ~ChunkManager();
 
     bool loadChunk(IVec3 chunkId);
@@ -15,13 +15,13 @@ public:
     void blockChanged(IVec3 block);
     void chunkChanged(IVec3 chunkId);
     void update();
-    void render();
+    void render(class Camera *cam);
 
     std::unordered_map<IVec3, class Chunk*> loadedChunks;
 
     class Renderer *renderer;
-    class Camera *camera;
     class BlockStore *blockStore;
     class World *world;
     int frameId = 0;
+    Vec3 viewerPosition;
 };

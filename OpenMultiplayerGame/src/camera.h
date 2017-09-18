@@ -6,6 +6,12 @@
 class Camera
 {
 public:
+
+    enum Flags
+    {
+        Disabled = 1 << 0
+    };
+
     Camera();
     Camera(float targetWidth, float targetHeight);
     Mat4 getViewProjectionMatrix();
@@ -17,6 +23,8 @@ public:
     // temporary until there's proper rendertarget!
     float targetWidth;
     float targetHeight;
+
+    unsigned int flags = 0;
 
     Transform transform;
 };

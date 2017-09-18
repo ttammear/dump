@@ -4,6 +4,10 @@
 #include "GameWorld/world.h"
 #include "GameWorld/chunk.h"
 #include "Player/gui.h"
+#include "Networking/server.h"
+#include "macros.h"
+
+#include "Dotnet/dotnet.h"
 
 #include <cstdio>
 
@@ -34,27 +38,36 @@ void Game::setMode(uint32_t mode)
     switch(mode)
     {
         case Mode::Mode_FreeView:
-            activeCam = &freeCam;
-            world->setCamera(&freeCam);
+            activeCam = &spectator.camera;
+            CLEARFLAG(spectator.camera.flags, Camera::Flags::Disabled);
+            SETFLAG(player.camera.flags, Camera::Flags::Disabled);
             break;
         case Mode::Mode_Player:
             activeCam = &player.camera;
-            world->setCamera(&player.camera);
+            SETFLAG(spectator.camera.flags, Camera::Flags::Disabled);
+            CLEARFLAG(player.camera.flags, Camera::Flags::Disabled);
             player.world = world;
             break;
     }
 }
 
+Dotnet dotnet;
+
+Server server;
+
 void Game::simulate(Renderer *renderer, float dt)
 {
     if(!initialized)
     {
-        initialized = true;
+        server.Init(8888);
+        server.Deinit();
 
-        this->freeCam.transform.position = Vec3(0.0f, 0.0f, 3.0f);
-        // NOTE: also hardcoded in frag shader currently
-        this->freeCam.zNear = 0.1f;
-        this->freeCam.zFar = 100.0f;
+        dotnet.loadClrLib();
+        dotnet.startHost();
+        dotnet.test();
+        dotnet.stopHost();
+
+        initialized = true;
 
         player.transform.position = Vec3(0.0f, 10.0f, 0.0f);
 
@@ -63,7 +76,6 @@ void Game::simulate(Renderer *renderer, float dt)
         camRot = Vec2(0.0f, 0.0f);
 
         // texture
-        
         atlas = new TextureArray(16, 16, 4, 257);
 
         int width, height, comps;
@@ -98,7 +110,9 @@ void Game::simulate(Renderer *renderer, float dt)
         blockStore.createBlock(18, {"Leaves", {53, 53, 53, 53, 53, 53}});
         blockStore.createBlock(45, {"Brick", {8, 8, 8, 8, 8, 8}});
 
-        world = new World(renderer, &blockStore, &player.camera);
+        world = new World(renderer, &blockStore);
+        world->cameras.push_back(&player.camera);
+        world->cameras.push_back(&spectator.camera);
         setMode(Mode::Mode_Player);
 
         this->gui = new Gui(renderer, &this->player, &blockStore);
@@ -115,41 +129,16 @@ void Game::simulate(Renderer *renderer, float dt)
     }
     mousePosLast = Vec2((float)globalPosition.x, (float)globalPosition.y);
 
-    // TODO: move somewhere else
     if(mode == Mode::Mode_FreeView)
     {
-        // TODO: input system
-        const float moveSpeed = 30.0f;
-        const float rotSpeed = 0.4f;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
-        {
-            this->freeCam.transform.position += dt*moveSpeed*freeCam.transform.forward();
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
-        {
-            this->freeCam.transform.position -= dt*moveSpeed*freeCam.transform.forward();
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
-        {
-            this->freeCam.transform.position -= dt*moveSpeed*freeCam.transform.right();
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
-        {
-            this->freeCam.transform.position += dt*moveSpeed*freeCam.transform.right();
-        }
-
-        camRot += this->mouseDelta;
-
-        Quaternion rotX = Quaternion::AngleAxis(rotSpeed * camRot.x, Vec3(0.0f, 1.0f, 0.0f));
-        Quaternion rotY = Quaternion::AngleAxis(rotSpeed * camRot.y, Vec3(1.0f, 0.0f, 0.0f));
-        this->freeCam.transform.rotation = rotX * rotY;
+        spectator.update(dt, mouseDelta);
     }
     else
     {
         player.update(dt, mouseDelta);
     }
 
-    world->update();
+    world->update(activeCam);
 }
 
 void Game::keyPress(sf::Keyboard::Key key)

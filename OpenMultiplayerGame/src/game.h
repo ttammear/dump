@@ -1,6 +1,7 @@
 #include "Maths/maths.h"
 #include "camera.h"
 #include "Player/player.h"
+#include "Player/spectator.h"
 #include "GameWorld/blockstore.h"
 
 #include <SFML/Window.hpp>
@@ -29,7 +30,7 @@ public:
 
     Camera *activeCam;
     Player player;
-    Camera freeCam;
+    Spectator spectator;
 
     Vec2 mousePosLast;
     Vec2 mouseDelta;

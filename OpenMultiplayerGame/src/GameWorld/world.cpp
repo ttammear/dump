@@ -4,10 +4,9 @@
 #include "../Maths/maths.h"
 #include "../camera.h"
 
-World::World(Renderer *renderer, BlockStore *blockStore, Camera *cam)
-    : chunkManager(renderer, cam, blockStore, this), worldGenerator(this)
+World::World(Renderer *renderer, BlockStore *blockStore)
+    : chunkManager(renderer, blockStore, this), worldGenerator(this)
 {
-    this->mainCam = cam;
     gravity = {0.0f, -9.8f, 0.0f};
 }
 
@@ -121,19 +120,18 @@ bool World::lineCast(RaycastHit &hit, Vec3 start, Vec3 end)
     return false;
 }
 
-void World::update()
+void World::update(Camera *cam)
 {
+    chunkManager.viewerPosition = cam->transform.position;
     chunkManager.update();
 }
 
 void World::render()
 {
-    chunkManager.render();
-}
-
-void World::setCamera(Camera *cam)
-{
-    this->mainCam = cam;    
-    chunkManager.camera = cam;
+    for(auto cam : cameras)
+    {
+        if((cam->flags & Camera::Flags::Disabled) == 0)
+            chunkManager.render(cam);
+    }
 }
 

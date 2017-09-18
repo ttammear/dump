@@ -180,7 +180,7 @@ void Dotnet::startHost()
 
     if(status < 0)
     {   
-        fprintf(stderr, "coreclr_initialize status %d\n", status);
+        fprintf(stderr, "coreclr_initialize status 0x%x\n", status);
         exit(-1);
     }
 
@@ -223,7 +223,7 @@ void Dotnet::stopHost()
     status = coreclr_shutdown_2(clrHost, domainId, &latchedExitCode); 
     if(status < 0)
     {
-        fprintf(stderr, "cureclr_shutdown_2 status %d\n", status);
+        fprintf(stderr, "cureclr_shutdown_2 status 0x%x\n", status);
         exit(-1);
     }
     hostRunning = false;

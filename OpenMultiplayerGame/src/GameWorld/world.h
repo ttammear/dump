@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <vector>
 #include <stdint.h>
 
 #include "../Maths/maths.h"
@@ -42,7 +43,7 @@ struct RaycastHit
 class World
 {
 public:
-    World(class Renderer *renderer, class BlockStore *blockStore, class Camera *cam);
+    World(class Renderer *renderer, class BlockStore *blockStore);
     ~World();
 
     class ChunkData* getOrCreateChunkData(IVec3 chunkId);
@@ -51,13 +52,12 @@ public:
     uint8_t setBlockId(IVec3 block, uint8_t newId);
     bool lineCast(RaycastHit& hit, Vec3 start, Vec3 end);
 
-    void update();
+    void update(Camera *cam);
     void render();
-    void setCamera(class Camera *cam);
 
     std::unordered_map<IVec3, ChunkData*> chunks;
+    std::vector<class Camera*> cameras;
 
-    class Camera *mainCam;
     class Renderer *renderer;
     class BlockStore *blockStore;
     ChunkData *lastChunkAccess = nullptr;

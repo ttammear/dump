@@ -5,13 +5,11 @@
 #include "../Renderer/renderer.h"
 #include "../camera.h"
 
-ChunkManager::ChunkManager(Renderer *renderer, Camera *camera, BlockStore *bs, World *world)
+ChunkManager::ChunkManager(Renderer *renderer, BlockStore *bs, World *world)
 {
     this->renderer = renderer;
-    this->camera = camera;
     this->blockStore = bs;
     this->world = world;
-
 }
 
 ChunkManager::~ChunkManager()
@@ -78,8 +76,7 @@ void ChunkManager::chunkChanged(IVec3 chunkId)
 
 void ChunkManager::update()
 {
-    Vec3 camPos = camera->transform.position;
-    IVec3 camBlock((int)roundf(camPos.x), (int)roundf(camPos.y), (int)roundf(camPos.z));
+    IVec3 camBlock((int)roundf(viewerPosition.x), (int)roundf(viewerPosition.y), (int)roundf(viewerPosition.z));
     IVec3 camChunk = Chunk::getChunkId(camBlock);
 
     IVec3 loadedC[1000];
@@ -140,9 +137,9 @@ void ChunkManager::update()
     frameId++;
 }
 
-void ChunkManager::render()
+void ChunkManager::render(Camera *cam)
 {
-    Mat4 world_to_clip = camera->getViewProjectionMatrix();
+    Mat4 world_to_clip = cam->getViewProjectionMatrix();
     // TODO: optimize, don't recalculate matrices for waterMesh
     renderer->setBlend(false);
     for(auto it = loadedChunks.begin(); it != loadedChunks.end(); ++it )
