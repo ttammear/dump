@@ -1,6 +1,6 @@
 #include "spectator.h"
 
-#include <SFML/Window.hpp>
+#include <SDL2/SDL.h>
 
 Spectator::Spectator()
 {
@@ -14,19 +14,22 @@ void Spectator::update(float dt, Vec2 mouseDelta)
 {
     const float moveSpeed = 30.0f;
     const float rotSpeed = 0.4f;
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+
+    const Uint8 *state = SDL_GetKeyboardState(NULL);
+
+    if (state[SDL_SCANCODE_W])
     {
         this->camera.transform.position += dt*moveSpeed*camera.transform.forward();
     }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
+    if (state[SDL_SCANCODE_S])
     {
         this->camera.transform.position -= dt*moveSpeed*camera.transform.forward();
     }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+    if (state[SDL_SCANCODE_A])
     {
         this->camera.transform.position -= dt*moveSpeed*camera.transform.right();
     }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
+    if (state[SDL_SCANCODE_D])
     {
         this->camera.transform.position += dt*moveSpeed*camera.transform.right();
     }

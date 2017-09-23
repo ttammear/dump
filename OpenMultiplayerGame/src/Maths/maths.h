@@ -156,6 +156,28 @@ struct Quaternion
         return Quaternion(-this->w, this->x, this->y, this->z);
     }
 
+    Quaternion normalized()
+    {
+        Quaternion ret = *this;
+        float l = sqrtf(ret.x*ret.x + ret.y*ret.y + ret.z*ret.z + ret.w*ret.w);
+        ret.x /= l;
+        ret.y /= l;
+        ret.z /= l;
+        ret.w /= l;
+        return ret;
+    }
+
+    static Quaternion NLerp(Quaternion a, Quaternion b, float t)
+    {
+        Quaternion ret(a.w + t*(b.w - a.w), 
+                       a.x + t*(b.x - a.x), 
+                       a.y + t*(b.y - a.y), 
+                       a.z + t*(b.z - a.z));
+        ret = ret.normalized();
+        float l = sqrtf(ret.x*ret.x + ret.y*ret.y + ret.z*ret.z + ret.w*ret.w);
+        return ret;
+    }
+
 	float w, x, y, z;
 };
 

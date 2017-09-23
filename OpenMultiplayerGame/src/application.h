@@ -1,7 +1,4 @@
-
-namespace sf {
-    class Window;
-};
+#include <chrono>
 
 class Application
 {
@@ -14,9 +11,11 @@ public:
     void exit();
     bool isRunning();
 
-    sf::Window* window;
+    struct SDL_Window *window;
 private:
     bool initialized;
     class Renderer *mainRenderer;
     class Game *game;
+
+    std::chrono::steady_clock::time_point startTime;
 };

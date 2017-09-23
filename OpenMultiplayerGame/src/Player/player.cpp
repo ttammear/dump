@@ -1,7 +1,7 @@
 #include "player.h"
 
 #include "../GameWorld/world.h"
-#include <SFML/Window.hpp>
+#include <SDL2/SDL.h>
 
 Player::Player()
 {
@@ -54,25 +54,27 @@ void Player::update(float dt, Vec2 mouseDelta)
 
     Vec3 moveVector(0.0f, 0.0f, 0.0f);
 
+    const Uint8 *state = SDL_GetKeyboardState(NULL);
+
     // last day, no time for anything prettier
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::W) && canForward)
+    if (state[SDL_SCANCODE_W])
     {
         moveVector += forward;
     }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) && canForward)
+    if (state[SDL_SCANCODE_S])
     {
         moveVector -= forward;
     }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) && canLeft)
+    if (state[SDL_SCANCODE_A])
     {
         moveVector -= right;
     }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) && canRight)
+    if (state[SDL_SCANCODE_D])
     {
         moveVector += right;
     }
 
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space) && grounded)
+    if (state[SDL_SCANCODE_SPACE] && grounded)
     {
         velocity.y = 5.0f;
     }

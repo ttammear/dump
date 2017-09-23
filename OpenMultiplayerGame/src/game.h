@@ -4,7 +4,7 @@
 #include "Player/spectator.h"
 #include "GameWorld/blockstore.h"
 
-#include <SFML/Window.hpp>
+#include <SDL2/SDL_keyboard.h>
 
 class Game
 {
@@ -18,10 +18,10 @@ public:
 
     ~Game();
 
-    void simulate(class Renderer* renderer, float dt);
-    void updateAndRender(class Renderer *renderer, float dt);
+    void simulate(class Renderer* renderer, double dt);
+    void updateAndRender(class Renderer *renderer, double dt);
     void mouseClick(int button);
-    void keyPress(sf::Keyboard::Key key);
+    void keyPress(SDL_Keycode key);
     void setMode(uint32_t mode);
     void mouseScroll(int delta);
 
@@ -39,7 +39,7 @@ public:
     BlockStore blockStore;
 
     // TODO: TEMPORARY
-    sf::Window* window;
+    struct SDL_Window *window;
     class Gui *gui = nullptr;
     class World* world;
     class TextureArray *atlas; // texture atlas

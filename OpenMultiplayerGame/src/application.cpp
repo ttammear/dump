@@ -1,6 +1,6 @@
 #include "application.h"
 
-#include <SFML/Graphics.hpp>
+#include <SDL2/SDL.h>
 #include "Renderer/renderer.h"
 #include "game.h"
 
@@ -8,6 +8,7 @@ Application::Application()
 {
     initialized = false;
     window = NULL;
+    startTime = std::chrono::steady_clock::now();
 }
 
 Application::~Application()
@@ -17,22 +18,22 @@ Application::~Application()
 
 bool Application::isRunning()
 {
-    if(initialized)
+    /*if(initialized)
         return window->isOpen();
-    return false;
+    return false;*/
+    return true; // TODO
 }
 
 void Application::start()
 {
-    sf::ContextSettings settings;
-    settings.attributeFlags = sf::ContextSettings::Core;
-    settings.depthBits = 24;
-    settings.stencilBits = 0;
-    settings.antialiasingLevel = 0;
-    settings.majorVersion = 3;
-    settings.minorVersion = 0;
+    SDL_Window *window = SDL_CreateWindow(
+        "SDL2/OpenGL Demo", 0, 0, 1024, 768, 
+        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 
-    this->window = new sf::Window(sf::VideoMode(1024, 768), "Minecraft clone", sf::Style::Default, settings);
+    // Create an OpenGL context associated with the window.
+    SDL_GLContext glcontext = SDL_GL_CreateContext(window);
+
+    this->window = window;
     this->mainRenderer = new Renderer(1024.0f, 768.0f);
     this->game = new Game();
     this->game->window = this->window;
@@ -46,36 +47,49 @@ void Application::doEvents()
     if(!initialized)
         return;
 
-    sf::Event event;
-    while (window->pollEvent(event))
+    SDL_Event e;
+    while(SDL_PollEvent(&e))
     {
-        switch(event.type)
+        switch(e.type)
         {
-            case sf::Event::Closed:
+            case SDL_QUIT:
                 this->exit();
-                return;
-            case sf::Event::Resized:
-                this->mainRenderer->resize(event.size.width, event.size.height);
-                break;
-            case sf::Event::MouseButtonPressed:
-                if(event.mouseButton.button == sf::Mouse::Right)
-                    game->mouseClick(1);
-                if(event.mouseButton.button == sf::Mouse::Left)
-                    game->mouseClick(0);
-                break;
-            case sf::Event::KeyPressed:
-                if(event.key.code == sf::Keyboard::Escape)
+	            return;
+
+            case SDL_KEYDOWN:
+            {
+                if(e.key.keysym.sym == SDLK_ESCAPE && SDL_GetMouseFocus() != NULL)
                 {
                     this->exit();
-                    return;
+                    break;
                 }
-                game->keyPress(event.key.code);
+                game->keyPress(e.key.keysym.sym);
+            } break;
+
+            case SDL_WINDOWEVENT_RESIZED:
+                this->mainRenderer->resize(e.window.data1, e.window.data2);
                 break;
-            case sf::Event::MouseWheelMoved:
-                game->mouseScroll(event.mouseWheel.delta);
+
+            case SDL_MOUSEBUTTONDOWN:
+                switch (e.button.button)
+                {
+                    case SDL_BUTTON_LEFT:
+                        game->mouseClick(0);
+                        break;
+                    case SDL_BUTTON_RIGHT:
+                        game->mouseClick(1);
+                        break;
+                    default:
+                        break;
+                }
                 break;
+
+            case SDL_MOUSEWHEEL:
+                game->mouseScroll(e.wheel.y);
+                break;
+
             default:
-                break;
+            break;
         }
     }
 }
@@ -84,9 +98,13 @@ void Application::doFrame()
 {
     if(initialized)
     {
-        // TODO: variable frame rate!
-        float dt60 = 1.0f / 60.0f;
-        game->updateAndRender(mainRenderer, dt60);
+        std::chrono::steady_clock::time_point curTime = std::chrono::steady_clock::now();
+        std::chrono::duration<double> frameTime = curTime - startTime;
+        double dt = frameTime.count();
+        startTime = curTime;
+        //dt = 1.0f / 60.0f;
+        //printf("dt %f\n", dt);
+        game->updateAndRender(mainRenderer, dt);
         mainRenderer->presentFrame(this->window);
     }
 }
@@ -95,7 +113,7 @@ void Application::exit()
 {
     if(initialized)
     {
-        window->close();
+        SDL_DestroyWindow(window);
         delete this->game;
         this->game = NULL;
         delete this->mainRenderer;

@@ -4,9 +4,6 @@
 #include "chunk.h"
 #include <assert.h>
 
-#include <SFML/System/Time.hpp>
-#include <SFML/System/Clock.hpp>
-
 struct Biome
 {
     uint8_t layer1BlockId;
@@ -111,8 +108,6 @@ void WorldGenerator::addTree(IVec3 block, int height, int leafsize, int seed)
 
 void WorldGenerator::fillChunk(IVec3 offset)
 {
-    sf::Clock clock; // starts the clock
-
     IVec3 trees[100];
     int treeLeafSizes[100];
     int treeHeights[100];
@@ -156,8 +151,5 @@ void WorldGenerator::fillChunk(IVec3 offset)
         if(loffset.x > 2 && loffset.x < 14 && loffset.z > 2 && loffset.z < 14)
             addTree(trees[i], treeHeights[i], treeLeafSizes[i], chunkSeed);
     }
-
-    sf::Time elapsed1 = clock.getElapsedTime();
-    //printf("gen took %dms\n", elapsed1.asMilliseconds());
 }
 

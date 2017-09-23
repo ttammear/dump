@@ -3,11 +3,90 @@
 
 #include "../Maths/maths.h"
 #include "../camera.h"
+#include "macros.h"
+#include "../Renderer/mesh.h"
+#include "../Renderer/renderer.h"
+
+static Vec3 vertices[] = 
+{
+	{ -0.5f,-0.5f,  0.5f },
+	{ 0.5f, -0.5f,  0.5f },
+	{ 0.5f,  0.5f,  0.5f },
+	{-0.5f,  0.5f,  0.5f },
+	{ 0.5f, -0.5f,  0.5f },
+	{ 0.5f, -0.5f, -0.5f },
+	{ 0.5f,  0.5f, -0.5f },
+	{ 0.5f,  0.5f,  0.5f },
+	{ 0.5f, -0.5f, -0.5f },
+	{-0.5f, -0.5f, -0.5f },
+	{-0.5f,  0.5f, -0.5f },
+	{ 0.5f,  0.5f, -0.5f },
+	{-0.5f, -0.5f, -0.5f },
+	{-0.5f, -0.5f,  0.5f },
+	{-0.5f,  0.5f,  0.5f },
+	{-0.5f,  0.5f, -0.5f },
+	{-0.5f,  0.5f,  0.5f },
+	{ 0.5f,  0.5f,  0.5f },
+	{ 0.5f,  0.5f, -0.5f },
+	{-0.5f,  0.5f, -0.5f },
+	{-0.5f, -0.5f, -0.5f },
+	{ 0.5f, -0.5f, -0.5f },
+	{ 0.5f, -0.5f,  0.5f },
+	{-0.5f, -0.5f,  0.5f }
+};
+
+static Vec3 texCoords[] = 
+{
+    { 0.0f, 0.0f, 0.0f },
+    { 1.0f, 0.0f, 0.0f },
+    { 1.0f, 1.0f, 0.0f },
+    { 0.0f, 1.0f, 0.0f },
+    { 0.0f, 0.0f, 0.0f },
+    { 1.0f, 0.0f, 0.0f },
+    { 1.0f, 1.0f, 0.0f },
+    { 0.0f, 1.0f, 0.0f },
+    { 0.0f, 0.0f, 0.0f },
+    { 1.0f, 0.0f, 0.0f },
+    { 1.0f, 1.0f, 0.0f },
+    { 0.0f, 1.0f, 0.0f },
+    { 0.0f, 0.0f, 0.0f },
+    { 1.0f, 0.0f, 0.0f },
+    { 1.0f, 1.0f, 0.0f },
+    { 0.0f, 1.0f, 0.0f },
+    { 0.0f, 0.0f, 0.0f },
+    { 1.0f, 0.0f, 0.0f },
+    { 1.0f, 1.0f, 0.0f },
+    { 0.0f, 1.0f, 0.0f },
+    { 0.0f, 0.0f, 0.0f },
+    { 1.0f, 0.0f, 0.0f },
+    { 1.0f, 1.0f, 0.0f },
+    { 0.0f, 1.0f, 0.0f }
+};
+
+static unsigned short indices[]
+{
+	2, 1, 0, 0, 3, 2,
+	6, 5, 4, 4, 7, 6,
+	10, 9, 8, 8, 11, 10,
+	14, 13, 12, 12, 15, 14,
+	18, 17, 16, 16, 19, 18,
+	22, 21, 20, 20, 23, 22
+};
 
 World::World(Renderer *renderer, BlockStore *blockStore)
     : chunkManager(renderer, blockStore, this), worldGenerator(this)
 {
     gravity = {0.0f, -9.8f, 0.0f};
+    cubeMesh = new Mesh();
+    cubeMesh->copyVertices(vertices, ARRAY_COUNT(vertices));
+    cubeMesh->copyIndices(indices, ARRAY_COUNT(indices));
+    cubeMesh->copyTexCoords(texCoords, ARRAY_COUNT(texCoords));
+    cubeMesh->calculateNormals();
+
+    for(int i = 0; i < 10; i++)
+    {
+        entities[i].inUse = true;
+    }
 }
 
 World::~World()
@@ -17,6 +96,7 @@ World::~World()
         delete it->second;
     }
     chunks.clear();
+    delete cubeMesh;
 }
 
 ChunkData* World::getOrCreateChunkData(IVec3 chunkId)
@@ -120,18 +200,41 @@ bool World::lineCast(RaycastHit &hit, Vec3 start, Vec3 end)
     return false;
 }
 
-void World::update(Camera *cam)
+void World::update(float dt, Camera *cam)
 {
     chunkManager.viewerPosition = cam->transform.position;
     chunkManager.update();
+
+    timePassed += (double)dt;
+#ifdef SERVER
+    for(int i = 0; i < MAX_ENTITIES; i++)
+    {
+        entities[i].transform.position = Vec3(i, sin(timePassed+i) + 3.0f, 0.0f);
+        entities[i].transform.rotation = Quaternion::AngleAxis(sin(timePassed) * 90.0f, Vec3(0.0f, 1.0f, 0.0f));
+    }
+#endif
 }
 
 void World::render()
 {
+    //Mat4 id = Mat4::TRS(Vec3(0.0f, 3.0f, 1.0f), Quaternion::Identity(), Vec3(1.0f, 1.0f, 1.0f));
+
     for(auto cam : cameras)
     {
         if((cam->flags & Camera::Flags::Disabled) == 0)
+        {
             chunkManager.render(cam);
+            Mat4 vp = cam->getViewProjectionMatrix();
+            for(int i = 0; i < MAX_ENTITIES; i++)
+            {
+                if(entities[i].inUse)
+                {
+                    Mat4 id = entities[i].transform.getModelMatrix();
+                    renderer->renderMesh(cubeMesh, renderer->defaultMaterial, &id, &vp);
+                }
+            }
+        }
     }
+
 }
 

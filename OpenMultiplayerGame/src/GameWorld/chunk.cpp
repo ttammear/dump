@@ -7,9 +7,6 @@
 #include "world.h"
 #include <cstring>
 
-#include <SFML/System/Time.hpp>
-#include <SFML/System/Clock.hpp>
-
 namespace
 {
     extern Vec3 sideOffsets[6];

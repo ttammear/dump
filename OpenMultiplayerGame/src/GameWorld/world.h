@@ -9,6 +9,7 @@
 #include "chunkmanager.h"
 #include "worldgenerator.h" 
 #include <assert.h>
+#include "transform.h"
 
 struct ChunkData
 {
@@ -40,6 +41,15 @@ struct RaycastHit
     IVec3 faceDirection;
 };
 
+struct Entity
+{
+    Transform transform;
+    Mesh *mesh;
+    bool inUse = false;
+};
+
+#define MAX_ENTITIES 100
+
 class World
 {
 public:
@@ -52,7 +62,7 @@ public:
     uint8_t setBlockId(IVec3 block, uint8_t newId);
     bool lineCast(RaycastHit& hit, Vec3 start, Vec3 end);
 
-    void update(Camera *cam);
+    void update(float dt, Camera *cam);
     void render();
 
     std::unordered_map<IVec3, ChunkData*> chunks;
@@ -64,5 +74,10 @@ public:
     ChunkManager chunkManager;
     WorldGenerator worldGenerator;
 
+    Entity entities[MAX_ENTITIES];
+    class Mesh *cubeMesh;
+
     Vec3 gravity;
+
+    double timePassed = 0.0f;
 };

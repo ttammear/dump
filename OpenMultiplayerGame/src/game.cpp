@@ -5,8 +5,10 @@
 #include "GameWorld/chunk.h"
 #include "Player/gui.h"
 #include "Networking/server.h"
+#include "Networking/client.h"
 #include "macros.h"
 
+#include <SDL2/SDL.h>
 #include "Dotnet/dotnet.h"
 
 #include <cstdio>
@@ -21,15 +23,6 @@
 #define        STBI_NO_PNM 
 #define STB_IMAGE_IMPLEMENTATION
 #include "Libs/stb_image.h"
-
-
-Game::~Game()
-{
-    if(this->gui != nullptr)
-    {
-        delete this->gui;
-    }
-}
 
 void Game::setMode(uint32_t mode)
 {
@@ -53,15 +46,29 @@ void Game::setMode(uint32_t mode)
 
 Dotnet dotnet;
 
+#ifdef SERVER
 Server server;
+#else
+Client client;
+#endif
 
-void Game::simulate(Renderer *renderer, float dt)
+Game::~Game()
+{
+    if(this->gui != nullptr)
+    {
+        delete this->gui;
+    }
+#ifdef SERVER
+    server.deinit();
+#else
+    client.deinit();
+#endif
+}
+
+void Game::simulate(Renderer *renderer, double dt)
 {
     if(!initialized)
     {
-        server.Init(8888);
-        server.Deinit();
-
         dotnet.loadClrLib();
         dotnet.startHost();
         dotnet.test();
@@ -71,8 +78,9 @@ void Game::simulate(Renderer *renderer, float dt)
 
         player.transform.position = Vec3(0.0f, 10.0f, 0.0f);
 
-        sf::Vector2i globalPosition = sf::Mouse::getPosition();
-        mousePosLast = Vec2((float)globalPosition.x, (float)globalPosition.y);
+        int mx,my;
+        SDL_GetMouseState(&mx, &my);
+        mousePosLast = Vec2((float)mx, (float)my);
         camRot = Vec2(0.0f, 0.0f);
 
         // texture
@@ -114,20 +122,40 @@ void Game::simulate(Renderer *renderer, float dt)
         world->cameras.push_back(&player.camera);
         world->cameras.push_back(&spectator.camera);
         setMode(Mode::Mode_Player);
+#ifdef SERVER
+        server.entities = world->entities;
+        server.init(8888);
+#else
+        client.entities = world->entities;
+        client.init();
+        client.connect("127.0.0.1", 8888);
+#endif
 
         this->gui = new Gui(renderer, &this->player, &blockStore);
     }
 
     // get the global mouse position (relative to the desktop)
-    sf::Vector2i globalPosition = sf::Mouse::getPosition();
-    this->mouseDelta = Vec2(globalPosition.x - mousePosLast.x, globalPosition.y - mousePosLast.y);
-    
-    if (!sf::Keyboard::isKeyPressed(sf::Keyboard::LControl))
+    bool lctrlDown = (SDL_GetModState() & KMOD_LCTRL) != 0;
+    bool hasFocus = (SDL_GetWindowFlags(window) & SDL_WINDOW_MOUSE_FOCUS) != 0;
+    if(hasFocus && !lctrlDown)
     {
-        sf::Mouse::setPosition(sf::Vector2i(renderer->width / 2.0f, renderer->height / 2.0f), *window);
-        globalPosition = sf::Mouse::getPosition();
+        int mx, my;
+        SDL_GetMouseState(&mx, &my);
+        this->mouseDelta = Vec2(mx - mousePosLast.x, my - mousePosLast.y);
+        
+        if (!lctrlDown)
+        {
+            SDL_WarpMouseInWindow(window, renderer->width / 2.0f, renderer->height / 2.0f);
+            SDL_GetMouseState(&mx, &my);
+            mousePosLast = Vec2(renderer->width / 2.0f, renderer->height / 2.0f);
+        }
+        else
+            mousePosLast = Vec2((float)mx, (float)my);
     }
-    mousePosLast = Vec2((float)globalPosition.x, (float)globalPosition.y);
+    else
+    {
+        this->mouseDelta = Vec2(0.0f, 0.0f);
+    }
 
     if(mode == Mode::Mode_FreeView)
     {
@@ -138,16 +166,16 @@ void Game::simulate(Renderer *renderer, float dt)
         player.update(dt, mouseDelta);
     }
 
-    world->update(activeCam);
+    world->update(dt, activeCam);
 }
 
-void Game::keyPress(sf::Keyboard::Key key)
+void Game::keyPress(SDL_Keycode key)
 {
-    if(key == sf::Keyboard::F1)
+    if(key == SDLK_F1)
         setMode(Mode::Mode_Player);
-    else if(key == sf::Keyboard::F2)
+    else if(key == SDLK_F2)
         setMode(Mode::Mode_FreeView);
-    else if(key == sf::Keyboard::E)
+    else if(key == SDLK_e)
     {
         for(int i = 0; i < ARRAY_COUNT(player.inventory.mainSlots); i++)
         {
@@ -158,11 +186,11 @@ void Game::keyPress(sf::Keyboard::Key key)
             }
         }
     }
-    else if(key == sf::Keyboard::Add)
+    else if(key == SDLK_PLUS)
     {
         player.inventory.nextSlot();
     }
-    else if(key == sf::Keyboard::Subtract)
+    else if(key == SDLK_MINUS)
     {
         player.inventory.prevSlot();
     }
@@ -206,9 +234,23 @@ void Game::mouseScroll(int delta)
     }
 }
 
-void Game::updateAndRender(Renderer *renderer, float dt)
-{    
+void Game::updateAndRender(Renderer *renderer, double dt)
+{        
+    if(initialized)
+    {
+#ifdef SERVER
+    server.doEvents();
+#else
+    client.doEvents();
+#endif
+    }
+
     simulate(renderer, dt);
+#ifdef SERVER
+    server.takeSnapshot(world);
+#else
+    client.updateTransforms();
+#endif
 
     this->activeCam->targetWidth = renderer->width;
     this->activeCam->targetHeight = renderer->height;

@@ -1,6 +1,6 @@
 #include "../renderer.h"
 
-#include <SFML/Graphics.hpp>
+#include <SDL2/SDL.h>
 #include <cstring>
 #include <assert.h>
 #include "../mesh.h"
@@ -515,7 +515,7 @@ void Renderer::resize(float width, float height)
     this->height = height;
 }
 
-void Renderer::presentFrame(sf::Window *window)
+void Renderer::presentFrame(SDL_Window *window)
 {
     GLuint gerror = glGetError();
     if(gerror != 0)
@@ -524,7 +524,8 @@ void Renderer::presentFrame(sf::Window *window)
         assert(false);
     }
 
-    window->display();
+    SDL_GL_SwapWindow(window);
+    //window->display();
 }
 
 void Renderer::setBlend(bool enabled)
