@@ -1,0 +1,8 @@
+/keep/Projects/OpenMultiplayerGame/src/Dotnet/Managed/obj/Debug/netstandard2.0/Managed.csproj.CoreCompileInputs.cache
+/keep/Projects/OpenMultiplayerGame/src/Dotnet/Managed/obj/Debug/netstandard2.0/Managed.AssemblyInfoInputs.cache
+/keep/Projects/OpenMultiplayerGame/src/Dotnet/Managed/obj/Debug/netstandard2.0/Managed.AssemblyInfo.cs
+/keep/Projects/OpenMultiplayerGame/src/Dotnet/Managed/bin/Debug/netstandard2.0/Managed.deps.json
+/keep/Projects/OpenMultiplayerGame/src/Dotnet/Managed/bin/Debug/netstandard2.0/Managed.dll
+/keep/Projects/OpenMultiplayerGame/src/Dotnet/Managed/bin/Debug/netstandard2.0/Managed.pdb
+/keep/Projects/OpenMultiplayerGame/src/Dotnet/Managed/obj/Debug/netstandard2.0/Managed.dll
+/keep/Projects/OpenMultiplayerGame/src/Dotnet/Managed/obj/Debug/netstandard2.0/Managed.pdb
