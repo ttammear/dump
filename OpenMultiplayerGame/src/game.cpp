@@ -24,6 +24,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "Libs/stb_image.h"
 
+#include "btBulletDynamicsCommon.h"
+
 void Game::setMode(uint32_t mode)
 {
     this->mode = mode;
@@ -52,12 +54,15 @@ Server server;
 Client client;
 #endif
 
+Transform testTrans;
+
 Game::~Game()
 {
     if(this->gui != nullptr)
     {
         delete this->gui;
     }
+    dotnet.stopHost();
 #ifdef SERVER
     server.deinit();
 #else
@@ -71,8 +76,7 @@ void Game::simulate(Renderer *renderer, double dt)
     {
         dotnet.loadClrLib();
         dotnet.startHost();
-        dotnet.test();
-        dotnet.stopHost();
+        testTrans.position = Vec3(999.0f, 1337.0f, 8888.69f);
 
         initialized = true;
 
@@ -132,7 +136,10 @@ void Game::simulate(Renderer *renderer, double dt)
 #endif
 
         this->gui = new Gui(renderer, &this->player, &blockStore);
+
+        dotnet.test(&testTrans, world);
     }
+    dotnet.update();
 
     // get the global mouse position (relative to the desktop)
     bool lctrlDown = (SDL_GetModState() & KMOD_LCTRL) != 0;
@@ -147,7 +154,7 @@ void Game::simulate(Renderer *renderer, double dt)
         {
             SDL_WarpMouseInWindow(window, renderer->width / 2.0f, renderer->height / 2.0f);
             SDL_GetMouseState(&mx, &my);
-            mousePosLast = Vec2(renderer->width / 2.0f, renderer->height / 2.0f);
+            mousePosLast = Vec2((int)renderer->width / 2, (int)renderer->height / 2);
         }
         else
             mousePosLast = Vec2((float)mx, (float)my);
@@ -198,6 +205,7 @@ void Game::keyPress(SDL_Keycode key)
 
 void Game::mouseClick(int button)
 {
+    printf("mouseclick\n");
     if(mode == Mode::Mode_Player)
     {
         RaycastHit hit;

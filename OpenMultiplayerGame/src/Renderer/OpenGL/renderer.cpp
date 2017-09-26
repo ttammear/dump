@@ -30,7 +30,7 @@ void main() {
     fragUv = uv;
 
     mat3 m2w3 = mat3(model_to_world);
-    fragLightDir = m2w3 * lightDir;
+    fragLightDir = lightDir;
     fragNormal = m2w3 * normal;
 })foo";
 
@@ -510,6 +510,7 @@ void Renderer::immediateMatrix(Mat4 *mat)
 
 void Renderer::resize(float width, float height)
 {
+    printf("resize %f %f\n", width, height);
     glViewport(0, 0, width, height);
     this->width = width;
     this->height = height;
@@ -521,7 +522,7 @@ void Renderer::presentFrame(SDL_Window *window)
     if(gerror != 0)
     {
         fprintf(stderr, "GL error %x\n", gerror);
-        assert(false);
+        //assert(false);
     }
 
     SDL_GL_SwapWindow(window);

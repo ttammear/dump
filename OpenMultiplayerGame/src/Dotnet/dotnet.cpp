@@ -9,6 +9,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include "../transform.h"
+#include "../GameWorld/world.h"
+#include "../Physics/btrigidbodycomponent.h"
+
 Dotnet::Dotnet()
 {
 
@@ -187,9 +191,33 @@ void Dotnet::startHost()
     hostRunning = true;
 }
 
-void (*csharp_main)(void);
+bool createEntity(World *world, void **entity, void **transform)
+{
+    Entity *centity = world->createEntity();
+    if(centity != NULL)
+    {
+        *entity = centity;
+        *transform = &centity->transform;
+        return true;
+    }
+    return false;
+}
 
-void Dotnet::test()
+void* entityAddComponent(Entity *entity, int component)
+{
+    switch(component)
+    {
+        case 0:
+            return entity->addComponent<BtRigidBodyComponent>();
+            break;
+    }
+}
+
+void (*csharp_main)(void);
+void (*csharp_setptr)(int, void*, void*);
+void (*csharp_update)(void);
+
+void Dotnet::test(void *transform, World *world)
 {
     if(!hostRunning)
     {
@@ -200,8 +228,8 @@ void Dotnet::test()
     status = coreclr_create_delegate (
         clrHost,
         domainId,
-        "OpenMultiplayerGame",
-        "OpenMultiplayerGame.Program",
+        "Managed",
+        "Binding",
         "testing",
         reinterpret_cast<void**>(&csharp_main)
     );
@@ -210,7 +238,33 @@ void Dotnet::test()
         fprintf(stderr, "coreclr_create_delegate failed with 0x%x\n", status);
         return;
     }
+    status = coreclr_create_delegate(clrHost, domainId, "Managed", "Binding", "setPtr",
+            reinterpret_cast<void**>(&csharp_setptr));
+    if(status < 0)
+    {
+        fprintf(stderr, "coreclr_create_delegate failed with 0x%x\n", status);
+        return;
+    }
+
+    status = coreclr_create_delegate(clrHost, domainId, "Managed", "Binding", "update",
+            reinterpret_cast<void**>(&csharp_update));
+    assert(status >= 0);
+
+    csharp_setptr(0, (void*)&Transform::setPosition, transform);
+    csharp_setptr(1, (void*)&Transform::getPosition, transform);
+    csharp_setptr(2, (void*)createEntity, transform);
+    csharp_setptr(3, (void*)world, transform);
+    csharp_setptr(4, (void*)&Transform::setRotation, transform);
+    csharp_setptr(5, (void*)&Transform::getRotation, transform);
+    csharp_setptr(6, (void*)entityAddComponent, transform);
+    csharp_setptr(7, (void*)&BtRigidBodyComponent::setPosition, transform);
+    csharp_setptr(8, (void*)&BtRigidBodyComponent::setRotation, transform);
     csharp_main();
+}
+
+void Dotnet::update()
+{
+    csharp_update();
 }
 
 void Dotnet::stopHost()

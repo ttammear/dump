@@ -24,7 +24,7 @@ bool Client::init()
         return false;
     }
 
-    for(int i = 0; i < 10; i++)
+    for(int i = 0; i < 100; i++)
     {
         transforms[i].transform = &entities[i].transform;
     }

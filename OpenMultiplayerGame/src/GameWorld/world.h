@@ -10,6 +10,7 @@
 #include "worldgenerator.h" 
 #include <assert.h>
 #include "transform.h"
+#include "entity.h"
 
 struct ChunkData
 {
@@ -41,13 +42,6 @@ struct RaycastHit
     IVec3 faceDirection;
 };
 
-struct Entity
-{
-    Transform transform;
-    Mesh *mesh;
-    bool inUse = false;
-};
-
 #define MAX_ENTITIES 100
 
 class World
@@ -56,6 +50,9 @@ public:
     World(class Renderer *renderer, class BlockStore *blockStore);
     ~World();
 
+    struct Entity* createEntity();
+    void destroyEntity(struct Entity *entity);
+    
     class ChunkData* getOrCreateChunkData(IVec3 chunkId);
     void markChunkDirty(IVec3 chunkId);
     uint8_t getBlockId(IVec3 block);
@@ -70,6 +67,7 @@ public:
 
     class Renderer *renderer;
     class BlockStore *blockStore;
+    class Physics *physics;
     ChunkData *lastChunkAccess = nullptr;
     ChunkManager chunkManager;
     WorldGenerator worldGenerator;

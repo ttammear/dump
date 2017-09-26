@@ -53,7 +53,7 @@ void Server::serverProc()
 
             uint8_t buf[2048];
             int curLoc = 1;
-            buf[0] = 10;
+            buf[0] = wss->numEntities;
             for(int i = 0; i < wss->numEntities; i++)
             {
                 writeu16(&buf[curLoc], i);

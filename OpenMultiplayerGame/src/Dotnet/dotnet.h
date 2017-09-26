@@ -11,7 +11,8 @@ public:
     bool loadClrLib();
     void startHost();
     void stopHost();
-    void test();
+    void test(void*, class World*);
+    void update();
 
     void *clrHost = nullptr;
     void *clrLib = nullptr;

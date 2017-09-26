@@ -6,6 +6,7 @@
 #include "macros.h"
 #include "../Renderer/mesh.h"
 #include "../Renderer/renderer.h"
+#include "../Physics/physics.h"
 
 static Vec3 vertices[] = 
 {
@@ -73,6 +74,21 @@ static unsigned short indices[]
 	22, 21, 20, 20, 23, 22
 };
 
+struct WeirdComponent : public Component
+{
+    double timePassed = 0.0;
+    float i = 0.0f;
+
+    void onUpdate(double dt)
+    {
+        transform->position = Vec3(i, sin(this->timePassed+i) + 3.0f, 0.0f);
+        transform->rotation = Quaternion::AngleAxis(sin(this->timePassed) * 90.0f, Vec3(0.0f, 1.0f, 0.0f));
+        this->timePassed += dt;
+    }
+};
+
+#include "../Physics/btrigidbodycomponent.h"
+
 World::World(Renderer *renderer, BlockStore *blockStore)
     : chunkManager(renderer, blockStore, this), worldGenerator(this)
 {
@@ -83,9 +99,18 @@ World::World(Renderer *renderer, BlockStore *blockStore)
     cubeMesh->copyTexCoords(texCoords, ARRAY_COUNT(texCoords));
     cubeMesh->calculateNormals();
 
+    physics = new Physics();
+    physics->init();
+
     for(int i = 0; i < 10; i++)
     {
-        entities[i].inUse = true;
+        auto entity = createEntity();
+        entity->transform.position = Vec3(0.0f, 50.0f, 0.0f);
+        entity->transform.rotation = Quaternion::Identity();
+#ifdef SERVER
+        auto comp = entity->addComponent<BtRigidBodyComponent>();        
+#endif
+        //comp->i = (float)i;
     }
 }
 
@@ -97,6 +122,29 @@ World::~World()
     }
     chunks.clear();
     delete cubeMesh;
+
+    physics->deinit();
+    delete physics;
+}
+
+Entity* World::createEntity()
+{
+    for(int i = 0; i < MAX_ENTITIES; i++)
+    {
+        if(entities[i].inUse == false)
+        {
+            Entity *ret = &entities[i];
+            ret->inUse = true;
+            ret->world = this;
+            return ret;
+        }
+    }
+    return NULL;
+}
+
+void World::destroyEntity(Entity *entity)
+{
+    entity->reset();
 }
 
 ChunkData* World::getOrCreateChunkData(IVec3 chunkId)
@@ -206,13 +254,46 @@ void World::update(float dt, Camera *cam)
     chunkManager.update();
 
     timePassed += (double)dt;
-#ifdef SERVER
+
+    bool result, again;
+    int curCount = 0;
+    do
+    {
+        result = physics->simulate(again);
+        if(result)
+        {
+            for(int i = 0; i < MAX_ENTITIES; i++)
+            {
+                if(entities[i].inUse)
+                {
+                    for(auto component : entities[i].components)
+                    {
+                        component->onPhysicsUpdate(dt);
+                    }
+                }
+            }
+        }
+        curCount++;
+        if(curCount > 3)
+        {
+            fprintf(stderr, "Simulated more than 3 physics steps in a row!\n");
+            fprintf(stderr, "Seems like the physics simulation can't keep up!\n");
+            break;
+        }
+    } while(again);
+
+    //printf("phys %f %f\n", 1.0 / (timePassed / physics->stepCount), physics->offsetFromRealtime);
+
     for(int i = 0; i < MAX_ENTITIES; i++)
     {
-        entities[i].transform.position = Vec3(i, sin(timePassed+i) + 3.0f, 0.0f);
-        entities[i].transform.rotation = Quaternion::AngleAxis(sin(timePassed) * 90.0f, Vec3(0.0f, 1.0f, 0.0f));
+        if(entities[i].inUse)
+        {
+            for(auto component : entities[i].components)
+            {
+                component->onUpdate(dt);
+            }
+        }
     }
-#endif
 }
 
 void World::render()
