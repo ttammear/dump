@@ -5,21 +5,20 @@
 #include <cstring>
 #include "../GameWorld/world.h"
 
-
 bool Client::init()
 {
-    const char *errorstr = "Error occurred while initializeing ENet. /n";
+    const char *errorstr = "Error occurred while initializeing ENet.";
 
     if(enet_initialize() != 0)
     {
-        fprintf(stderr, errorstr);
+        fprintf(stderr, "%s\n", errorstr);
         return false;
     }
 
     client = enet_host_create(NULL, 1, 2, 0, 0);
     if(client == NULL)
     {
-        fprintf(stderr, errorstr);
+        fprintf(stderr, "%s\n", errorstr);
         enet_deinitialize();
         return false;
     }
@@ -70,6 +69,12 @@ bool Client::connect(const char* hostName, unsigned short port)
         printf("Connection to %s:%d failed.", hostName, port);
         return false;
     }
+
+    inputServer.addStateKey(SDLK_w, 0);
+    inputServer.addStateKey(SDLK_a, 1);
+    inputServer.addStateKey(SDLK_s, 2);
+    inputServer.addStateKey(SDLK_d, 3);
+
     return true;
 }
 
@@ -138,6 +143,29 @@ void Client::updateTransforms()
     }
 }
 
+void Client::sendFrameInputs(uint16_t frameId)
+{
+    uint8_t buf[2048];
+
+    buf[0] = 0x03;
+    buf[1] = 0;
+
+    uint32_t curLocation = 2;
+
+    uint32_t inputDataSize;
+    inputServer.getContinuousData(frameId, &buf[curLocation], sizeof(buf) - curLocation, &inputDataSize);
+    curLocation += inputDataSize;
+
+    if(curLocation > 2)
+    {
+        //printf("send %d bytes of input data\n", curLocation);
+        ENetPacket *packet;
+        packet = enet_packet_create(buf, curLocation, ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT);
+        enet_peer_send(peer, 1, packet);
+        enet_host_flush(client);
+    }
+}
+
 bool is_newer(uint8_t a, uint8_t b)
 {
     // TODO: branchless solution maybe?
@@ -164,7 +192,6 @@ uint8_t smallestDif(uint8_t a, uint8_t b)
 
 void Client::readPositionUpdate(uint8_t *data, uint32_t length)
 {
-    //printf("position update! %d\n", sizeof(PosUpdate)); 
     int count = readu8(&data[0]);
     int expectedSize = sizeof(PosUpdate) * count + 1;
     if(length != expectedSize)
@@ -183,8 +210,8 @@ void Client::readPositionUpdate(uint8_t *data, uint32_t length)
         posu.rotation = readQuat(&data[curLoc + 15]);
         curLoc += sizeof(PosUpdate);
 
-        /*if(posu.entityId == 0)
-            printf("seq %d\n", posu.seq);*/
+        if(i == 12)
+            printf("??? %f %f %f %f\n", posu.position.x, posu.position.y, posu.position.z, posu.rotation.w);
 
         // play transform
         NetworkedTransform *ntrans = &transforms[posu.entityId];
@@ -252,11 +279,11 @@ void Client::doEvents()
             //event.peer->data = "Client information";
             break;
         case ENET_EVENT_TYPE_RECEIVE:
-            printf("A packet of length %u containing %s was received from %s on channel %u.\n",
+            /*printf("A packet of length %u containing %s was received from %s on channel %u.\n",
                     event.packet->dataLength,
                     event.packet->data,
                     event.peer->data,
-                    event.channelID);
+                    event.channelID);*/
 
             if(event.channelID == 1)
                 readPositionUpdate((uint8_t*)event.packet->data, event.packet->dataLength);

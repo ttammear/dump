@@ -2,13 +2,11 @@
 
 #include "../Renderer/renderer.h"
 #include "player.h"
-#include "../GameWorld/blockstore.h"
 
-Gui::Gui(Renderer *renderer, Player *player, BlockStore *bs)
+Gui::Gui(Renderer *renderer, Player *player)
 {
     this->renderer = renderer;
     this->player = player;
-    this->blockStore = bs;
 }
 
 void Gui::renderOutline(Vec2 pos, Vec2 size, float thickness, Vec4 color)
@@ -42,7 +40,7 @@ void Gui::render(float dt)
         Inventory::Slot slot = player->inventory.mainSlots[i];
         if(slot.blockId != 0 && slot.stacks != 0)
         {
-            renderer->renderImmediateQuad(Vec2(posx + padding + i*(64.0f+padding), padding), Vec2(64.0f, 64.0f), blockStore->blocks[slot.blockId].faceTextureLayers[0]);
+            renderer->renderImmediateQuad(Vec2(posx + padding + i*(64.0f+padding), padding), Vec2(64.0f, 64.0f), 0);
         }
         else
         {

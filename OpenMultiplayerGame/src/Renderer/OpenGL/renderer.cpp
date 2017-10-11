@@ -173,7 +173,7 @@ bool CheckShaderCompileStatus(const char *sname, GLint shader)
 		char errorBuf[1024];
 		glGetShaderInfoLog(shader, 1024, NULL, errorBuf);
         sprintf(formatBuf, "%s: %s\n", sname, errorBuf);
-        fprintf(stderr, formatBuf);
+        fprintf(stderr, "%s", formatBuf);
 	}
 	return status == GL_TRUE;
 }
@@ -212,7 +212,7 @@ static bool compile_shader(GLuint *compiledProgram, const char *vertexShader, co
 	{
 		char errorBuf[1024];
 		glGetProgramInfoLog(program, 1024, NULL, errorBuf);
-        fprintf(stderr, errorBuf);
+        fprintf(stderr, "%s", errorBuf);
 		success = false;
 	}
 	else

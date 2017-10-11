@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "../transform.h"
+#include "networkedinput.h"
 
 #define NT_HISTORY_SIZE 16
 
@@ -31,6 +32,7 @@ public:
 
     void readPositionUpdate(uint8_t *data, uint32_t length);
     void updateTransforms();
+    void sendFrameInputs(uint16_t frameId);
 
     ENetHost *client;
     ENetPeer *peer;
@@ -38,4 +40,6 @@ public:
     NetworkedTransform transforms[100];
     std::chrono::steady_clock::time_point lastUpdate;
     bool initialized = false;
+
+    InputServer inputServer;
 };

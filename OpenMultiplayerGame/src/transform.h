@@ -11,10 +11,14 @@ public:
     Vec3 right();
 
     void setPosition(Vec3 *pos);
-    // for the love of god, use this only for C# interop
-    Vec3 getPosition();
     void setRotation(Quaternion *rot);
-    Quaternion getRotation();
+
+    // functions for managed interop
+    static Vec3 tgetPosition(class Transform *transform);
+    static void tsetPosition(class Transform *transform, Vec3 *pos);
+    static Quaternion tgetRotation(class Transform *transform);
+    static void tsetRotation(class Transform *transform, Quaternion *quaternion);
+
 
     Vec3 position;
     Quaternion rotation;

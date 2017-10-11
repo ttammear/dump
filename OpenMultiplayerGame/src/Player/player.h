@@ -4,11 +4,25 @@
 #include "inventory.h"
 #include "../Maths/maths.h"
 
+struct PlayerInput
+{
+    bool moveForward;
+    bool moveBackward;
+    bool moveRight;
+    bool moveLeft;
+    bool jump;
+    Quaternion rotation;
+};
+
 class Player
 {
 public:
     Player();
-    void update(float dt, Vec2 mouseDelta);
+    void init(class World *world);
+    void deinit();
+    void update(float dt, Vec2 mouseDelta, PlayerInput& input);
+    void setActive(bool active);
+    void setPosition(Vec3 *pos);
 
     Camera camera;
     Inventory inventory;
@@ -19,4 +33,6 @@ public:
     float rotY;
 
     class World *world;
+    struct BtCharacter *character;
+    bool isActive = true;
 };

@@ -8,13 +8,18 @@
 #include <mutex>
 #include "../Maths/maths.h"
 #include "../GameWorld/world.h"
+#include "serverplayer.h"
+#include "../macros.h"
+
+#include "../Physics/character.h" // TODO: remove
 
 std::mutex enet_mutex;
 
-Server::Server()
+Server::Server(World *world)
 {
     curSnapshot = -1;
     workerRunning = false;
+    this->world = world;
 }
 
 void writeu16(uint8_t *data, uint16_t value)
@@ -56,10 +61,12 @@ void Server::serverProc()
             buf[0] = wss->numEntities;
             for(int i = 0; i < wss->numEntities; i++)
             {
-                writeu16(&buf[curLoc], i);
+                //if(wss->entities[i].entityId == 43)
+                    //printf("here %d\n", i);
+                writeu16(&buf[curLoc], wss->entities[i].entityId); // entity id
                 buf[curLoc+2] = seq; // TODO
-                writeVec3(&buf[curLoc+3], entities[i].transform.position);
-                writeQuat(&buf[curLoc+15], entities[i].transform.rotation);
+                writeVec3(&buf[curLoc+3], wss->entities[i].position);
+                writeQuat(&buf[curLoc+15], wss->entities[i].rotation);
                 curLoc += 31;
             }
 
@@ -82,11 +89,11 @@ void Server::serverProc()
 
 bool Server::init(uint16_t port)
 {
-    const char *errorstr = "Error occurred while initializeing ENet. /n";
+    const char *errorstr = "Error occurred while initializeing ENet.";
 
     if(enet_initialize() != 0)
     {
-        fprintf(stderr, errorstr);
+        fprintf(stderr, "%s\n", errorstr);
         return false;
     }
 
@@ -96,9 +103,15 @@ bool Server::init(uint16_t port)
     server = enet_host_create(&address, 32, 2, 0, 0);
     if(server == NULL)
     {
-        fprintf(stderr, errorstr);
+        fprintf(stderr, "%s\n", errorstr);
         enet_deinitialize();
         return false;
+    }
+
+    players = new ServerPlayer[this->maxPlayers];
+    for(int i = 0; i < this->maxPlayers; i++)
+    {
+        players[i].init(world);
     }
 
     workThread = new std::thread(&Server::serverProc, this);
@@ -118,6 +131,18 @@ void Server::deinit()
     delete workThread;
 }
 
+int32_t Server::getFreePlayerSlot()
+{
+    for(int i = 0; i < maxPlayers; i++)
+    {
+        if(!FLAGSET(players[i].flags, ServerPlayer::Flags::InUse))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void Server::doEvents()
 {
     ENetEvent event;
@@ -129,6 +154,7 @@ void Server::doEvents()
         switch (event.type)
         {
         case ENET_EVENT_TYPE_CONNECT:
+        {
             printf("A new client connected from %x:%u.\n", 
                     event.peer->address.host,
                     event.peer->address.port);
@@ -136,17 +162,42 @@ void Server::doEvents()
             packet = enet_packet_create(msg, strlen(msg) + 1, ENET_PACKET_FLAG_RELIABLE);
             enet_peer_send(event.peer, 0, packet);
             connectedClients.push_back(event.peer);
-            /* Store any relevant client information here. */
-            //event.peer->data = "Client information";
-            break;
+
+            int slot = getFreePlayerSlot();
+            if(slot < 0) // out of player slots
+            {
+                event.peer->data = NULL;
+                enet_peer_disconnect(event.peer, 0);
+            }
+            else
+            {
+                players[slot].markInUse(true);
+                players[slot].spawn(Vec3(0.0f, 50.0f, 0.0f), Quaternion::Identity());
+                printf("pent %d\n", players[slot].player.character->entity->id);
+                players[slot].player.character->entity->transform.rotation = Quaternion::AngleAxis(45.0f, Vec3(0.0f, 1.0f, 0.0f));
+                event.peer->data = &players[slot];
+            }
+        }
+        break;
 
         case ENET_EVENT_TYPE_RECEIVE:
-            printf("A packet of length %u containing %s was received from %s on channel %u.\n",
-                    event.packet->dataLength,
-                    event.packet->data,
-                    event.peer->data,
-                    event.channelID);
-            /* Clean up the packet now that we're done using it. */
+
+            if(event.packet->dataLength >= 2)
+            {
+                if(event.packet->data[0] == 0x03 && event.packet->data[1] == 0x00)
+                {
+                    InputClient *iclient = &((ServerPlayer*)event.peer->data)->inputClient;
+                    uint8_t *data = (uint8_t*)event.packet->data;
+                    printf("received input packet\n");
+                    iclient->processContinuousData(&data[2], event.packet->dataLength - 2);
+                    printf("Input: ");
+                    bool p;
+                    for(int i = 0; i < 4; i++)
+                        printf("%d", iclient->getKey(0, i, p));
+                    printf("\n");
+                }
+            }
+
             enet_packet_destroy(event.packet);
             break;
            
@@ -155,6 +206,11 @@ void Server::doEvents()
             if(iter != connectedClients.end())
                 connectedClients.erase(iter);
             printf("%x:%u disconnected.\n", event.peer->address.host, event.peer->address.port);
+            if(event.peer->data != NULL)
+            {
+                auto player = (ServerPlayer*)event.peer->data;   
+                player->markInUse(false);
+            }
             event.peer->data = NULL;
             break;
         }
@@ -171,7 +227,7 @@ void Server::takeSnapshot(World *world)
     {
         assert(numCaptured < MAX_SNAPSHOT_ENTITIES);
         Entity *e = &world->entities[i];
-        if(e->inUse)
+        if(e->inUse && e->active)
         {
             EntitySnapshot *ess = &wss->entities[numCaptured];
             ess->position = e->transform.position;

@@ -2,7 +2,6 @@
 #include "Renderer/renderer.h"
 #include "Renderer/texture.h"
 #include "GameWorld/world.h"
-#include "GameWorld/chunk.h"
 #include "Player/gui.h"
 #include "Networking/server.h"
 #include "Networking/client.h"
@@ -24,7 +23,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "Libs/stb_image.h"
 
-#include "btBulletDynamicsCommon.h"
 
 void Game::setMode(uint32_t mode)
 {
@@ -41,7 +39,6 @@ void Game::setMode(uint32_t mode)
             activeCam = &player.camera;
             SETFLAG(spectator.camera.flags, Camera::Flags::Disabled);
             CLEARFLAG(player.camera.flags, Camera::Flags::Disabled);
-            player.world = world;
             break;
     }
 }
@@ -49,7 +46,7 @@ void Game::setMode(uint32_t mode)
 Dotnet dotnet;
 
 #ifdef SERVER
-Server server;
+Server *server;
 #else
 Client client;
 #endif
@@ -64,9 +61,22 @@ Game::~Game()
     }
     dotnet.stopHost();
 #ifdef SERVER
-    server.deinit();
+    server->deinit();
+    delete server;
 #else
     client.deinit();
+#endif
+}
+
+void worldTick(void *ptr)
+{
+    ((Game*)ptr)->onTick();
+}
+
+void Game::onTick()
+{
+#ifdef CLIENT
+    client.sendFrameInputs(0);
 #endif
 }
 
@@ -111,31 +121,23 @@ void Game::simulate(Renderer *renderer, double dt)
         Renderer::defaultMaterial->addTextureArray("texArr", atlas);
         Renderer::solidMaterial->addTextureArray("texArr", atlas);
 
-        blockStore.createBlock(1, {"Stone", {2, 2, 2, 2, 2, 2}});
-        blockStore.createBlock(2, {"Grass", {4, 4, 1, 3, 4, 4}});
-        blockStore.createBlock(3, {"Dirt", {3, 3, 3, 3, 3, 3}});
-        blockStore.createBlock(4, {"Cobblestone", {17, 17, 17, 17, 17, 17}});
-        blockStore.createBlock(9, {"Water", {206, 206, 206, 206, 206, 206}});
-        blockStore.createBlock(12, {"Sand", {177, 177, 177, 177, 177, 177}});
-        blockStore.createBlock(13, {"Gravel", {20, 20, 20, 20, 20, 20}});
-        blockStore.createBlock(17, {"Wood", {21, 21, 22, 22, 21, 21}});
-        blockStore.createBlock(18, {"Leaves", {53, 53, 53, 53, 53, 53}});
-        blockStore.createBlock(45, {"Brick", {8, 8, 8, 8, 8, 8}});
-
-        world = new World(renderer, &blockStore);
+        world = new World(renderer);
         world->cameras.push_back(&player.camera);
         world->cameras.push_back(&spectator.camera);
         setMode(Mode::Mode_Player);
+        player.init(world);
+        world->onTickUserPtr = this;
+        world->onTick = worldTick;
 #ifdef SERVER
-        server.entities = world->entities;
-        server.init(8888);
+        server = new Server(world);
+        server->init(8888);
 #else
         client.entities = world->entities;
         client.init();
         client.connect("127.0.0.1", 8888);
 #endif
 
-        this->gui = new Gui(renderer, &this->player, &blockStore);
+        this->gui = new Gui(renderer, &this->player);
 
         dotnet.test(&testTrans, world);
     }
@@ -163,6 +165,7 @@ void Game::simulate(Renderer *renderer, double dt)
     {
         this->mouseDelta = Vec2(0.0f, 0.0f);
     }
+    camRot += mouseDelta;
 
     if(mode == Mode::Mode_FreeView)
     {
@@ -170,7 +173,17 @@ void Game::simulate(Renderer *renderer, double dt)
     }
     else
     {
-        player.update(dt, mouseDelta);
+        const Uint8 *state = SDL_GetKeyboardState(NULL);
+
+        PlayerInput pinput;
+        pinput.moveForward = state[SDL_SCANCODE_W];
+        pinput.moveBackward = state[SDL_SCANCODE_S];
+        pinput.moveRight = state[SDL_SCANCODE_D];
+        pinput.moveLeft = state[SDL_SCANCODE_A];
+        pinput.jump = state[SDL_SCANCODE_SPACE];
+        auto rot = Quaternion::AngleAxis(camRot.x, Vec3(0.0f, 1.0f, 0.0f)) * Quaternion::AngleAxis(camRot.y, Vec3(1.0f, 0.0f, 0.0f));
+        pinput.rotation = rot;
+        player.update(dt, mouseDelta, pinput);
     }
 
     world->update(dt, activeCam);
@@ -182,17 +195,6 @@ void Game::keyPress(SDL_Keycode key)
         setMode(Mode::Mode_Player);
     else if(key == SDLK_F2)
         setMode(Mode::Mode_FreeView);
-    else if(key == SDLK_e)
-    {
-        for(int i = 0; i < ARRAY_COUNT(player.inventory.mainSlots); i++)
-        {
-            Inventory::Slot slot = player.inventory.mainSlots[i];
-            if(slot.blockId != 0 && slot.stacks != 0)
-            {
-                printf("%s: %d\n", blockStore.blocks[slot.blockId].name, slot.stacks);
-            }
-        }
-    }
     else if(key == SDLK_PLUS)
     {
         player.inventory.nextSlot();
@@ -209,7 +211,7 @@ void Game::mouseClick(int button)
     if(mode == Mode::Mode_Player)
     {
         RaycastHit hit;
-        if(world->lineCast(hit, activeCam->transform.position, activeCam->transform.position + 10.0f*activeCam->transform.forward()))
+/*        if(world->lineCast(hit, activeCam->transform.position, activeCam->transform.position + 10.0f*activeCam->transform.forward()))
         {
             if (button == 0)
             {
@@ -227,6 +229,7 @@ void Game::mouseClick(int button)
                 }
             }
         }
+*/
     }
 }
 
@@ -247,7 +250,7 @@ void Game::updateAndRender(Renderer *renderer, double dt)
     if(initialized)
     {
 #ifdef SERVER
-    server.doEvents();
+    server->doEvents();
 #else
     client.doEvents();
 #endif
@@ -255,7 +258,7 @@ void Game::updateAndRender(Renderer *renderer, double dt)
 
     simulate(renderer, dt);
 #ifdef SERVER
-    server.takeSnapshot(world);
+    server->takeSnapshot(world);
 #else
     client.updateTransforms();
 #endif

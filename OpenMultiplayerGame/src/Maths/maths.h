@@ -32,12 +32,12 @@ public:
 		this->z = z;
 	}
 
-	static Vec3 Cross(Vec3 &l, Vec3 &r)
+	static Vec3 Cross(const Vec3 &l, const Vec3 &r)
 	{
 		return Vec3(l.y*r.z - l.z*r.y, l.z*r.x - l.x*r.z, l.x*r.y - l.y*r.x);
 	}
 
-	static float Dot(Vec3 &l, Vec3 &r)
+	static float Dot(const Vec3 &l, const Vec3 &r)
 	{
 		return l.x*r.x + l.y*r.y + l.z*r.z;
 	}
@@ -49,6 +49,9 @@ public:
 
     Vec3 normalized()
     {
+        if(length() < 0.0001f)
+            return Vec3(0.0f, 0.0f, 0.0f);
+
         Vec3 ret = *this;
         ret.x /= length();
         ret.y /= length();
@@ -70,6 +73,12 @@ public:
         this->y = y;
         this->z = z;
         this->w = w;
+    }
+
+    Vec3 toVec3()
+    {
+        Vec3 ret(x, y, z);
+        return ret;
     }
 
     union {
@@ -339,7 +348,7 @@ inline Mat4 Mat4::Ortho(float l, float r, float b, float t, float zn, float zf)
     return ret;
 }
 
-inline Mat4 Mat4:: Rotation(struct Quaternion const &q)
+inline Mat4 Mat4::Rotation(struct Quaternion const &q)
 {
 	Mat4 ret;
 	ret.m11 = 1.0f - 2.0f*q.y*q.y - 2.0f*q.z*q.z;
@@ -423,6 +432,13 @@ inline Quaternion operator *= (Quaternion &l, Quaternion const &r)
 {
 	l = l*r;
 	return l;
+}
+
+inline Vec3 operator * (Quaternion &l, Vec3 const &r)
+{
+    // TODO: optimize
+    Vec3 ret = (Mat4::Rotation(l) * Vec4(r.x, r.y, r.z, 0.0f)).toVec3();
+    return ret;
 }
 
 float perlin2D(Vec3 point, float frequency);

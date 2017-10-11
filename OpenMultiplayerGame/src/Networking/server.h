@@ -3,6 +3,7 @@
 #include <atomic>
 #include <thread>
 #include "../Maths/maths.h"
+#include "networkedinput.h"
 
 typedef struct _ENetHost ENetHost;
 typedef struct _ENetPeer ENetPeer;
@@ -26,7 +27,7 @@ struct WorldStateSnapshot
 class Server
 {
 public:
-    Server();
+    Server(class World *world);
 
     void serverProc();
 
@@ -34,14 +35,18 @@ public:
     void deinit();
     void doEvents();
     void takeSnapshot(class World *world);
+    int32_t getFreePlayerSlot();
 
     ENetHost *server;
     bool initialized = false;
-    class Entity *entities;
     std::vector<ENetPeer*> connectedClients;
 
     WorldStateSnapshot snapshots[NUM_SNAPSHOTS];
     std::atomic<int32_t> curSnapshot;
     std::atomic<bool> workerRunning;
     std::thread *workThread;
+
+    uint32_t maxPlayers = 32;
+    struct ServerPlayer *players;
+    class World *world;
 };

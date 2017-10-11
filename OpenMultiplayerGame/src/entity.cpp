@@ -2,6 +2,11 @@
 
 #include <algorithm>
 
+Entity::Entity()
+{
+    name = "Entity";
+}
+
 void Entity::reset()
 {
     for(auto component : components)

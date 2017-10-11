@@ -5,3 +5,4 @@
 
 #define SETFLAG(var, flag) var |= flag
 #define CLEARFLAG(var, flag) var &= ~flag
+

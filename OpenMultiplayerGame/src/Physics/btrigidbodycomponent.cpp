@@ -64,3 +64,13 @@ void BtRigidBodyComponent::onPhysicsUpdate(double dt)
     entity->transform.rotation = Quaternion(rot.m_floats[3], rot.m_floats[0], rot.m_floats[1], rot.m_floats[2]);
 }
 
+void BtRigidBodyComponent::tsetPosition(BtRigidBodyComponent *c, Vec3 *pos)
+{
+    c->setPosition(pos);
+}
+
+void BtRigidBodyComponent::tsetRotation(BtRigidBodyComponent *c, Quaternion *rot)
+{
+    c->setRotation(rot);
+}
+

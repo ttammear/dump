@@ -31,12 +31,6 @@ Vec3 Transform::right()
 void Transform::setPosition(Vec3 *pos)
 {
     position = *pos;
-    printf("position set to %f %f %f\n", pos->x, pos->y, pos->z);
-}
-
-Vec3 Transform::getPosition()
-{
-    return position;
 }
 
 void Transform::setRotation(Quaternion *rot)
@@ -44,8 +38,23 @@ void Transform::setRotation(Quaternion *rot)
     rotation = *rot;
 }
 
-Quaternion Transform::getRotation()
+void Transform::tsetPosition(Transform *t, Vec3 *pos)
 {
-    return rotation;
+    t->setPosition(pos);
+}
+
+void Transform::tsetRotation(Transform *t, Quaternion *rot)
+{
+    t->setRotation(rot);
+}
+
+Vec3 Transform::tgetPosition(Transform *t)
+{
+    return t->position;
+}
+
+Quaternion Transform::tgetRotation(Transform *t)
+{
+    return t->rotation;
 }
 

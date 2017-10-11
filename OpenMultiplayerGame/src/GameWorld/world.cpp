@@ -7,6 +7,7 @@
 #include "../Renderer/mesh.h"
 #include "../Renderer/renderer.h"
 #include "../Physics/physics.h"
+#include "../Player/player.h"
 
 static Vec3 vertices[] = 
 {
@@ -89,8 +90,7 @@ struct WeirdComponent : public Component
 
 #include "../Physics/btrigidbodycomponent.h"
 
-World::World(Renderer *renderer, BlockStore *blockStore)
-    : chunkManager(renderer, blockStore, this), worldGenerator(this)
+World::World(Renderer *renderer)
 {
     gravity = {0.0f, -9.8f, 0.0f};
     cubeMesh = new Mesh();
@@ -116,11 +116,6 @@ World::World(Renderer *renderer, BlockStore *blockStore)
 
 World::~World()
 {
-    for(auto it = chunks.begin(); it != chunks.end(); ++it )
-    {
-        delete it->second;
-    }
-    chunks.clear();
     delete cubeMesh;
 
     physics->deinit();
@@ -133,7 +128,9 @@ Entity* World::createEntity()
     {
         if(entities[i].inUse == false)
         {
+            printf("Created entity %d\n", i);
             Entity *ret = &entities[i];
+            ret->id = i;
             ret->inUse = true;
             ret->world = this;
             return ret;
@@ -147,64 +144,7 @@ void World::destroyEntity(Entity *entity)
     entity->reset();
 }
 
-ChunkData* World::getOrCreateChunkData(IVec3 chunkId)
-{
-    if(this->lastChunkAccess != nullptr 
-            && this->lastChunkAccess->offset == chunkId)
-    {
-        return this->lastChunkAccess;
-    }
-
-    ChunkData *ret;
-    auto fchunk = this->chunks.find(chunkId);
-    if(fchunk != this->chunks.end())
-    {
-        ret = fchunk->second;
-    }
-    else
-    {
-        ret = new ChunkData(chunkId);
-        this->chunks.insert({chunkId, ret});
-        worldGenerator.fillChunk(chunkId);
-    }
-    this->lastChunkAccess = ret;
-    return ret;
-}
-
-uint8_t World::getBlockId(IVec3 block)
-{
-    IVec3 chunkId = Chunk::getChunkId(block);
-    IVec3 localOffset(block.x - chunkId.x, block.y - chunkId.y, block.z - chunkId.z);
-    auto fchunk = this->chunks.find(chunkId);
-    
-    ChunkData *cdata = getOrCreateChunkData(chunkId);
-
-    const int s = CHUNK_STORE_SIZE;
-    uint8_t ret = cdata->data[localOffset.x*s*s + localOffset.y*s + localOffset.z];
-    return ret;
-}
-
-uint8_t World::setBlockId(IVec3 block, uint8_t newId)
-{
-    IVec3 chunkId = Chunk::getChunkId(block);
-    IVec3 localOffset(block.x - chunkId.x, block.y - chunkId.y, block.z - chunkId.z);
-    
-    ChunkData *cdata = getOrCreateChunkData(chunkId);
-
-    const int s = CHUNK_STORE_SIZE;
-    uint8_t ret = cdata->data[localOffset.x*s*s + localOffset.y*s + localOffset.z];
-    cdata->setBlock(localOffset.x, localOffset.y, localOffset.z, newId);
-    if(ret != newId)
-        chunkManager.blockChanged(block);
-    return ret;
-}
-
-void World::markChunkDirty(IVec3 chunkId)
-{
-    chunkManager.chunkChanged(chunkId);
-}
-
-bool World::lineCast(RaycastHit &hit, Vec3 start, Vec3 end)
+/*bool World::lineCast(RaycastHit &hit, Vec3 start, Vec3 end)
 {
     const float step = 0.01f;
     int steps = (start-end).length() / step;
@@ -246,12 +186,12 @@ bool World::lineCast(RaycastHit &hit, Vec3 start, Vec3 end)
         progress += step;
     }
     return false;
-}
+}*/
 
 void World::update(float dt, Camera *cam)
 {
-    chunkManager.viewerPosition = cam->transform.position;
-    chunkManager.update();
+    //chunkManager.viewerPosition = cam->transform.position;
+    //chunkManager.update();
 
     timePassed += (double)dt;
 
@@ -259,7 +199,17 @@ void World::update(float dt, Camera *cam)
     int curCount = 0;
     do
     {
+        // update player inputs
+        for(auto& player : players)
+        {
+            PlayerInput pinput;
+            player.getInputFunc(player.usrPtr, &pinput);
+            player.player->update(dt, Vec2(0.0f, 0.0f), pinput);
+        }
+
         result = physics->simulate(again);
+        if(onTick != NULL)
+            onTick(onTickUserPtr);
         if(result)
         {
             for(int i = 0; i < MAX_ENTITIES; i++)
@@ -294,6 +244,7 @@ void World::update(float dt, Camera *cam)
             }
         }
     }
+
 }
 
 void World::render()
@@ -304,11 +255,11 @@ void World::render()
     {
         if((cam->flags & Camera::Flags::Disabled) == 0)
         {
-            chunkManager.render(cam);
+            //chunkManager.render(cam);
             Mat4 vp = cam->getViewProjectionMatrix();
             for(int i = 0; i < MAX_ENTITIES; i++)
             {
-                if(entities[i].inUse)
+                if(entities[i].inUse && entities[i].active)
                 {
                     Mat4 id = entities[i].transform.getModelMatrix();
                     renderer->renderMesh(cubeMesh, renderer->defaultMaterial, &id, &vp);

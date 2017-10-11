@@ -6,6 +6,7 @@
 *.out
 *.clocignore
 countlines.sh
-src/Dotnet/Managed/bin
-src/Dotnet/Managed/obj
+
+bin
+obj
 

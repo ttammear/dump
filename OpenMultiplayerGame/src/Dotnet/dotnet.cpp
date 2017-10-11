@@ -12,6 +12,7 @@
 #include "../transform.h"
 #include "../GameWorld/world.h"
 #include "../Physics/btrigidbodycomponent.h"
+#include "../macros.h"
 
 Dotnet::Dotnet()
 {
@@ -249,16 +250,16 @@ void Dotnet::test(void *transform, World *world)
     status = coreclr_create_delegate(clrHost, domainId, "Managed", "Binding", "update",
             reinterpret_cast<void**>(&csharp_update));
     assert(status >= 0);
-
-    csharp_setptr(0, (void*)&Transform::setPosition, transform);
-    csharp_setptr(1, (void*)&Transform::getPosition, transform);
+//
+    csharp_setptr(0, (void*)&Transform::tsetPosition, transform);
+    csharp_setptr(1, (void*)&Transform::tgetPosition, transform);
     csharp_setptr(2, (void*)createEntity, transform);
     csharp_setptr(3, (void*)world, transform);
-    csharp_setptr(4, (void*)&Transform::setRotation, transform);
-    csharp_setptr(5, (void*)&Transform::getRotation, transform);
+    csharp_setptr(4, (void*)&Transform::tsetRotation, transform);
+    csharp_setptr(5, (void*)&Transform::tgetRotation, transform);
     csharp_setptr(6, (void*)entityAddComponent, transform);
-    csharp_setptr(7, (void*)&BtRigidBodyComponent::setPosition, transform);
-    csharp_setptr(8, (void*)&BtRigidBodyComponent::setRotation, transform);
+    csharp_setptr(7, (void*)&BtRigidBodyComponent::tsetPosition, transform);
+    csharp_setptr(8, (void*)&BtRigidBodyComponent::tsetRotation, transform);
     csharp_main();
 }
 

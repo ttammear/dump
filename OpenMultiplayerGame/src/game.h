@@ -2,7 +2,6 @@
 #include "camera.h"
 #include "Player/player.h"
 #include "Player/spectator.h"
-#include "GameWorld/blockstore.h"
 
 #include <SDL2/SDL_keyboard.h>
 
@@ -24,6 +23,7 @@ public:
     void keyPress(SDL_Keycode key);
     void setMode(uint32_t mode);
     void mouseScroll(int delta);
+    void onTick();
 
     bool initialized = false;
     uint32_t mode = Mode::Mode_FreeView;
@@ -35,8 +35,6 @@ public:
     Vec2 mousePosLast;
     Vec2 mouseDelta;
     Vec2 camRot;
-
-    BlockStore blockStore;
 
     // TODO: TEMPORARY
     struct SDL_Window *window;

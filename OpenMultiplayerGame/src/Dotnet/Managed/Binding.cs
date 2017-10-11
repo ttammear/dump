@@ -241,6 +241,7 @@ internal class Binding
         transformSetPosition(trans, ref pos);
 
         ent = World.CreateEntity();
+        System.Console.WriteLine("Created entity in C#");
         ent.transform.position = new Vec3(0.0f, 10.0f, 0.0f);
         ent.transform.rotation = Quaternion.AngleAxis(45.0f, new Vec3(0.0f, 1.0f, 0.0f));
         rbComp = ent.AddComponent<BtRigidBody>();

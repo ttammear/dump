@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <string>
 
 #include "transform.h"
 
@@ -17,12 +18,16 @@ struct Component
 
 struct Entity
 {
+    Entity();
     void reset();
 
     Transform transform;
     class Mesh *mesh;
     class World *world;
     bool inUse = false;
+    bool active = true;
+    int id = 0;
+    std::string name;
 
     template<typename T>
     T* addComponent()
