@@ -25,7 +25,17 @@ AikeImage *aike_get_first_image(Aike *aike)
     return NULL;
 }
 
-void aike_open_image(Aike *aike, uint32_t width, uint32_t height, uint32_t numcomps, void *memory)
+// TODO: hardcoded value badbadbad
+AikeImage *aike_get_dummy_image(Aike *aike)
+{
+    if(aike->images.imagePresent[1])
+    {
+        return &aike->images.images[1];
+    }
+    return NULL;
+}
+
+void aike_open_image(Aike *aike, uint32_t width, uint32_t height, uint32_t numcomps, void *memory, bool seamless)
 {
     AikeImage *imgSl = aike_get_image_slot(aike);
     imgSl->width = width;
@@ -34,5 +44,8 @@ void aike_open_image(Aike *aike, uint32_t width, uint32_t height, uint32_t numco
     //u64 size = width * height * numcomps;
     // TODO: should we copy and alloc our own buffer?
     imgSl->rawData = memory;
-    imgSl->glTex = opengl_load_texture(width, height, numcomps, memory);
+    if(!seamless)
+        imgSl->glTex = opengl_load_texture(width, height, numcomps, memory);
+    else
+        imgSl->glTex = opengl_load_seamless_texture(width, height, numcomps, memory);
 }

@@ -214,15 +214,18 @@ DLL_PUBLIC void aike_init(AikePlatform *platform)
     font_manager_load_font(&g_renderer->fontManager, "./fonts/times.ttf", 18);
 
     const char *filename = "./cat.png";
+    const char *patternfile = "./pattern.png";
     int x,y,n;
     unsigned char *data = stbi_load(filename, &x, &y, &n, 4);
     if(data != NULL)
-    {
-        aike_open_image(&aike, x, y, 4, data);
-    }
+        aike_open_image(&aike, x, y, 4, data, false);
     else
         fprintf(stderr, "Failed to load image %s\n", filename);
-
+    data = stbi_load(patternfile, &x, &y, &n, 4);
+    if(data != NULL)
+        aike_open_image(&aike, x, y, 4, data, true);
+    else
+        fprintf(stderr, "Failed to load image %s\n", patternfile);
 }
 
 DLL_PUBLIC void aike_update(AikePlatform *platform)

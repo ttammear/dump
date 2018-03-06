@@ -310,11 +310,11 @@ static void draw_view(Rect viewRect)
 {
     float aspect = viewRect.height / viewRect.width;
     renderer_draw_quad(g_renderer, viewRect, Vec4(aspect, 0.6f, 0.5f, 1.0f));
-    AikeImage *img = aike_get_first_image(g_aike);
+    AikeImage *img = aike_get_dummy_image(g_aike);
     Rect newR = viewRect;
 //    newR.width *= 0.5f;
     if(img != NULL)
-        renderer_draw_texture(g_renderer, newR, img->glTex);
+        renderer_draw_texture(g_renderer, newR, img->glTex, false, img->width, img->height);
 }
 
 static void layout_tree_draw(LayoutTreeNode *node)
@@ -353,6 +353,7 @@ static void user_interface_draw(UserInterface *ui)
     layout_tree_draw(ui->layoutTree.rootNode);
 
     g_renderer->currentLayer++;
+#if 0
     // TODO: remove this debug crap
     Vec2 size(30.0f, 30.0f);
     renderer_draw_quad(g_renderer, Rect(g_input->mousePos - 0.5*size, size), Vec4(0.0f, 1.0f, 0.0f, 0.5f));
@@ -363,6 +364,7 @@ static void user_interface_draw(UserInterface *ui)
     g_renderer->currentLayer--;
     renderer_draw_quad(g_renderer, rect, Vec4(1.0f, 1.0f, 0.0f, 0.5f));
     g_renderer->currentLayer--;
+#endif
 
     renderer_render(g_renderer);
     

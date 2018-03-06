@@ -67,7 +67,7 @@ static void slow_quad_buffer_free(SlowQuadBuffer *qbuf)
     FREE_RESOURCE(qbuf->vaouuid);
 }
 
-void slow_quad_buffer_draw_quad(SlowQuadBuffer *qbuf, Rect rect, GLuint texture)
+void slow_quad_buffer_draw_quad(SlowQuadBuffer *qbuf, Rect rect, GLuint texture, bool stretch, float width, float height)
 {
     Vec2 min(rect.x0, rect.y0);
     Vec2 max = min + Vec2(rect.width, rect.height);
@@ -77,6 +77,9 @@ void slow_quad_buffer_draw_quad(SlowQuadBuffer *qbuf, Rect rect, GLuint texture)
     q->min = min;
     q->max = max;
     q->texture = texture;
+    q->stretch = stretch;
+    q->imgWidth = width;
+    q->imgHeight = height;
 }
 
 static void slow_quad_buffer_render(SlowQuadBuffer *qbuf)
@@ -103,12 +106,39 @@ static void slow_quad_buffer_render(SlowQuadBuffer *qbuf)
             Vec2 uv;
         };
         TempData bufData[6];
-        bufData[0] = {{q->min.x, q->min.y, 0.0f}, {0.0f, 0.0f}};
-        bufData[1] = {{q->min.x, q->max.y, 0.0f}, {0.0f, 1.0f}};
-        bufData[2] = {{q->max.x, q->min.y, 0.0f}, {1.0f, 0.0f}};
-        bufData[3] = {{q->min.x, q->max.y, 0.0f}, {0.0f, 1.0f}};
-        bufData[4] = {{q->max.x, q->max.y, 0.0f}, {1.0f, 1.0f}};
-        bufData[5] = {{q->max.x, q->min.y, 0.0f}, {1.0f, 0.0f}};
+        Vec2 texCoords[6];
+        if(q->stretch)
+        {
+            texCoords[0] = {0.0f, 0.0f};
+            texCoords[1] = {0.0f, 1.0f};
+            texCoords[2] = {1.0f, 0.0f};
+            texCoords[3] = {0.0f, 1.0f};
+            texCoords[4] = {1.0f, 1.0f};
+            texCoords[5] = {1.0f, 0.0f};
+        }
+        else
+        {
+            float width = q->max.x - q->min.x;
+            float height = q->max.y - q->min.y;
+            float iw = q->imgWidth;
+            float ih = q->imgHeight;
+            float ratiox = width/iw;
+            float ratioy = height/ih;
+            texCoords[0] = {0.0f, 0.0f};
+            texCoords[1] = {0.0f, ratioy};
+            texCoords[2] = {ratiox, 0.0f};
+            texCoords[3] = {0.0f, ratioy};
+            texCoords[4] = {ratiox, ratioy};
+            texCoords[5] = {ratiox, 0.0f};
+        }
+
+
+        bufData[0] = {{q->min.x, q->min.y, 0.0f}, texCoords[0]};
+        bufData[1] = {{q->min.x, q->max.y, 0.0f}, texCoords[1]};
+        bufData[2] = {{q->max.x, q->min.y, 0.0f}, texCoords[2]};
+        bufData[3] = {{q->min.x, q->max.y, 0.0f}, texCoords[3]};
+        bufData[4] = {{q->max.x, q->max.y, 0.0f}, texCoords[4]};
+        bufData[5] = {{q->max.x, q->min.y, 0.0f}, texCoords[5]};
         assert(sizeof(bufData) == qbuf->bufSize);
 
         glBindTexture(GL_TEXTURE_2D, q->texture);
@@ -278,6 +308,28 @@ GLuint opengl_load_texture(uint32_t width, uint32_t height, uint32_t numcomps, v
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    return ret;
+}
+
+GLuint opengl_load_seamless_texture(uint32_t width, uint32_t height, uint32_t numcomps, void* data)
+{
+    GLuint ret;
+    glGenTextures(1, &ret);
+    GLenum format;
+    if(numcomps == 3)
+        format = GL_RGB;
+    else if(numcomps == 4)
+        format = GL_RGBA;
+    else
+    {
+        assert(false);
+    }
+    glBindTexture(GL_TEXTURE_2D, ret);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     return ret;
 }
 
@@ -469,9 +521,9 @@ static void renderer_draw_quad(Renderer *renderer, Rect rect, Vec4 color)
     quad_buffer_draw_quad(&renderer->layerBuffers[renderer->currentLayer], vertices);
 }
 
-static void renderer_draw_texture(Renderer *renderer, Rect rect, GLuint tex)
+static void renderer_draw_texture(Renderer *renderer, Rect rect, GLuint tex, bool stretch, float width, float height)
 {
-    slow_quad_buffer_draw_quad(&renderer->slowLayerBuffers[renderer->currentLayer], rect, tex);
+    slow_quad_buffer_draw_quad(&renderer->slowLayerBuffers[renderer->currentLayer], rect, tex, stretch, width, height);
 }
 
 

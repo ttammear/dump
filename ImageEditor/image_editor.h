@@ -79,6 +79,9 @@ struct SlowQuad
     Vec2 min;
     Vec2 max;
     GLuint texture;
+    bool stretch;
+    float imgWidth;
+    float imgHeight;
 };
 #pragma pack(pop)
 
@@ -423,5 +426,6 @@ GL_FUNC_VAR(glTexSubImage3D);*/
 
 AikeImage *aike_get_image_slot(Aike *aike);
 AikeImage *aike_get_first_image(Aike *aike);
-void aike_open_image(Aike *aike, uint32_t width, uint32_t height, uint32_t numcomps, void *memory);
+void aike_open_image(Aike *aike, uint32_t width, uint32_t height, uint32_t numcomps, void *memory, bool seamless);
 GLuint opengl_load_texture(uint32_t width, uint32_t height, uint32_t numcomps, void *data);
+GLuint opengl_load_seamless_texture(uint32_t width, uint32_t height, uint32_t numcomps, void *data);
