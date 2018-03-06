@@ -38,6 +38,87 @@ static void quad_buffer_free(QuadBuffer *qbuf)
     FREE_RESOURCE(qbuf->vbouuid);
 }
 
+static void slow_quad_buffer_init(SlowQuadBuffer *sbuf)
+{
+    GLuint vbo, vao;
+    TRACK_RESOURCE_SET(sbuf->vbouuid, "Slow Quad Buffer VBO");
+    TRACK_RESOURCE_SET(sbuf->vaouuid, "Slow Quad Buffer VAO");
+    glGenBuffers(1, &vbo);
+    glGenVertexArrays(1, &vao);
+
+    sbuf->bufSize = 6*(3*4 + 2*4); // 4 * (Vec3 and Vec2)
+    glBindVertexArray(vao);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sbuf->bufSize, NULL, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sbuf->bufSize / 6, (const GLvoid*)0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sbuf->bufSize / 6, (const GLvoid*)(3*4));
+    glBindVertexArray(0);
+    sbuf->vbo = vbo;
+    sbuf->vao = vao;
+}
+
+static void slow_quad_buffer_free(SlowQuadBuffer *qbuf)
+{
+    glDeleteBuffers(1, &qbuf->vbo);
+    glDeleteVertexArrays(1, &qbuf->vao);
+    FREE_RESOURCE(qbuf->vbouuid);
+    FREE_RESOURCE(qbuf->vaouuid);
+}
+
+void slow_quad_buffer_draw_quad(SlowQuadBuffer *qbuf, Rect rect, GLuint texture)
+{
+    Vec2 min(rect.x0, rect.y0);
+    Vec2 max = min + Vec2(rect.width, rect.height);
+    uint32_t idx = qbuf->numQuads++;
+    assert(idx < ARRAY_COUNT(qbuf->quads));
+    SlowQuad *q = &qbuf->quads[idx];
+    q->min = min;
+    q->max = max;
+    q->texture = texture;
+}
+
+static void slow_quad_buffer_render(SlowQuadBuffer *qbuf)
+{
+    if(qbuf->numQuads == 0)
+        return;
+
+    GLuint texLoc = glGetUniformLocation(g_renderer->slowQuadProgram, "tex");
+    GLuint projLoc = glGetUniformLocation(g_renderer->slowQuadProgram, "projection");
+    glUseProgram(g_renderer->slowQuadProgram);
+    glActiveTexture(GL_TEXTURE0);
+    glUniform1i(texLoc, 0);
+    glUniformMatrix4fv(projLoc, 1, GL_FALSE, (GLfloat*)&g_renderer->projection);
+
+    glBindBuffer(GL_ARRAY_BUFFER, qbuf->vbo);
+    glBindVertexArray(qbuf->vao);
+
+    for(uint32_t i = 0; i < qbuf->numQuads; i++)
+    {
+        SlowQuad *q = &qbuf->quads[i];
+        struct TempData
+        {
+            Vec3 pos;
+            Vec2 uv;
+        };
+        TempData bufData[6];
+        bufData[0] = {{q->min.x, q->min.y, 0.0f}, {0.0f, 0.0f}};
+        bufData[1] = {{q->min.x, q->max.y, 0.0f}, {0.0f, 1.0f}};
+        bufData[2] = {{q->max.x, q->min.y, 0.0f}, {1.0f, 0.0f}};
+        bufData[3] = {{q->min.x, q->max.y, 0.0f}, {0.0f, 1.0f}};
+        bufData[4] = {{q->max.x, q->max.y, 0.0f}, {1.0f, 1.0f}};
+        bufData[5] = {{q->max.x, q->min.y, 0.0f}, {1.0f, 0.0f}};
+        assert(sizeof(bufData) == qbuf->bufSize);
+
+        glBindTexture(GL_TEXTURE_2D, q->texture);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, qbuf->bufSize, &bufData);
+        glDrawArrays(GL_TRIANGLES, 0 , 6);
+    }
+
+    qbuf->numQuads = 0;
+}
+
 static void font_manager_initialize(FontManager *fmgr)
 {
     fmgr->numCachedFonts = 0;
@@ -64,6 +145,10 @@ static void renderer_init(Renderer *renderer)
     {
         quad_buffer_init(&renderer->layerBuffers[i]);
     }
+    for(int i = 0; i < ARRAY_COUNT(renderer->slowLayerBuffers); i++)
+    {
+        slow_quad_buffer_init(&renderer->slowLayerBuffers[i]);
+    }
 
     TRACK_RESOURCE_SET(renderer->atlasdebug, "Renderer main texture atlas");
     glGenTextures(1, &renderer->textureAtlasArray);
@@ -85,6 +170,10 @@ static void renderer_free_resources(Renderer *renderer)
     for(int i = 0; i < ARRAY_COUNT(renderer->layerBuffers); i++)
     {
         quad_buffer_free(&renderer->layerBuffers[i]);
+    }
+    for(int i = 0; i < ARRAY_COUNT(renderer->slowLayerBuffers); i++)
+    {
+        slow_quad_buffer_free(&renderer->slowLayerBuffers[i]);
     }
     FREE_RESOURCE(renderer->atlasdebug);
     glDeleteTextures(1, &renderer->textureAtlasArray);
@@ -166,20 +255,30 @@ static void cached_font_set_name(CachedFont *font, const char* name)
     strncpy(font->name, name, ARRAY_COUNT(font->name)); 
 }
 
-static void texture_initialize(Texture2D* tex)
+GLuint opengl_load_texture(uint32_t width, uint32_t height, uint32_t numcomps, void *data)
 {
-    tex->width = 0;
-    tex->height = 0;
-    tex->flags = 0;
-    tex->renderer_handle = (uint64_t)-1;
-}
-
-static void texture_destroy(Texture2D* tex)
-{
-    if((tex->flags & TextureFlag_Loaded) != 0)
+    GLuint ret;
+    glGenTextures(1, &ret);
+    GLenum format;
+    if(numcomps == 3)
+        format = GL_RGB;
+    if(numcomps == 4)
+        format = GL_RGBA;
+    else
     {
-        glDeleteTextures(1, (GLuint*) &tex->renderer_handle);
+        // TODO: some centralized way of bailing out?
+        fprintf(stderr, "comps other than 3 or 4 not implemented");
+        abort();
     }
+    glBindTexture(GL_TEXTURE_2D, ret);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    return ret;
 }
 
 static void cached_font_initialize(CachedFont *font)
@@ -370,6 +469,11 @@ static void renderer_draw_quad(Renderer *renderer, Rect rect, Vec4 color)
     quad_buffer_draw_quad(&renderer->layerBuffers[renderer->currentLayer], vertices);
 }
 
+static void renderer_draw_texture(Renderer *renderer, Rect rect, GLuint tex)
+{
+    slow_quad_buffer_draw_quad(&renderer->slowLayerBuffers[renderer->currentLayer], rect, tex);
+}
+
 
 static void renderer_reset(Renderer *renderer)
 {
@@ -386,5 +490,6 @@ static void renderer_render(Renderer *renderer)
     for(int i = 0; i < count; i++)
     {
         quad_buffer_render(&renderer->layerBuffers[i], renderer->mainProgram, renderer->textureAtlasArray);
+        slow_quad_buffer_render(&renderer->slowLayerBuffers[i]);
     }
 }

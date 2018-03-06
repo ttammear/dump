@@ -310,6 +310,11 @@ static void draw_view(Rect viewRect)
 {
     float aspect = viewRect.height / viewRect.width;
     renderer_draw_quad(g_renderer, viewRect, Vec4(aspect, 0.6f, 0.5f, 1.0f));
+    AikeImage *img = aike_get_first_image(g_aike);
+    Rect newR = viewRect;
+//    newR.width *= 0.5f;
+    if(img != NULL)
+        renderer_draw_texture(g_renderer, newR, img->glTex);
 }
 
 static void layout_tree_draw(LayoutTreeNode *node)

@@ -57,6 +57,34 @@ void main() {
     }
 })foo";
 
+const char *slow_quad_vertex = 
+R"foo(#version 330 core
+layout(location = 0) in vec4 position; 
+layout(location = 1) in vec2 uv;
+
+uniform mat4 projection;
+
+out vec2 fragUv;
+
+void main() {
+	gl_Position = projection*position;
+    fragUv = uv;
+}
+)foo";
+
+const char *slow_quad_frag = 
+R"foo(#version 330 core
+layout(location = 0) out vec4 outColor;
+
+in vec2 fragUv;
+
+uniform sampler2D tex;
+
+void main() {
+    outColor = texture(tex, fragUv);
+}
+)foo";
+
 // TODO WHY?
 static void glShowError(const char *title, const char *text)
 {
@@ -124,9 +152,11 @@ Renderer *g_renderer;
 UserInterface *g_ui;
 AikeInput *g_input;
 EventManager *g_emgr;
+Aike *g_aike;
 
 static AikeInput input;
 static EventManager eventManager;
+static Aike aike;
 
 // TODO: get rid of this
 GLuint program;
@@ -160,6 +190,10 @@ DLL_PUBLIC void aike_init(AikePlatform *platform)
     platform->frameCounter = 0;
     platform->rootMenu = NULL;
 
+    for(int i = 0; i < ARRAY_COUNT(aike.images.imagePresent); i++)
+        aike.images.imagePresent[i] = false;
+    g_aike = &aike;
+
     g_input = &input;
     input_init(g_input);
 
@@ -174,9 +208,20 @@ DLL_PUBLIC void aike_init(AikePlatform *platform)
     layout_tree_tests(&g_ui->layoutTree);
 
     compile_shader(&program, vertex_shader_str, frag_shader_str);
+    compile_shader(&g_renderer->slowQuadProgram, slow_quad_vertex, slow_quad_frag);
     g_renderer->mainProgram = program;
     CachedFont* timesFont = font_manager_load_font(&g_renderer->fontManager, "./fonts/times.ttf", 32);
     font_manager_load_font(&g_renderer->fontManager, "./fonts/times.ttf", 18);
+
+    const char *filename = "./cat.png";
+    int x,y,n;
+    unsigned char *data = stbi_load(filename, &x, &y, &n, 4);
+    if(data != NULL)
+    {
+        aike_open_image(&aike, x, y, 4, data);
+    }
+    else
+        fprintf(stderr, "Failed to load image %s\n", filename);
 
 }
 
@@ -219,6 +264,15 @@ DLL_PUBLIC void aike_update(AikePlatform *platform)
 
 DLL_PUBLIC void aike_deinit(AikePlatform *platform)
 {
+    // TODO: the image might not be loaded with stb_image
+    for(int i = 0; i < ARRAY_COUNT(aike.images.images); i++)
+    {
+        if(aike.images.imagePresent[i])
+        {
+            stbi_image_free(aike.images.images[i].rawData);
+        }
+    }
+
     user_interface_free_resources(g_ui);
 
     aike_free(g_ui);

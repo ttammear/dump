@@ -8,10 +8,6 @@
 
 #include "aike_math.h"
 
-#define STB_RECT_PACK_IMPLEMENTATION
-#include "libs/stb_rect_pack.h"
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "libs/stb_truetype.h"
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
@@ -52,21 +48,6 @@ AikePlatform *g_platform;
 
 ///////// UI STUFF //////////////////////////
 
-enum 
-{
-    TextureFlag_Loaded = 1
-    // NOW 2!!!
-    // NOW 4!!!
-};
-
-struct Texture2D
-{
-    uint32_t width;
-    uint32_t height;
-    uint16_t flags;
-    uint64_t renderer_handle;
-};
-
 #pragma pack(push, 1)
 struct QuadVertex
 {
@@ -89,6 +70,27 @@ struct QuadBuffer
     DEBUGINT(vaouuid);
     DEBUGINT(vbouuid);
 
+    uint32_t layer;
+};
+
+#pragma pack(push, 1)
+struct SlowQuad
+{
+    Vec2 min;
+    Vec2 max;
+    GLuint texture;
+};
+#pragma pack(pop)
+
+struct SlowQuadBuffer
+{
+    GLuint vao;
+    GLuint vbo;
+    uint32_t numQuads;
+    uint32_t bufSize;
+    SlowQuad quads[64];
+    DEBUGINT(vbouuid);
+    DEBUGINT(vaouuid);
     uint32_t layer;
 };
 
@@ -127,10 +129,12 @@ struct Renderer
     // resources for rendering solid shapes
     //QuadBuffer solidBuffer;
     QuadBuffer layerBuffers[32];
+    SlowQuadBuffer slowLayerBuffers[32];
 
     int32_t currentLayer;
 
-    GLint mainProgram;
+    GLuint mainProgram;
+    GLuint slowQuadProgram;
 
     GLuint textureAtlasArray;
     uint32_t textureAtlasNumLayers;
@@ -199,6 +203,27 @@ struct UserInterface
 
     StructArray contextList;
     StructPool contextPool;
+};
+
+struct AikeImage
+{
+    uint32_t width;
+    uint32_t height;
+    uint32_t numComps;
+
+    void *rawData;
+    GLuint glTex;
+};
+
+struct OpenImages
+{
+    AikeImage images[10];
+    bool imagePresent[10];
+};
+
+struct Aike
+{
+    OpenImages images;
 };
 
 
@@ -271,6 +296,7 @@ struct MemoryManager
 
 
 extern MemoryManager *g_memoryManager;
+extern Aike *g_aike;
 
 void* debug_alloc(size_t size, uint32_t uuid, const char *fileName, int lineNumber);
 void debug_free(void *ptr);
@@ -395,4 +421,7 @@ GL_FUNC_VAR(glTexSubImage3D);*/
 // TODO: is there any way we could get rid of this?? (using the above declarations fails to link)
 #include <GL/gl.h>
 
-
+AikeImage *aike_get_image_slot(Aike *aike);
+AikeImage *aike_get_first_image(Aike *aike);
+void aike_open_image(Aike *aike, uint32_t width, uint32_t height, uint32_t numcomps, void *memory);
+GLuint opengl_load_texture(uint32_t width, uint32_t height, uint32_t numcomps, void *data);
