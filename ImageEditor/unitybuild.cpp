@@ -11,6 +11,9 @@
 #define STBI_ONLY_PNG
 #include "libs/stb_image.h"
 
+#include "libs/klib/khash.h"
+KHASH_MAP_INIT_INT(ptr_t, void*)
+
 #include "image_editor.h"
 
 #define CONTAINERS_IMPLEMENTATION

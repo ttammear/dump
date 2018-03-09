@@ -208,12 +208,40 @@ struct UserInterface
     StructPool contextPool;
 };
 
+#define AIKE_IMG_CHUNK_SIZE 128 // 4 component 64K (aligns with common virtual memory page size)
+#define AIKE_MAX_IMG_SIZE 1<<16
+#define AIKE_MAX_AXIS_CHUNKS (AIKE_MAX_IMG_SIZE / AIKE_IMG_CHUNK_SIZE)
+
+struct ImageTile
+{
+    uint32_t glLayer;
+    int32_t tileX;
+    int32_t tileY;
+    uint8_t data[AIKE_IMG_CHUNK_SIZE][AIKE_IMG_CHUNK_SIZE][4];
+};
+
+#define AIKE_TILE_POOL_INIT_SIZE 256
+
+struct AikeTilePool
+{
+    // TODO: definitely need dynamic pool here
+    uint32_t numFree;
+    uint32_t freeList[AIKE_TILE_POOL_INIT_SIZE];
+    GLuint glTextureArray;
+};
+
 struct AikeImage
 {
     uint32_t width;
     uint32_t height;
     uint32_t numComps;
 
+    // REVIEW: should we also create a data structure for iteration or
+    // is this fast enough?
+    khash_t(ptr_t) *tile_hashmap; // contains void* of ImageTile*
+
+    // TODO: these are currently used for the background checkerboard
+    // move that to texture arrays and get rid of this data here
     void *rawData;
     GLuint glTex;
 };
@@ -227,6 +255,7 @@ struct OpenImages
 struct Aike
 {
     OpenImages images;
+    AikeTilePool tilePool;
 };
 
 
@@ -244,7 +273,7 @@ static CachedFont* font_manager_load_font(FontManager* fmgr, const char *path, u
 
 static void renderer_init(Renderer *renderer);
 static void renderer_free_resources(Renderer *renderer);
-static void quad_buffer_render(QuadBuffer *qbuf, GLint program, GLuint texture);
+void quad_buffer_render(QuadBuffer *qbuf, GLint program, GLuint texture, GLuint texture2);
 static void renderer_draw_quad(Renderer *renderer, Rect rect, Vec4 color);
 
 static void user_interface_init(UserInterface *ui, uint32_t screenWidth, uint32_t screenHeight);
@@ -424,8 +453,20 @@ GL_FUNC_VAR(glTexSubImage3D);*/
 // TODO: is there any way we could get rid of this?? (using the above declarations fails to link)
 #include <GL/gl.h>
 
-AikeImage *aike_get_image_slot(Aike *aike);
+void aike_init_tile_pool(AikeTilePool *pool);
+AikeImage *aike_alloc_image_slot(Aike *aike);
+void aike_free_image_slot(Aike *aike, AikeImage *slot);
 AikeImage *aike_get_first_image(Aike *aike);
-void aike_open_image(Aike *aike, uint32_t width, uint32_t height, uint32_t numcomps, void *memory, bool seamless);
+void aike_destroy_tile_pool(AikeTilePool *pool);
+
+AikeImage *aike_open_image(Aike *aike, uint32_t width, uint32_t height, uint32_t numcomps, void *memory, bool seamless);
+void aike_close_image(Aike *aike, AikeImage *img);
+
+void aike_return_tile(Aike *aike, ImageTile* tile);
+void aike_update_tile(Aike *aike, ImageTile* tile);
+
 GLuint opengl_load_texture(uint32_t width, uint32_t height, uint32_t numcomps, void *data);
 GLuint opengl_load_seamless_texture(uint32_t width, uint32_t height, uint32_t numcomps, void *data);
+GLuint opengl_create_texture_array(uint32_t width, uint32_t height, uint32_t layers);
+void opengl_destroy_texture_array(GLuint texarr);
+void opengl_copy_texture_array_layer(GLuint tex, uint32_t width, uint32_t height, uint32_t layer, void *data);

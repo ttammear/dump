@@ -238,25 +238,7 @@ static void quad_buffer_draw_quad(QuadBuffer *qbuf, QuadVertex vertices[], uint3
     qbuf->numQuads++;
 }
 
-/*static void quad_buffer_render(QuadBuffer *qbuf, GLint program)
-{
-    if(qbuf->numQuads == 0)
-        return;
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glUseProgram(program);
-    
-    glBindVertexArray(qbuf->vao);
-    glBindBuffer(GL_ARRAY_BUFFER, qbuf->vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, qbuf->numQuads*6*sizeof(QuadVertex), qbuf->vertices);
-    // TODO: try to stall this draw, otherwise we'd be waiting for the upload to complete
-    glDrawArrays(GL_TRIANGLES, 0, qbuf->numQuads*6);
-    glUseProgram(0);
-    qbuf->numQuads = 0;
-}*/
-
-static void quad_buffer_render(QuadBuffer *qbuf, GLint program, GLuint texture)
+void quad_buffer_render(QuadBuffer *qbuf, GLint program, GLuint texture, GLuint texture2)
 {
     if(qbuf->numQuads == 0)
         return;
@@ -264,11 +246,15 @@ static void quad_buffer_render(QuadBuffer *qbuf, GLint program, GLuint texture)
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     GLuint texLoc = glGetUniformLocation(program, "tex");
+    GLuint tex2Loc = glGetUniformLocation(program, "tileTex");
     glUseProgram(program);
     
     glUniform1i(texLoc, 0);
+    glUniform1i(tex2Loc, 1);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, texture2);
 
     glBindVertexArray(qbuf->vao);
     glBindBuffer(GL_ARRAY_BUFFER, qbuf->vbo);
@@ -309,6 +295,35 @@ GLuint opengl_load_texture(uint32_t width, uint32_t height, uint32_t numcomps, v
     glBindTexture(GL_TEXTURE_2D, 0);
 
     return ret;
+}
+
+GLuint opengl_create_texture_array(uint32_t width, uint32_t height, uint32_t layers)
+{
+    GLuint ret;
+    printf("Created texture array\n");
+    glGenTextures(1, &ret);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, ret);
+
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, width, height, layers, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    return ret;
+}
+
+void opengl_copy_texture_array_layer(GLuint tex, uint32_t width, uint32_t height, uint32_t layer, void *data)
+{
+    glBindTexture(GL_TEXTURE_2D_ARRAY, tex);
+    glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, layer, width, height, 1, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+}
+
+void opengl_destroy_texture_array(GLuint texarr)
+{
+    printf("Destroyed texture array\n");
+    glDeleteTextures(1, &texarr);
 }
 
 GLuint opengl_load_seamless_texture(uint32_t width, uint32_t height, uint32_t numcomps, void* data)
@@ -521,6 +536,17 @@ static void renderer_draw_quad(Renderer *renderer, Rect rect, Vec4 color)
     quad_buffer_draw_quad(&renderer->layerBuffers[renderer->currentLayer], vertices);
 }
 
+static void renderer_draw_tile(Renderer *renderer, Rect rect, uint32_t layer)
+{
+    QuadVertex vertices[4];
+    vertices[0] = {{rect.x0, rect.y0, 0.0f}, {1.0f, 1.0, 1.0, 1.0}, {0.0f, 0.0f, (float)layer}};
+    vertices[1] = {{rect.x0+rect.width, rect.y0, 0.0f}, {1.0f, 1.0, 1.0, 1.0}, {1.0f, 0.0f, (float)layer}};
+    vertices[2] = {{rect.x0+rect.width, rect.y0+rect.height, 0.0f}, {1.0f, 1.0, 1.0, 1.0}, {1.0f, 1.0f, (float)layer}};
+    vertices[3] = {{rect.x0, rect.y0+rect.height, 0.0f}, {1.0f, 1.0, 1.0, 1.0}, {0.0f, 1.0f, (float)layer}};
+    assert(renderer->currentLayer < ARRAY_COUNT(renderer->layerBuffers));
+    quad_buffer_draw_quad(&renderer->layerBuffers[renderer->currentLayer], vertices, 2);
+}
+
 static void renderer_draw_texture(Renderer *renderer, Rect rect, GLuint tex, bool stretch, float width, float height)
 {
     slow_quad_buffer_draw_quad(&renderer->slowLayerBuffers[renderer->currentLayer], rect, tex, stretch, width, height);
@@ -541,7 +567,7 @@ static void renderer_render(Renderer *renderer)
     int count = ARRAY_COUNT(renderer->layerBuffers);
     for(int i = 0; i < count; i++)
     {
-        quad_buffer_render(&renderer->layerBuffers[i], renderer->mainProgram, renderer->textureAtlasArray);
+        quad_buffer_render(&renderer->layerBuffers[i], renderer->mainProgram, renderer->textureAtlasArray, g_aike->tilePool.glTextureArray);
         slow_quad_buffer_render(&renderer->slowLayerBuffers[i]);
     }
 }

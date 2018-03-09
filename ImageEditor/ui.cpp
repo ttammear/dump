@@ -315,6 +315,44 @@ static void draw_view(Rect viewRect)
 //    newR.width *= 0.5f;
     if(img != NULL)
         renderer_draw_texture(g_renderer, newR, img->glTex, false, img->width, img->height);
+    //newR.width *= 0.5f;
+    img = aike_get_first_image(g_aike);
+    if(img == NULL)
+        return;
+    g_renderer->currentLayer++;
+
+    khiter_t k;
+    khash_t(ptr_t) *h = img->tile_hashmap;
+    // return all tiles back to pool and clear hashmap
+    for (k = kh_begin(h); k != kh_end(h); ++k)
+    {
+        if (kh_exist(h, k)) 
+        {
+            ImageTile *tile = (ImageTile*)kh_value(h, k);
+            int32_t x = tile->tileX;
+            int32_t y = tile->tileY;
+            float y0 = viewRect.y0;
+            Rect tileR(viewRect.x0 + AIKE_IMG_CHUNK_SIZE*y, y0+AIKE_IMG_CHUNK_SIZE*x, AIKE_IMG_CHUNK_SIZE, AIKE_IMG_CHUNK_SIZE);
+            renderer_draw_tile(g_renderer, tileR, tile->glLayer);
+        }
+    }
+#if 0
+    for(int i = 0; i < 8; i++)
+    for(int j = 0; j < 8; j++)
+    {
+        ImageTile *tile = aike_get_tile(g_aike, img, i, j);
+        if(tile == NULL)
+        {
+            printf("not found %d %d\n", i, 0);
+            continue;
+        }
+
+        float y0 = viewRect.y0 + AIKE_IMG_CHUNK_SIZE*(8-1);
+        Rect tileR(viewRect.x0 + AIKE_IMG_CHUNK_SIZE*i, y0-AIKE_IMG_CHUNK_SIZE*j, AIKE_IMG_CHUNK_SIZE, AIKE_IMG_CHUNK_SIZE);
+        renderer_draw_tile(g_renderer, tileR, tile->glLayer);
+    }
+#endif
+    g_renderer->currentLayer--;
 }
 
 static void layout_tree_draw(LayoutTreeNode *node)
@@ -353,7 +391,7 @@ static void user_interface_draw(UserInterface *ui)
     layout_tree_draw(ui->layoutTree.rootNode);
 
     g_renderer->currentLayer++;
-#if 0
+#if 1
     // TODO: remove this debug crap
     Vec2 size(30.0f, 30.0f);
     renderer_draw_quad(g_renderer, Rect(g_input->mousePos - 0.5*size, size), Vec4(0.0f, 1.0f, 0.0f, 0.5f));
@@ -374,9 +412,9 @@ static void user_interface_draw(UserInterface *ui)
 
 static void layout_tree_tests(LayoutTree *ltree)
 {
-    layout_tree_split_node(ltree, ltree->rootNode, 0.2f, false);
-    layout_tree_split_node(ltree, ltree->rootNode->children[1], 0.75f, true);
-    layout_tree_split_node(ltree, ltree->rootNode->children[0], 0.75f, true);
+    //layout_tree_split_node(ltree, ltree->rootNode, 0.2f, false);
+    //layout_tree_split_node(ltree, ltree->rootNode->children[1], 0.75f, true);
+    //layout_tree_split_node(ltree, ltree->rootNode->children[0], 0.75f, true);
     layout_tree_draw(ltree->rootNode);
 }
 

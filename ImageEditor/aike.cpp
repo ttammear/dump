@@ -28,12 +28,19 @@ in vec3 fragUv;
 flat in int fragMode;
 
 uniform sampler2DArray tex;
+uniform sampler2DArray tileTex;
 
 vec4 textFragProc()
 {
 	float a = texture(tex, fragUv).r;
     vec3 col = a * fragColor.rgb;
     return vec4(col, a);
+}
+
+vec4 texTileFragProc()
+{
+    return texture(tileTex, fragUv);
+    //return vec4(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
 vec4 solidFragProc()
@@ -51,6 +58,9 @@ void main() {
             break;
         case 1:
             outColor = textFragProc();
+            break;
+        case 2:
+            outColor = texTileFragProc();
             break;
         default:
             outColor = vec4(1.0f, 1.0f, 0.0f, 1.0f);
@@ -193,6 +203,7 @@ DLL_PUBLIC void aike_init(AikePlatform *platform)
     for(int i = 0; i < ARRAY_COUNT(aike.images.imagePresent); i++)
         aike.images.imagePresent[i] = false;
     g_aike = &aike;
+    aike_init_tile_pool(&g_aike->tilePool);
 
     g_input = &input;
     input_init(g_input);
@@ -267,12 +278,11 @@ DLL_PUBLIC void aike_update(AikePlatform *platform)
 
 DLL_PUBLIC void aike_deinit(AikePlatform *platform)
 {
-    // TODO: the image might not be loaded with stb_image
     for(int i = 0; i < ARRAY_COUNT(aike.images.images); i++)
     {
         if(aike.images.imagePresent[i])
         {
-            stbi_image_free(aike.images.images[i].rawData);
+            aike_close_image(&aike, &aike.images.images[i]);
         }
     }
 
@@ -290,6 +300,8 @@ DLL_PUBLIC void aike_deinit(AikePlatform *platform)
     {
         printf("GLERROR: %04x\n", er);
     }
+
+    aike_destroy_tile_pool(&g_aike->tilePool);
 
     delete g_renderer;
     memory_manager_print_entries(g_memoryManager, true);
