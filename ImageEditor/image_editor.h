@@ -135,6 +135,8 @@ struct Renderer
     SlowQuadBuffer slowLayerBuffers[32];
 
     int32_t currentLayer;
+    // TODO: have rendertarget instead of window
+    AikeWindow *curWindow;
 
     GLuint mainProgram;
     GLuint slowQuadProgram;
@@ -239,11 +241,6 @@ struct AikeImage
     // REVIEW: should we also create a data structure for iteration or
     // is this fast enough?
     khash_t(ptr_t) *tile_hashmap; // contains void* of ImageTile*
-
-    // TODO: these are currently used for the background checkerboard
-    // move that to texture arrays and get rid of this data here
-    void *rawData;
-    GLuint glTex;
 };
 
 struct OpenImages
@@ -453,6 +450,12 @@ GL_FUNC_VAR(glTexSubImage3D);*/
 // TODO: is there any way we could get rid of this?? (using the above declarations fails to link)
 #include <GL/gl.h>
 
+
+static inline uint32_t aike_tile_hash(int32_t x, int32_t y)
+{
+    uint32_t ret = (((int16_t)y)<<16) | (int16_t)x;
+    return ret;
+}
 void aike_init_tile_pool(AikeTilePool *pool);
 AikeImage *aike_alloc_image_slot(Aike *aike);
 void aike_free_image_slot(Aike *aike, AikeImage *slot);

@@ -653,6 +653,18 @@
 #define GL_RG32UI                         0x823C
 #define GL_VERTEX_ARRAY_BINDING           0x85B5
 
+// newer extensions (debug only?)
+#define GL_DEBUG_TYPE_ERROR               0x824C
+#define GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR 0x824D
+#define GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR  0x824E
+#define GL_DEBUG_TYPE_PORTABILITY         0x824F
+#define GL_DEBUG_TYPE_PERFORMANCE         0x8250
+#define GL_DEBUG_TYPE_OTHER               0x8251
+#define GL_DEBUG_SEVERITY_HIGH            0x9146
+#define GL_DEBUG_SEVERITY_MEDIUM          0x9147
+#define GL_DEBUG_SEVERITY_LOW             0x9148
+#define GL_DEBUG_SEVERITY_NOTIFICATION    0x826B
+
 #ifndef GLAPIENTRY
 #if defined(_WIN32) && !defined(_WIN64)
 #define GLAPIENTRY __stdcall
@@ -680,6 +692,8 @@ typedef intptr_t GLintptr;
 typedef unsigned short GLhalf;
 typedef float GLclampf;
 typedef double GLclampd;
+
+typedef void (GLAPIENTRY *GLDEBUGPROC)(GLenum source,GLenum type,GLuint id,GLenum severity,GLsizei length,const GLchar *message,const void *userParam);
 
 #define GL_FUN_TYPEDEC(retType, funcName, signature) typedef retType (GLAPIENTRY *PFNGL ## funcName) signature;
 
@@ -729,6 +743,9 @@ GL_FUN_TYPEDEC(void, glBlendFunc, (GLenum sfactor, GLenum dfactor));
 GL_FUN_TYPEDEC(void, glActiveTexture, (GLenum texture));
 GL_FUN_TYPEDEC(void, glDrawArrays, (GLenum mode, GLint first, GLsizei count));
 GL_FUN_TYPEDEC(void, glTexSubImage3D, (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels));
+GL_FUN_TYPEDEC(const GLubyte*, glGetStringi, (GLenum name, GLuint index));
+
+GL_FUN_TYPEDEC(void, glDebugMessageCallback, (GLDEBUGPROC callback, const void *userParam));
 
 //glViewport
 //glClearColor
@@ -773,6 +790,8 @@ GL_FUNC_VAR(glUniform1i);
 GL_FUNC_VAR(glGetUniformLocation);
 GL_FUNC_VAR(glUniformMatrix3fv);
 GL_FUNC_VAR(glUniformMatrix4fv);
+GL_FUNC_VAR(glGetStringi);
+GL_FUNC_VAR(glDebugMessageCallback);
 #undef GL_FUNC_VAR
 
 #undef GL_FUNC_VAR
@@ -826,6 +845,7 @@ struct AikePlatform
     void (*move_window)(struct AikePlatform *platform, AikeWindow *window, float x, float y);
     void (*window_to_screen_coord)(struct AikePlatform *platform, AikeWindow *win, float x, float y, float *outx, float *outy);
     void (*screen_to_window_coord)(struct AikePlatform *platform, AikeWindow *win, float x, float y, float *outx, float *outy);
+    bool (*mouse_coord_valid)(struct AikePlatform *platform, AikeWindow *win);
     void (*set_cursor)(struct AikePlatform *platform, uint32_t cursor);
     void (*present_frame)(struct AikePlatform *platform, AikeWindow *window);
     void (*make_window_current)(struct AikePlatform *platform, AikeWindow *window);

@@ -192,6 +192,12 @@ DLL_PUBLIC void aike_update_window(AikePlatform *platform, AikeWindow *win)
     glViewport(0, 0, win->screenRect.width, win->screenRect.height);
 }
 
+void aike_make_window_current(AikeWindow *window)
+{
+    g_platform->make_window_current(g_platform, window);
+    g_renderer->curWindow = window;
+}
+
 DLL_PUBLIC void aike_init(AikePlatform *platform)
 {
     g_memoryManager = memory_manager_initialize();
@@ -216,7 +222,6 @@ DLL_PUBLIC void aike_init(AikePlatform *platform)
 
     g_ui = (UserInterface*)aike_alloc(sizeof(UserInterface));
     user_interface_init(g_ui, 1024, 768);
-    layout_tree_tests(&g_ui->layoutTree);
 
     compile_shader(&program, vertex_shader_str, frag_shader_str);
     compile_shader(&g_renderer->slowQuadProgram, slow_quad_vertex, slow_quad_frag);
@@ -232,11 +237,32 @@ DLL_PUBLIC void aike_init(AikePlatform *platform)
         aike_open_image(&aike, x, y, 4, data, false);
     else
         fprintf(stderr, "Failed to load image %s\n", filename);
-    data = stbi_load(patternfile, &x, &y, &n, 4);
+    stbi_image_free(data);
+
+    // checkerboard pattern
+    uint32_t psz = AIKE_IMG_CHUNK_SIZE;
+    uint32_t freq = AIKE_IMG_CHUNK_SIZE / 16;
+    uint32_t step = psz / freq;
+    assert(psz%freq == 0);
+    data = (unsigned char*)aike_alloc(psz * psz * 4);
+    for(uint32_t i = 0; i < psz; i++)
+    for(uint32_t j = 0; j < psz; j++)
+    {
+        *((uint32_t*)&data[i*psz*4 + j*4]) = (((i/step)&1) ^ ((j/step)&1)) ? 0xff8c8c8c : 0xff6d6d6d;
+    }
+    x = psz;
+    y = psz;
+    n = 4;
+
     if(data != NULL)
         aike_open_image(&aike, x, y, 4, data, true);
     else
         fprintf(stderr, "Failed to load image %s\n", patternfile);
+    aike_free(data);
+
+    // GOOO
+    aike_make_window_current(&platform->mainWin);
+    layout_tree_tests(&g_ui->layoutTree);
 }
 
 DLL_PUBLIC void aike_update(AikePlatform *platform)
@@ -246,7 +272,7 @@ DLL_PUBLIC void aike_update(AikePlatform *platform)
     g_input->inputStatesPrev = g_input->inputStates;
     g_input->inputStates = platform->mouseButtons;
 
-    platform->make_window_current(platform, &platform->mainWin);
+    aike_make_window_current(&platform->mainWin);
     glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -306,4 +332,13 @@ DLL_PUBLIC void aike_deinit(AikePlatform *platform)
     delete g_renderer;
     memory_manager_print_entries(g_memoryManager, true);
     memory_manager_free_resources(g_memoryManager);
+}
+
+bool aike_mouse_in_window_rect(AikePlatform *platform, AikeWindow *win, Rect rect)
+{
+    Vec2 lmPos;
+    Vec2 smPos = g_input->mouseScreenPos;
+    // TODO: calculate this per window every frame and reuse the result
+    platform->screen_to_window_coord(platform, win, smPos.x, smPos.y, &lmPos.x, &lmPos.y);
+    return IN_RECT(rect, lmPos) && platform->mouse_coord_valid(platform, win);
 }

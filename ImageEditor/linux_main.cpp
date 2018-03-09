@@ -1,5 +1,6 @@
 #include <X11/Xlib.h>
 #include <X11/cursorfont.h>
+#include <X11/Xatom.h>
 #include <GL/glx.h>
 #include <unistd.h>
 #include <dlfcn.h>
@@ -44,6 +45,8 @@ GL_FUNC_VAR(glUniform1i);
 GL_FUNC_VAR(glGetUniformLocation);
 GL_FUNC_VAR(glUniformMatrix3fv);
 GL_FUNC_VAR(glUniformMatrix4fv);
+GL_FUNC_VAR(glGetStringi);
+GL_FUNC_VAR(glDebugMessageCallback);
 
 
 struct X11WindowState
@@ -87,7 +90,6 @@ void x11_set_cursor(struct AikePlatform *platform, uint32_t cursor);
 
 
 typedef GLXContext (GLAPIENTRY *glXCreateContextAttribsARB_t) (Display *dpy, GLXFBConfig config, GLXContext share_context, Bool direct, const int *attrib_list);
-// TODO: set this
 static glXCreateContextAttribsARB_t glXCreateContextAttribsARB;
 
 void linux_show_error(const char* title, const char* message)
@@ -379,6 +381,46 @@ void x11_screen_to_window_coord(AikePlatform *platform, AikeWindow *win, float x
     *outy = 0.0f;
 }
 
+
+long x11_window_get_current_desktop(Window window) 
+{
+	Atom actual_type_return;
+	int actual_format_return = 0;
+	unsigned long nitems_return = 0;
+	unsigned long bytes_after_return = 0;
+	long * desktop = 0;
+	long ret;
+
+    // XLib is fucking insane, what the fuck
+    Display *d = linux.x11.display;
+	if(XGetWindowProperty(d, window, 
+                XInternAtom(d, "_NET_CURRENT_DESKTOP", false), 0, 1, 
+                false, XA_CARDINAL, &actual_type_return, &actual_format_return,
+                &nitems_return, &bytes_after_return, 
+                (unsigned char**)&desktop) != Success) 
+    {
+			return 0;
+	}
+	if(actual_type_return != XA_CARDINAL || nitems_return == 0) 
+    {
+		return 0;
+	}
+
+	ret = desktop[0];
+	XFree(desktop);
+
+	return ret;
+}
+
+bool x11_mouse_coord_valid(AikePlatform *platform, AikeWindow *win)
+{
+    long displayDesktop = x11_window_get_current_desktop(DefaultRootWindow(linux.x11.display));
+    X11WindowState *x11win = (X11WindowState*)win->nativePtr;
+    long windowDesktop = x11_window_get_current_desktop(x11win->window);
+    // TODO: same screen?
+    return displayDesktop == windowDesktop;
+}
+
 AikeTime linux_get_monotonic_time(AikePlatform *platform)
 {
     AikeTime ret;
@@ -425,13 +467,49 @@ static bool is_extension_supported(const char *extList, const char *extension)
 static bool glx_check_extensions(Display* display, int screen)
 {
     const char *extensionList = glXQueryExtensionsString(display, screen);
+    printf("GLX Extensions: %s\n", extensionList);
 
-#define CHECK_EXTENSION(x) if(! is_extension_supported(extensionList, x)) { \
-        fprintf(stderr, "Extension not supported: %s\n", x); \
+#define CHECK_GLX_EXTENSION(x) if(! is_extension_supported(extensionList, x)) { \
+        fprintf(stderr, "GLX Extension not supported: %s\n", x); \
         return false; }
-    CHECK_EXTENSION("GLX_ARB_create_context");
+
+    CHECK_GLX_EXTENSION("GLX_ARB_create_context");
     return true;
 #undef CHECK_EXTENSION
+}
+
+static bool gl_check_extensions()
+{
+    GLint n;
+    glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+
+    char buf[16384];
+    buf[0] = 0;
+
+    for(int i = 0; i < n; i++)
+    {
+        const char *ext = (const char*)glGetStringi(GL_EXTENSIONS, i);
+        if(ext == NULL)
+            return false;
+        if(strlen(ext) + strlen(buf) >= sizeof(buf))
+        {
+            fprintf(stderr, "Extension string buffer overflow");
+            exit(-1);
+        }
+        strcat(buf, ext);
+        strcat(buf, " ");
+    }
+    printf("GL Extensions: %s\n", buf);
+
+    // TODO: this should be in application code, not here?
+    #define CHECK_GL_EXTENSION(x) if(! is_extension_supported(buf, x)) { \
+        fprintf(stderr, "GL Extension not supported: %s\n", x); \
+        return false; }
+
+#if AIKE_DEBUG
+    CHECK_GL_EXTENSION("GL_ARB_debug_output");
+#endif
+    return true;
 }
 
 // TODO: this should be common among platforms?
@@ -453,6 +531,63 @@ static bool check_gl_version(int min_major_ver, int min_minor_ver)
 		return false;
 	}
     return true;
+}
+
+// TODO: this should be in game code??
+void glMessageCallback(GLenum source,
+                     GLenum type,
+                     GLuint id,
+                     GLenum severity,
+                     GLsizei length,
+                     const GLchar* message,
+                     const void* userParam )
+{
+    const char *typeStr;
+    switch(type)
+    {
+        case GL_DEBUG_TYPE_ERROR:
+            typeStr = "error";
+            break;
+        case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+            typeStr = "deprecated";
+            break;
+        case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+            typeStr = "undefined_beh";
+            break;
+        case GL_DEBUG_TYPE_PORTABILITY:
+            typeStr = "portability";
+            break;
+        case GL_DEBUG_TYPE_PERFORMANCE:
+            typeStr = "performance";
+            break;
+        case GL_DEBUG_TYPE_OTHER:
+            typeStr = "other";
+            break;
+        default:
+            typeStr = "undefined";
+            break;
+    }
+    const char *sevStr;
+    switch(severity)
+    {
+        case GL_DEBUG_SEVERITY_HIGH:
+            sevStr = "high";
+            break;
+        case GL_DEBUG_SEVERITY_MEDIUM:
+            sevStr = "medium";
+            break;
+        case GL_DEBUG_SEVERITY_LOW:
+            sevStr = "low";
+            break;
+        case GL_DEBUG_SEVERITY_NOTIFICATION:
+            sevStr = "notification";
+            break;
+        default:
+            sevStr = "undefined";
+            break;
+    }
+    fprintf(stderr, "GL CALLBACK: %s type = %s(0x%x), severity = %s, message = %s\n",
+        (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ), typeStr, type, sevStr, message);
 }
 
 
@@ -526,7 +661,7 @@ int main(int argc, char *argv[])
 
     if(!glx_check_extensions(linux.x11.display, linux.x11.screen))
     {
-        linux_show_error("Error", "Required GL extensions not supported!");
+        linux_show_error("Error", "Required GLX extensions not supported!");
         exit(-1);
     }
 
@@ -553,6 +688,7 @@ int main(int argc, char *argv[])
     platform.move_window = x11_move_window;
     platform.screen_to_window_coord = x11_screen_to_window_coord;
     platform.window_to_screen_coord = NULL; // TODO
+    platform.mouse_coord_valid = x11_mouse_coord_valid;
     platform.set_cursor = x11_set_cursor;
     platform.present_frame = x11_present_frame;
     platform.make_window_current = x11_make_window_current;
@@ -592,15 +728,23 @@ int main(int argc, char *argv[])
     GLX_GET_POINTER(glUniformMatrix3fv);
     GLX_GET_POINTER(glUniformMatrix4fv);
     GLX_GET_POINTER(glVertexAttribIPointer);
+    GLX_GET_POINTER(glGetStringi);
+#if defined(AIKE_DEBUG) || defined(_DEBUG)
+    GLX_GET_POINTER(glDebugMessageCallback);
+#endif
 #undef GLX_GET_POINTER
 
     if(anyErrors)
         platform_fatal("Failed to get all necessary OpenGL functions!");
 
-    GLuint arr;
-    glGenVertexArrays(1, &arr);
-    glGenTextures(1, &arr);
+    if(!gl_check_extensions())
+    {
+        linux_show_error("Error", "Required GL extensions not supported!");
+        exit(-1);
+    }
 
+    glEnable(GL_DEBUG_OUTPUT);
+    glDebugMessageCallback((GLDEBUGPROC) glMessageCallback, 0);
     
     const unsigned char* string = glGetString(GL_VERSION);
     printf("%s\n", string);
@@ -632,7 +776,6 @@ int main(int argc, char *argv[])
         unsigned int mask;
         if(XQueryPointer(linux.x11.display, x11win->window, &root, &child, &root_x, &root_y, &win_x, &win_y, &mask))
         {
-            // TODO: move these to platform
             platform.mouseX = win_x;
             platform.mouseY = win_y;
             platform.mouseScreenX = root_x;

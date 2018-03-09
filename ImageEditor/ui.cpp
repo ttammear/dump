@@ -65,7 +65,8 @@ static ContextArea* user_interface_get_context(UserInterface *ui)
     for(int i = 0; i < count; i++)
     {
         ContextArea *ctx = *((ContextArea**)struct_array_get(&ui->contextList, i));
-        if(IN_RECT(ctx->screenRect, g_input->mousePos))
+        // TODO: each context should have a window
+        if(aike_mouse_in_window_rect(g_platform, &g_platform->mainWin, ctx->screenRect))
         {
             return ctx;
         }
@@ -232,7 +233,8 @@ static void do_layout_resize_bar(LayoutTreeNode *node, Rect rect, bool* sticky, 
 
     Vec4 pillarColor = {0.3f, 0.3f, 0.3f, 1.0f};
 
-    if(MOUSE1_DOWN() && IN_RECT(rect, mousePos))
+    // TODO layout tree should have window
+    if(MOUSE1_DOWN() && aike_mouse_in_window_rect(g_platform, &g_platform->mainWin, rect))
         *sticky = true;
     else if(!MOUSE1() && *sticky)
         *sticky = false;
@@ -274,7 +276,7 @@ static void do_layout_resize_bar(LayoutTreeNode *node, Rect rect, bool* sticky, 
     /*origin.x += 2.0f;
     size.x -= 4.0f;
     renderer_draw_quad(g_renderer, rect, Vec4(0.2f, 0.2f, 0.2f, 1.0f));*/
-    if(IN_RECT(rect, mousePos))
+    if(aike_mouse_in_window_rect(g_platform, &g_platform->mainWin, rect))
     {
         if(rect.width < rect.height)
             g_ui->cursor = CURSOR_HORIZONTAL_ARROWS;
@@ -308,14 +310,43 @@ static bool context_menu_create_proc(void* ptr)
 
 static void draw_view(Rect viewRect)
 {
+    // TODO: this is really dirty
+    // we have to do so many extra draw calls
+    // just because we need GL_SCISSOR_TEST
+//    uint32_t winW = g_renderer->curWindow->screenRect.width;
+    uint32_t winH = g_renderer->curWindow->screenRect.height;
+    renderer_render(g_renderer); // flush view
+
+    // enable scissor test
+    glEnable(GL_SCISSOR_TEST);
+    uint32_t glX0 = roundToInt(viewRect.x0);
+    uint32_t glY0 = roundToInt(winH - viewRect.height - viewRect.y0);
+    uint32_t glWidth = roundToInt(viewRect.width);
+    uint32_t glHeight = roundToInt(winH - viewRect.y0);
+    glScissor(glX0, glY0, glWidth, glHeight);
     float aspect = viewRect.height / viewRect.width;
-    renderer_draw_quad(g_renderer, viewRect, Vec4(aspect, 0.6f, 0.5f, 1.0f));
+
+    // Draw background checkerboard pattern
+    // TODO: find a way to do this with 1 quad?
     AikeImage *img = aike_get_dummy_image(g_aike);
-    Rect newR = viewRect;
-//    newR.width *= 0.5f;
     if(img != NULL)
-        renderer_draw_texture(g_renderer, newR, img->glTex, false, img->width, img->height);
-    //newR.width *= 0.5f;
+    {
+        khiter_t k = kh_get(ptr_t, img->tile_hashmap, aike_tile_hash(0, 0));
+        assert(kh_exist(img->tile_hashmap, k));
+        ImageTile *tile = (ImageTile*)kh_value(img->tile_hashmap, k);
+
+        uint32_t tilesx = (int)ceilf(viewRect.width / AIKE_IMG_CHUNK_SIZE);
+        uint32_t tilesy = (int)ceilf(viewRect.height / AIKE_IMG_CHUNK_SIZE);
+        for(uint32_t i = 0; i < tilesx; i++)
+        for(uint32_t j = 0; j < tilesy; j++)
+        {
+            Rect tileR(viewRect.x0 + i*AIKE_IMG_CHUNK_SIZE, viewRect.y0 + j*AIKE_IMG_CHUNK_SIZE, AIKE_IMG_CHUNK_SIZE, AIKE_IMG_CHUNK_SIZE);
+            renderer_draw_tile(g_renderer, tileR, tile->glLayer);
+        }
+    }
+
+
+    // draw image tiles
     img = aike_get_first_image(g_aike);
     if(img == NULL)
         return;
@@ -353,6 +384,8 @@ static void draw_view(Rect viewRect)
     }
 #endif
     g_renderer->currentLayer--;
+    renderer_render(g_renderer);
+    glDisable(GL_SCISSOR_TEST);
 }
 
 static void layout_tree_draw(LayoutTreeNode *node)
@@ -412,9 +445,9 @@ static void user_interface_draw(UserInterface *ui)
 
 static void layout_tree_tests(LayoutTree *ltree)
 {
-    //layout_tree_split_node(ltree, ltree->rootNode, 0.2f, false);
-    //layout_tree_split_node(ltree, ltree->rootNode->children[1], 0.75f, true);
-    //layout_tree_split_node(ltree, ltree->rootNode->children[0], 0.75f, true);
+    layout_tree_split_node(ltree, ltree->rootNode, 0.2f, false);
+    layout_tree_split_node(ltree, ltree->rootNode->children[1], 0.75f, true);
+    layout_tree_split_node(ltree, ltree->rootNode->children[0], 0.75f, true);
     layout_tree_draw(ltree->rootNode);
 }
 
@@ -431,7 +464,7 @@ static bool context_menu_close_proc(void* ptr)
 static bool context_menu_leftc_close_proc(void *ptr)
 {
     ContextMenu *menu = (ContextMenu*)ptr;
-    if(!IN_RECT(menu->window.screenRect, g_input->mouseScreenPos))
+    if(!aike_mouse_in_window_rect(g_platform, &g_platform->mainWin, menu->window.screenRect))
     {
         context_menu_close_proc(ptr);
         return true;
@@ -459,7 +492,7 @@ static void context_menu_create(ContextMenu *menu, Vec2 position, bool root)
 // call context_menu_close_proc instead of this
 static void context_menu_free_resources(ContextMenu *menu)
 {
-    g_platform->make_window_current(g_platform, &g_platform->mainWin);
+    aike_make_window_current(&g_platform->mainWin);
     g_platform->destroy_window(g_platform, &menu->window);
     // TODO: NO? or YES??
     aike_free(menu);
@@ -503,14 +536,10 @@ static void context_menu_render(Renderer *renderer, ContextMenu *menu)
     
     CachedFont *font = renderer->fontManager.cachedFonts[1];
 
-    g_platform->make_window_current(g_platform, &menu->window);
+    aike_make_window_current(&menu->window);
     g_platform->resize_window(g_platform, &menu->window, menu->window.screenRect.width, menu->numOptions * (font->size+5.0f)+5.0f);
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-
-    Vec2 lmPos;
-    Vec2 smPos = g_input->mouseScreenPos;
-    g_platform->screen_to_window_coord(g_platform, &menu->window, smPos.x, smPos.y, &lmPos.x, &lmPos.y);
 
     for(int i = 0; i < menu->numOptions; i++)
     {
@@ -521,7 +550,7 @@ static void context_menu_render(Renderer *renderer, ContextMenu *menu)
         
         Rect mouseRect(0.0f, i * (elHeight+5.0f), menu->window.screenRect.width, elHeight + 5.0f);
 
-        if(IN_RECT(mouseRect, lmPos))
+        if(aike_mouse_in_window_rect(g_platform, &menu->window, mouseRect))
         {
             renderer_draw_quad(renderer, mouseRect, Vec4(0.0f, 0.0f, 0.0f, 0.15f));
             if(MOUSE1_UP())

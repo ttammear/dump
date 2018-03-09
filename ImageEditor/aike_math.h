@@ -161,4 +161,4 @@ struct Rect
 
 #define CLAMP01(x) (x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x )
 
-
+#define roundToInt(x) ((int)lround(x))

@@ -38,6 +38,7 @@ void aike_update_tile(Aike *aike, ImageTile *tile)
     opengl_copy_texture_array_layer(pool->glTextureArray, AIKE_IMG_CHUNK_SIZE, AIKE_IMG_CHUNK_SIZE, tile->glLayer, (void*)tile->data);
 }
 
+
 ImageTile* aike_get_tile(Aike *aike, AikeImage *img, int32_t x, int32_t y)
 {
     uint32_t thash = (((int16_t)y)<<16) | (int16_t)x;
@@ -145,26 +146,17 @@ AikeImage* aike_open_image(Aike *aike, uint32_t width, uint32_t height, uint32_t
     imgSl->width = width;
     imgSl->height = height;
     imgSl->numComps = numcomps;
-    //u64 size = width * height * numcomps;
-    // TODO: should we copy and alloc our own buffer?
-    imgSl->rawData = memory;
-    // TODO: delete ME
-    if(!seamless)
-        imgSl->glTex = opengl_load_texture(width, height, numcomps, memory);
-    else
-        imgSl->glTex = opengl_load_seamless_texture(width, height, numcomps, memory);
 
     imgSl->tile_hashmap = kh_init(ptr_t);
     aike_load_image_tiles(aike, imgSl, memory);
     return imgSl;
 }
 
-// TODO: call this!!
 void aike_close_image(Aike *aike, AikeImage *img)
 {
     khiter_t k;
     khash_t(ptr_t) *h = img->tile_hashmap;
-    // return all tiles back to pool and clear hashmap
+    // return all allocated tiles back to pool and clear hashmap
     for (k = kh_begin(h); k != kh_end(h); ++k)
     {
         if (kh_exist(h, k)) 
@@ -175,8 +167,5 @@ void aike_close_image(Aike *aike, AikeImage *img)
     }
 
     kh_destroy(ptr_t, img->tile_hashmap);
-    // TODO: delete opengl data
-    // TODO: the image might not be loaded with stb_image
-    stbi_image_free(img->rawData);
     aike_free_image_slot(aike, img);
 }
