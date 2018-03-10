@@ -165,6 +165,20 @@ static void font_manager_free_resources(FontManager* fmgr)
     fmgr->numCachedFonts = 0;
 }
 
+// TODO: matrices should be multiplied, so that their effects stack??
+void renderer_push_matrix(Renderer *renderer, Mat3 *mat)
+{
+    renderer->curMatrix++;
+    assert(renderer->curMatrix < ARRAY_COUNT(renderer->immediateMatrixStack));
+    renderer->immediateMatrixStack[renderer->curMatrix] = *mat;
+}
+
+void renderer_pop_matrix(Renderer *renderer)
+{
+    assert(renderer->curMatrix >= 1);
+    renderer->curMatrix--;
+}
+
 static void renderer_init(Renderer *renderer)
 {
     font_manager_initialize(&renderer->fontManager);
@@ -178,6 +192,12 @@ static void renderer_init(Renderer *renderer)
     for(int i = 0; i < ARRAY_COUNT(renderer->slowLayerBuffers); i++)
     {
         slow_quad_buffer_init(&renderer->slowLayerBuffers[i]);
+    }
+
+    renderer->curMatrix = 0;
+    for(uint32_t i = 0; i < 3; i++)
+    {
+        renderer->immediateMatrixStack[i] = Mat3::identity();
     }
 
     TRACK_RESOURCE_SET(renderer->atlasdebug, "Renderer main texture atlas");
@@ -538,11 +558,17 @@ static void renderer_draw_quad(Renderer *renderer, Rect rect, Vec4 color)
 
 static void renderer_draw_tile(Renderer *renderer, Rect rect, uint32_t layer)
 {
+    Vec3 min(rect.x0, rect.y0, 1.0f);
+    Vec3 max(rect.x0+rect.width, rect.y0+rect.height, 1.0f);
+    Mat3 *mat = &renderer->immediateMatrixStack[renderer->curMatrix];
+    min = *mat * min;
+    max = *mat * max;
+
     QuadVertex vertices[4];
-    vertices[0] = {{rect.x0, rect.y0, 0.0f}, {1.0f, 1.0, 1.0, 1.0}, {0.0f, 0.0f, (float)layer}};
-    vertices[1] = {{rect.x0+rect.width, rect.y0, 0.0f}, {1.0f, 1.0, 1.0, 1.0}, {1.0f, 0.0f, (float)layer}};
-    vertices[2] = {{rect.x0+rect.width, rect.y0+rect.height, 0.0f}, {1.0f, 1.0, 1.0, 1.0}, {1.0f, 1.0f, (float)layer}};
-    vertices[3] = {{rect.x0, rect.y0+rect.height, 0.0f}, {1.0f, 1.0, 1.0, 1.0}, {0.0f, 1.0f, (float)layer}};
+    vertices[0] = {{min.x, min.y, 0.0f}, {1.0f, 1.0, 1.0, 1.0}, {0.0f, 0.0f, (float)layer}};
+    vertices[1] = {{max.x, min.y, 0.0f}, {1.0f, 1.0, 1.0, 1.0}, {1.0f, 0.0f, (float)layer}};
+    vertices[2] = {{max.x, max.y, 0.0f}, {1.0f, 1.0, 1.0, 1.0}, {1.0f, 1.0f, (float)layer}};
+    vertices[3] = {{min.x, max.y, 0.0f}, {1.0f, 1.0, 1.0, 1.0}, {0.0f, 1.0f, (float)layer}};
     assert(renderer->currentLayer < ARRAY_COUNT(renderer->layerBuffers));
     quad_buffer_draw_quad(&renderer->layerBuffers[renderer->currentLayer], vertices, 2);
 }

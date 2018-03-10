@@ -102,12 +102,12 @@ struct Mat4 // column major
 {
     Mat4() {}
 
-    inline static Mat4 proj2d(float width, float height)
+    inline static Mat4 proj2d(float w, float h)
     {
         Mat4 ret;
-        ret.m00 = 2.0f / width; ret.m01 = 0.0f; ret.m02 = 0.0f; ret.m03 = -1.0f;
-        ret.m10 = 0.0f; ret.m11 = -2.0f / height; ret.m12 = 0.0f; ret.m13 = 1.0f;
-        ret.m20 = 0.0f; ret.m21 = 0.0f; ret.m22 = 1.0f; ret.m23 = 0.0f;
+        ret.m00 = 2.0f / w; ret.m01 = 0.0f; ret.m02 = 0.0f; ret.m03 = -1.0f;
+        ret.m10 = 0.0f; ret.m11 = -2.0f / h; ret.m12 = 0.0f; ret.m13 = 1.0f;
+        ret.m20 = 0.0f; ret.m21 = 0.0f; ret.m22 = 1.0f; ret.m23 = 0.0f; // HMM this is not supposed to be 0??
         ret.m30 = 0.0f; ret.m31 = 0.0f; ret.m32 = 0.0f; ret.m33 = 1.0f;
         return ret;
     }
@@ -123,6 +123,53 @@ struct Mat4 // column major
                   m03, m13, m23, m33;
         };
 
+    };
+};
+
+
+struct Mat3
+{
+    Mat3() {}
+
+    inline static Mat3 proj2d(float width, float height)
+    {
+        Mat3 ret;
+        // first column
+        ret.m00 = 2.0f / width; ret.m10 = 1.0f;             ret.m20 = 0.0f;
+        // second column
+        ret.m01 = 0.0f;         ret.m11 = -2.0f / height;   ret.m21 = 0.0f;
+        // third column
+        ret.m02 = -1.0f;        ret.m12 = 1.0f;             ret.m22 = 1.0f;
+        return ret;
+    }
+    
+    inline static Mat3 offsetAndScale(Vec2 o, float s)
+    {
+        Mat3 ret;
+        ret.m00 =     s; ret.m10 =  0.0f; ret.m20 =  0.0f;
+        ret.m01 =  0.0f; ret.m11 =     s; ret.m21 =  0.0f;
+        ret.m02 = s*o.x; ret.m12 = s*o.y; ret.m22 =     s;
+        return ret;
+    }
+
+    inline static Mat3 identity()
+    {
+        Mat3 ret;
+        ret.m00 = 1.0f; ret.m10 = 0.0f; ret.m20 = 0.0f;
+        ret.m01 = 0.0f; ret.m11 = 1.0f; ret.m21 = 0.0f;
+        ret.m02 = 0.0f; ret.m12 = 0.0f; ret.m22 = 1.0f;
+        return ret;
+    }
+
+    union
+    {
+        float m[3][3];
+        struct 
+        {
+            float m00, m10, m20,
+                  m01, m11, m21,
+                  m02, m12, m22;
+        };
     };
 };
 
@@ -156,6 +203,14 @@ struct Rect
 
     float x0, y0, width, height;
 };
+
+Vec3 operator * (Mat3& mat, Vec3& vec)
+{
+    return Vec3(mat.m00*vec.x + mat.m01*vec.y + mat.m02*vec.z,
+                mat.m10*vec.x + mat.m11*vec.y + mat.m12*vec.z,
+                mat.m20*vec.x + mat.m21*vec.y + mat.m22*vec.z
+            );
+}
 
 #define IN_RECT(rectangle, point) (point.x > rectangle.x0 && point.x < rectangle.x0+rectangle.width && point.y > rectangle.y0 && point.y < rectangle.y0+rectangle.height)
 

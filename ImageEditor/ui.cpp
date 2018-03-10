@@ -3,6 +3,51 @@ static bool context_menu_create_proc(void* ptr);
 static bool context_menu_leftc_close_proc(void *ptr);
 static void layout_tree_split_node(LayoutTree *tree, LayoutTreeNode *node, float firstWeight, bool horizontal);
 
+AikeViewState* ui_alloc_view(UserInterface *ui)
+{
+    assert(ui->numFreeViews > 0);
+    int32_t freeIdx = --ui->numFreeViews;
+    uint32_t poolIdx = ui->viewFreeList[freeIdx];
+    assert(poolIdx < ARRAY_COUNT(ui->viewFreeList));
+#ifdef AIKE_DEBUG
+    ui->viewFreeList[freeIdx] = 0xFFFFFFFF;
+#endif
+    AikeViewState *ret = &ui->viewPool[poolIdx];
+    ret->type = AikeViewState::Unknown;
+    return ret;
+}
+
+void ui_free_view(UserInterface *ui, AikeViewState *view)
+{
+    int32_t index = view - ui->viewPool;
+    assert(index >= 0 && index < ARRAY_COUNT(ui->viewPool));
+    uint32_t freeIdx = ui->numFreeViews++;
+    assert(freeIdx < ARRAY_COUNT(ui->viewFreeList));
+    ui->viewFreeList[freeIdx] = index;
+} 
+
+static void image_view_init(ImageView *imgView)
+{
+    imgView->offset = Vec2(0.0f, 0.0f);
+    imgView->scale = 1.0f;
+    imgView->imageSpaceCenter = Vec2(0.0f, 0.0f);
+    imgView->grabbing = false;
+}
+
+static void init_view(uint32_t viewType, AikeViewState *view)
+{
+    switch(viewType)
+    {
+        case AikeViewState::Unknown:
+            fprintf(stderr, "Init unknown view (%d)\n", viewType);
+            break;
+        case AikeViewState::ImageView:
+            image_view_init(&view->imgView);
+            break;
+    }
+    view->type = viewType;
+}
+
 static bool imgui_button(Renderer *renderer, Rect rect, const char *text)
 {
     renderer_draw_quad(renderer, rect, Vec4(0.4f, 0.4f, 0.4f, 1.0f));
@@ -16,6 +61,11 @@ static void user_interface_init(UserInterface *ui, uint32_t screenWidth, uint32_
     struct_pool_init(&ui->contextPool, sizeof(ContextArea), 32, true);
     // right click listener for context menu
     event_manager_add_listener(g_emgr, Event_Mouse2Up, context_menu_create_proc, NULL, 100);
+    ui->numFreeViews = ARRAY_COUNT(ui->viewPool);
+    for(int i = 0; i < ARRAY_COUNT(ui->viewPool); i++)
+    {
+        ui->viewFreeList[i] = i;
+    }
 }
 
 // reset immediate mode state
@@ -193,15 +243,19 @@ static void layout_tree_register_leaf(LayoutTreeNode *node)
     // TODO: set rect and options
     ctx->screenRect = node->rect; // TODO: SCREEN rect
     node->context = ctx;
+
+    // TODO: actual view
+    node->viewState = ui_alloc_view(g_ui);
+    init_view(AikeViewState::ImageView, node->viewState);
 }
 
 static void layout_tree_unregister_leaf(LayoutTreeNode *node)
 {
-    if(node->context != NULL)
-    {
-        user_interface_remove_context(g_ui, node->context);
-        node->context = NULL;
-    }
+    user_interface_remove_context(g_ui, node->context);
+    node->context = NULL;
+
+    ui_free_view(g_ui, node->viewState);
+    node->viewState = NULL;
 }
 
 static void layout_tree_split_node(LayoutTree *tree, LayoutTreeNode *node, float firstWeight, bool horizontal)
@@ -308,24 +362,8 @@ static bool context_menu_create_proc(void* ptr)
     else return false;
 }
 
-static void draw_view(Rect viewRect)
+static void draw_image_view(Rect viewRect, ImageView *state)
 {
-    // TODO: this is really dirty
-    // we have to do so many extra draw calls
-    // just because we need GL_SCISSOR_TEST
-//    uint32_t winW = g_renderer->curWindow->screenRect.width;
-    uint32_t winH = g_renderer->curWindow->screenRect.height;
-    renderer_render(g_renderer); // flush view
-
-    // enable scissor test
-    glEnable(GL_SCISSOR_TEST);
-    uint32_t glX0 = roundToInt(viewRect.x0);
-    uint32_t glY0 = roundToInt(winH - viewRect.height - viewRect.y0);
-    uint32_t glWidth = roundToInt(viewRect.width);
-    uint32_t glHeight = roundToInt(winH - viewRect.y0);
-    glScissor(glX0, glY0, glWidth, glHeight);
-    float aspect = viewRect.height / viewRect.width;
-
     // Draw background checkerboard pattern
     // TODO: find a way to do this with 1 quad?
     AikeImage *img = aike_get_dummy_image(g_aike);
@@ -345,6 +383,38 @@ static void draw_view(Rect viewRect)
         }
     }
 
+#if 1
+    if(state->scale <= 0.0f)
+        state->scale = 1.0f;
+
+    bool mousehere = aike_mouse_in_window_rect(g_platform, g_renderer->curWindow, viewRect);
+    if(mousehere && MOUSE1_DOWN())
+    {
+        state->grabbing = true;
+        state->grabPoint = g_input->mousePos;
+        state->offsetOnGrab = state->offset;
+    }
+    else if(state->grabbing && MOUSE1_UP())
+    {
+        state->grabbing = false;
+    }
+    if(state->grabbing)
+    {
+        // TODO: this division is unituitive
+        Vec2 dif = (g_input->mousePos - state->grabPoint) * (1.0f/state->scale);
+        state->offset = state->offsetOnGrab + dif;
+    }
+    if(mousehere && MOUSE2_DOWN())
+    {
+        state->scale *= 1.1f;
+    }
+#else
+    Vec2 offset(0.0f, 0.0f);
+    float scale = 1.0f;
+#endif
+
+    Mat3 mat = Mat3::offsetAndScale(state->offset, state->scale);
+    renderer_push_matrix(g_renderer, &mat);
 
     // draw image tiles
     img = aike_get_first_image(g_aike);
@@ -384,6 +454,37 @@ static void draw_view(Rect viewRect)
     }
 #endif
     g_renderer->currentLayer--;
+    renderer_pop_matrix(g_renderer);
+}
+
+static void draw_view(Rect viewRect, AikeViewState *viewState)
+{
+    // TODO: this is really dirty
+    // we have to do so many extra draw calls
+    // just because we need GL_SCISSOR_TEST
+//    uint32_t winW = g_renderer->curWindow->screenRect.width;
+    uint32_t winH = g_renderer->curWindow->screenRect.height;
+    renderer_render(g_renderer); // flush view
+
+    // enable scissor test
+    uint32_t glX0 = roundToInt(viewRect.x0);
+    uint32_t glY0 = roundToInt(winH - viewRect.height - viewRect.y0);
+    uint32_t glWidth = roundToInt(viewRect.width);
+    uint32_t glHeight = roundToInt(winH - viewRect.y0);
+    glScissor(glX0, glY0, glWidth, glHeight);
+    glEnable(GL_SCISSOR_TEST);
+
+    switch(viewState->type)
+    {
+        case AikeViewState::Unknown:
+            break;
+        case AikeViewState::ImageView:
+            draw_image_view(viewRect, &viewState->imgView);
+            break;
+        default:
+            fprintf(stderr, "Unknwon view! (%d)\n", viewState->type);
+            break;
+    }
     renderer_render(g_renderer);
     glDisable(GL_SCISSOR_TEST);
 }
@@ -414,7 +515,8 @@ static void layout_tree_draw(LayoutTreeNode *node)
     }
     else
     {
-        draw_view(node->rect);
+        assert(node->viewState != NULL);
+        draw_view(node->rect, node->viewState);
     }
 }
 
@@ -427,7 +529,17 @@ static void user_interface_draw(UserInterface *ui)
 #if 1
     // TODO: remove this debug crap
     Vec2 size(30.0f, 30.0f);
-    renderer_draw_quad(g_renderer, Rect(g_input->mousePos - 0.5*size, size), Vec4(0.0f, 1.0f, 0.0f, 0.5f));
+    Vec2 pos = g_input->mousePos - 0.5*size;
+
+/*    float sw = g_renderer->curWindow->screenRect.width;
+    float sh = g_renderer->curWindow->screenRect.height;
+    Vec3 posH(pos.x, pos.y, 1.0f);
+//    Mat3 mat = Mat3::proj2d(1.0f, 1.0f);
+    Mat3 mat = Mat3::offsetAndScale(Vec2(-sw,-sh), 0.5f);
+    posH = mat*posH;
+    pos.x = posH.x; pos.y = posH.y;*/
+
+    renderer_draw_quad(g_renderer, Rect(pos, size), Vec4(0.0f, 1.0f, 0.0f, 0.5f));
     const char *text = "TESTING TEXT... Yup heljo there. Blablblblblblblbblbllblblblblblblblbl";
     Rect rect(0.0f, 50.0f, 300.0f, 300.0f);
     g_renderer->currentLayer++;
@@ -445,6 +557,7 @@ static void user_interface_draw(UserInterface *ui)
 
 static void layout_tree_tests(LayoutTree *ltree)
 {
+    layout_tree_register_leaf(ltree->rootNode);
     layout_tree_split_node(ltree, ltree->rootNode, 0.2f, false);
     layout_tree_split_node(ltree, ltree->rootNode->children[1], 0.75f, true);
     layout_tree_split_node(ltree, ltree->rootNode->children[0], 0.75f, true);

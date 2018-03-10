@@ -129,6 +129,9 @@ struct Renderer
     FontManager fontManager;
     Mat4 projection;
 
+    uint32_t curMatrix;
+    Mat3 immediateMatrixStack[3];
+
     // resources for rendering solid shapes
     //QuadBuffer solidBuffer;
     QuadBuffer layerBuffers[32];
@@ -177,6 +180,7 @@ struct LayoutTreeNode
     bool uiS;
     struct LayoutTreeNode* children[2];
     struct ContextArea *context;
+    struct AikeViewState *viewState;
 };
 
 #define LAYOUT_TREE_MAX_NODES_LOG2 6
@@ -201,6 +205,36 @@ struct ContextArea
     uint32_t numOptions;
 };
 
+struct ImageView
+{
+    Vec2 offset;
+    float scale;
+    Vec2 imageSpaceCenter;
+
+    // grabbing state
+    bool grabbing;
+    Vec2 grabPoint;
+    Vec2 offsetOnGrab;
+};
+
+struct AikeViewState
+{
+    enum AikeViewType
+    {
+        Unknown,
+        ImageView,
+        Count
+    };
+
+    uint32_t type;
+    union 
+    {
+        struct ImageView imgView;
+    };
+};
+
+#define AIKE_MAX_VIEWS 32
+
 struct UserInterface
 {
     LayoutTree layoutTree;
@@ -208,7 +242,12 @@ struct UserInterface
 
     StructArray contextList;
     StructPool contextPool;
+
+    int32_t numFreeViews;
+    uint32_t viewFreeList[AIKE_MAX_VIEWS];
+    AikeViewState viewPool[AIKE_MAX_VIEWS];
 };
+
 
 #define AIKE_IMG_CHUNK_SIZE 128 // 4 component 64K (aligns with common virtual memory page size)
 #define AIKE_MAX_IMG_SIZE 1<<16

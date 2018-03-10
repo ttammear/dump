@@ -586,8 +586,8 @@ void glMessageCallback(GLenum source,
             sevStr = "undefined";
             break;
     }
-    fprintf(stderr, "GL CALLBACK: %s type = %s(0x%x), severity = %s, message = %s\n",
-        (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "" ), typeStr, type, sevStr, message);
+    fprintf(stderr, "OpenGL:%s type = %s(0x%x), severity = %s, message = %s\n",
+        (type == GL_DEBUG_TYPE_ERROR ? "\x1B[31m** GL ERROR **\x1B[0m" : "" ), typeStr, type, sevStr, message);
 }
 
 
