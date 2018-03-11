@@ -805,6 +805,84 @@ GL_FUNC_VAR(glDebugMessageCallback);
 #define AIKE_MOUSEB1_BIT   1
 #define AIKE_MOUSEB2_BIT   (1<<1)
 
+#define AIKE_CTRL_MASK  0x8000
+#define AIKE_ALT_MASK   0x4000
+
+// yes this is the same as linux keycodes
+enum AikeKeyCodes
+{
+    AIKE_KEY_RESERVED     =  0,
+    AIKE_KEY_ESC		  =  1,
+    AIKE_KEY_1			  =  2,
+    AIKE_KEY_2			  =  3,
+    AIKE_KEY_3			  =  4,
+    AIKE_KEY_4			  =  5,
+    AIKE_KEY_5			  =  6,
+    AIKE_KEY_6			  =  7,
+    AIKE_KEY_7			  =  8,
+    AIKE_KEY_8			  =  9,
+    AIKE_KEY_9			  =  10,
+    AIKE_KEY_0			  =  11,
+    AIKE_KEY_MINUS		  =  12,
+    AIKE_KEY_EQUAL		  =  13,
+    AIKE_KEY_BACKSPACE	  =  14,
+    AIKE_KEY_TAB		  =  15,
+    AIKE_KEY_Q			  =  16,
+    AIKE_KEY_W			  =  17,
+    AIKE_KEY_E			  =  18,
+    AIKE_KEY_R			  =  19,
+    AIKE_KEY_T			  =  20,
+    AIKE_KEY_Y			  =  21,
+    AIKE_KEY_U			  =  22,
+    AIKE_KEY_I			  =  23,
+    AIKE_KEY_O			  =  24,
+    AIKE_KEY_P			  =  25,
+    AIKE_KEY_LEFTBRACE	  =  26,
+    AIKE_KEY_RIGHTBRACE	  =  27,
+    AIKE_KEY_ENTER		  =  28,
+    AIKE_KEY_LEFTCTRL	  =  29,
+    AIKE_KEY_A			  =  30,
+    AIKE_KEY_S			  =  31,
+    AIKE_KEY_D			  =  32,
+    AIKE_KEY_F			  =  33,
+    AIKE_KEY_G			  =  34,
+    AIKE_KEY_H			  =  35,
+    AIKE_KEY_J			  =  36,
+    AIKE_KEY_K			  =  37,
+    AIKE_KEY_L			  =  38,
+    AIKE_KEY_SEMICOLON	  =  39,
+    AIKE_KEY_APOSTROPHE	  =  40,
+    AIKE_KEY_GRAVE		  =  41,
+    AIKE_KEY_LEFTSHIFT	  =  42,
+    AIKE_KEY_BACKSLASH	  =  43,
+    AIKE_KEY_Z			  =  44,
+    AIKE_KEY_X			  =  45,
+    AIKE_KEY_C			  =  46,
+    AIKE_KEY_V			  =  47,
+    AIKE_KEY_B			  =  48,
+    AIKE_KEY_N			  =  49,
+    AIKE_KEY_M			  =  50,
+    AIKE_KEY_COMMA		  =  51,
+    AIKE_KEY_DOT		  =  52,
+    AIKE_KEY_SLASH		  =  53,
+    AIKE_KEY_RIGHTSHIFT	  =  54,
+    AIKE_KEY_KPASTERISK	  =  55,
+    AIKE_KEY_LEFTALT	  =  56,
+    AIKE_KEY_SPACE		  =  57,
+    AIKE_KEY_CAPSLOCK	  =  58,
+    AIKE_KEY_F1			  =  59,
+    AIKE_KEY_F2			  =  60,
+    AIKE_KEY_F3			  =  61,
+    AIKE_KEY_F4			  =  62,
+    AIKE_KEY_F5			  =  63,
+    AIKE_KEY_F6			  =  64,
+    AIKE_KEY_F7			  =  65,
+    AIKE_KEY_F8			  =  66,
+    AIKE_KEY_F9			  =  67,
+    AIKE_KEY_F10	      =  68,
+    AIKE_KEY_COUNT
+};
+
 struct AikeWindow
 {
     Rect screenRect;
@@ -831,11 +909,15 @@ struct AikePlatform
     double dt;
     uint64_t frameCounter;
 
+    // mouse
     float mouseX;
     float mouseY;
     float mouseScreenX;
     float mouseScreenY;
     uint32_t mouseButtons;
+    // keyboard
+    uint16_t keyStates[AIKE_KEY_COUNT];
+    uint16_t keyStatesPrev[AIKE_KEY_COUNT];
 
     AikeTime startTime;
 

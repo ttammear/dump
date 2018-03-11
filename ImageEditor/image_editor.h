@@ -384,12 +384,32 @@ size_t strlcpy(char *dst, const char *src, size_t siz);
 #define MOUSE1_UP() ((g_input->inputStatesPrev & AIKE_MOUSEB1_BIT) != 0 && (g_input->inputStates & AIKE_MOUSEB1_BIT) == 0)
 #define MOUSE2_UP() ((g_input->inputStatesPrev & AIKE_MOUSEB2_BIT) != 0 && (g_input->inputStates & AIKE_MOUSEB2_BIT) == 0)
 
-// Input
+#ifndef AIKE_DEBUG
+#define KEY(x) ((g_input->keyStates[(x)] != 0))
+#else
+#define KEY(x) ({bool keyret_ = g_input->keyStates[(x)]; assert(x < AIKE_KEY_COUNT); keyret_;})
+#endif
 
+#define AIKE_MAX_KEYBINDS 2
+
+// Input
 struct AikeInput
 {
+    enum KeyBinds
+    {
+        KB_None,
+        KB_Grab,
+        KB_ZoomIn,
+        KB_ZoomOut,
+        KB_Count
+    };
+
     Vec2 mousePos;
     Vec2 mouseScreenPos;
+
+    uint16_t keyBinds[KB_Count][AIKE_MAX_KEYBINDS];
+    uint16_t keyStates[AIKE_KEY_COUNT];
+    uint16_t keyStatesPrev[AIKE_KEY_COUNT];
 
     uint32_t inputStatesPrev;
     uint32_t inputStates;

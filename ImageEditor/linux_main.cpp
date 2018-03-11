@@ -9,6 +9,14 @@
 #include <time.h>
 #include <assert.h>
 
+// input
+#include <libinput.h>
+#include <libudev.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <fnmatch.h>
+#include <linux/input.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,6 +56,17 @@ GL_FUNC_VAR(glUniformMatrix4fv);
 GL_FUNC_VAR(glGetStringi);
 GL_FUNC_VAR(glDebugMessageCallback);
 
+uint32_t linux_to_aike_keymap[] = 
+{
+ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,
+    11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+    21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+    31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+    51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
+    61, 62, 63, 64, 65, 66, 67, 68
+};
+
 
 struct X11WindowState
 {
@@ -70,6 +89,7 @@ struct X11State
 struct LinuxPlatformState
 {
     X11State x11;
+    struct libinput *libInput;
     // CLOCK_MONOTONIC at application startup
     struct timespec monotonic_time_start;
     // CLOCK_REALTIME at application startup
@@ -637,10 +657,117 @@ void load_code()
 
 }
 
+/////////////// HERE LIVES THE MIGHTY LIBINPUT /////////////////
+// welcome to 2018 where doing basic input is rocket surgery
+
+#define ANSI_RED        "\033[31m"
+#define ANSI_HIGHLIGHT "\x1B[0;1;39m"
+#define ANSI_NORMAL "\x1B[0m"
+
+LIBINPUT_ATTRIBUTE_PRINTF(3, 0)
+static void
+log_handler(struct libinput *li,
+	    enum libinput_log_priority priority,
+	    const char *format,
+	    va_list args)
+{
+	static int is_tty = -1;
+
+	if (is_tty == -1)
+		is_tty = isatty(STDOUT_FILENO);
+
+	if (is_tty) {
+		if (priority >= LIBINPUT_LOG_PRIORITY_ERROR)
+			printf(ANSI_RED);
+		else if (priority >= LIBINPUT_LOG_PRIORITY_INFO)
+			printf(ANSI_HIGHLIGHT);
+	}
+
+	vprintf(format, args);
+
+	if (is_tty && priority >= LIBINPUT_LOG_PRIORITY_INFO)
+		printf(ANSI_NORMAL);
+}
+
+static int
+open_restricted(const char *path, int flags, void *user_data)
+{
+	bool *grab = (bool*)user_data;
+	int fd = open(path, flags);
+
+	if (fd < 0)
+		fprintf(stderr, "Failed to open %s (%s)\n",
+			path, strerror(errno));
+	else if (*grab && ioctl(fd, EVIOCGRAB, (void*)1) == -1)
+		fprintf(stderr, "Grab requested, but failed for %s (%s)\n",
+			path, strerror(errno));
+
+	return fd < 0 ? -errno : fd;
+}
+
+static void
+close_restricted(int fd, void *user_data)
+{
+	close(fd);
+}
+
+static const struct libinput_interface interface = {
+	.open_restricted = open_restricted,
+	.close_restricted = close_restricted,
+};
+
+static struct libinput *
+p_libinput_init(bool verbose, bool grab)
+{
+    const char *seat = "seat0";
+	struct libinput *li;
+	struct udev *udev = udev_new();
+
+	if (!udev) {
+		fprintf(stderr, "Failed to initialize udev\n");
+		return NULL;
+	}
+
+	li = libinput_udev_create_context(&interface, &grab, udev);
+	if (!li) {
+		fprintf(stderr, "Failed to initialize context from udev\n");
+		goto out;
+	}
+
+	if (verbose) {
+		libinput_log_set_handler(li, log_handler);
+		libinput_log_set_priority(li, LIBINPUT_LOG_PRIORITY_DEBUG);
+	}
+
+	if (libinput_udev_assign_seat(li, seat)) {
+		fprintf(stderr, "Failed to set seat\n");
+		libinput_unref(li);
+		li = NULL;
+		goto out;
+	}
+
+out:
+	udev_unref(udev);
+	return li;
+}
+
+void p_libinput_destroy(struct libinput* li)
+{
+    libinput_unref(li);
+}
+
+// TODO: shared platform code
+void platform_init(AikePlatform *platform)
+{
+   memset((void*)platform, 0, sizeof(AikePlatform)); 
+}
+
+#define ARRAY_COUNT(x) (sizeof(x) / sizeof(x[0]))
+
 int main(int argc, char *argv[])
 {
-
     AikePlatform platform;
+    platform_init(&platform);
 
     char buf[1024];  
     readlink("/proc/self/exe", buf, sizeof(buf));  
@@ -658,6 +785,9 @@ int main(int argc, char *argv[])
     x11_create_window(linux.x11.display, linux.x11.screen, &platform.mainWin, 1024, 768, "Image editor");
     clock_gettime(CLOCK_MONOTONIC, &linux.monotonic_time_start);
     clock_gettime(CLOCK_REALTIME, &linux.realtime_time_start);
+
+    assert(ARRAY_COUNT(linux_to_aike_keymap) == AIKE_KEY_COUNT);
+    linux.libInput = p_libinput_init(true, false);
 
     if(!glx_check_extensions(linux.x11.display, linux.x11.screen))
     {
@@ -787,12 +917,43 @@ int main(int argc, char *argv[])
                 inputM |= AIKE_MOUSEB2_BIT;
             platform.mouseButtons = inputM;
         }
+
+        libinput_dispatch(linux.libInput);
+        struct libinput_event* lie;
+        while((lie = libinput_get_event(linux.libInput)))
+        {
+            auto type = libinput_event_get_type(lie);
+            switch(type)
+            {
+                case LIBINPUT_EVENT_KEYBOARD_KEY:
+                    {
+                        printf("keyboard event\n", KEY_A);
+                        struct libinput_event_keyboard *ke = libinput_event_get_keyboard_event(lie);
+                        uint32_t k = libinput_event_keyboard_get_key(ke);
+                        libinput_key_state state = libinput_event_keyboard_get_key_state(ke);
+                        if(state == LIBINPUT_KEY_STATE_PRESSED && k < AIKE_KEY_COUNT)
+                        {
+                            platform.keyStates[linux_to_aike_keymap[k]] = 1;
+                        }
+                        else if(k < AIKE_KEY_COUNT)
+                        {
+                            platform.keyStates[linux_to_aike_keymap[k]] = 0;
+                        }
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
         
         linux.aike_update(&platform);
 
     }
 
     linux.aike_deinit(&platform);
+
+    p_libinput_destroy(linux.libInput);
+
     x11_destroy_gl_context(&linux);
     x11_destroy_window(&platform, &platform.mainWin);
     x11_free_resources(&linux);

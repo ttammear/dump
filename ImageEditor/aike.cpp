@@ -241,7 +241,7 @@ DLL_PUBLIC void aike_init(AikePlatform *platform)
 
     // checkerboard pattern
     uint32_t psz = AIKE_IMG_CHUNK_SIZE;
-    uint32_t freq = AIKE_IMG_CHUNK_SIZE / 16;
+    uint32_t freq = AIKE_IMG_CHUNK_SIZE / 8;
     uint32_t step = psz / freq;
     assert(psz%freq == 0);
     data = (unsigned char*)aike_alloc(psz * psz * 4);
@@ -271,6 +271,9 @@ DLL_PUBLIC void aike_update(AikePlatform *platform)
     g_input->mouseScreenPos = Vec2(platform->mouseScreenX, platform->mouseScreenY);
     g_input->inputStatesPrev = g_input->inputStates;
     g_input->inputStates = platform->mouseButtons;
+
+    assert(sizeof(g_input->keyStates) == sizeof(platform->keyStates));
+    memcpy(g_input->keyStates, platform->keyStates, sizeof(g_input->keyStates));
 
     aike_make_window_current(&platform->mainWin);
     glClearColor(1.0f, 0.0f, 1.0f, 1.0f);

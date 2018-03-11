@@ -388,13 +388,16 @@ static void draw_image_view(Rect viewRect, ImageView *state)
         state->scale = 1.0f;
 
     bool mousehere = aike_mouse_in_window_rect(g_platform, g_renderer->curWindow, viewRect);
-    if(mousehere && MOUSE1_DOWN())
+    bool wasGrabbing = state->grabbing;
+    // TODO: KEYDOWN
+    state->grabbing = KEY(AIKE_KEY_SPACE) && (mousehere || state->grabbing);
+    if(!wasGrabbing && state->grabbing) // rising edge
     {
         state->grabbing = true;
         state->grabPoint = g_input->mousePos;
         state->offsetOnGrab = state->offset;
     }
-    else if(state->grabbing && MOUSE1_UP())
+    else if(wasGrabbing && !state->grabbing) // falling edge
     {
         state->grabbing = false;
     }
@@ -404,9 +407,13 @@ static void draw_image_view(Rect viewRect, ImageView *state)
         Vec2 dif = (g_input->mousePos - state->grabPoint) * (1.0f/state->scale);
         state->offset = state->offsetOnGrab + dif;
     }
-    if(mousehere && MOUSE2_DOWN())
+    if(mousehere && KEY(AIKE_KEY_MINUS))
     {
-        state->scale *= 1.1f;
+        state->scale += 0.1f;
+    }
+    if(mousehere && KEY(AIKE_KEY_EQUAL) && state->scale > 0.1f)
+    {
+        state->scale -= 0.1f;
     }
 #else
     Vec2 offset(0.0f, 0.0f);
@@ -437,22 +444,6 @@ static void draw_image_view(Rect viewRect, ImageView *state)
             renderer_draw_tile(g_renderer, tileR, tile->glLayer);
         }
     }
-#if 0
-    for(int i = 0; i < 8; i++)
-    for(int j = 0; j < 8; j++)
-    {
-        ImageTile *tile = aike_get_tile(g_aike, img, i, j);
-        if(tile == NULL)
-        {
-            printf("not found %d %d\n", i, 0);
-            continue;
-        }
-
-        float y0 = viewRect.y0 + AIKE_IMG_CHUNK_SIZE*(8-1);
-        Rect tileR(viewRect.x0 + AIKE_IMG_CHUNK_SIZE*i, y0-AIKE_IMG_CHUNK_SIZE*j, AIKE_IMG_CHUNK_SIZE, AIKE_IMG_CHUNK_SIZE);
-        renderer_draw_tile(g_renderer, tileR, tile->glLayer);
-    }
-#endif
     g_renderer->currentLayer--;
     renderer_pop_matrix(g_renderer);
 }
@@ -462,7 +453,7 @@ static void draw_view(Rect viewRect, AikeViewState *viewState)
     // TODO: this is really dirty
     // we have to do so many extra draw calls
     // just because we need GL_SCISSOR_TEST
-//    uint32_t winW = g_renderer->curWindow->screenRect.width;
+    //    uint32_t winW = g_renderer->curWindow->screenRect.width;
     uint32_t winH = g_renderer->curWindow->screenRect.height;
     renderer_render(g_renderer); // flush view
 
