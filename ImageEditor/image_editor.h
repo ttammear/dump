@@ -130,7 +130,7 @@ struct Renderer
     Mat4 projection;
 
     uint32_t curMatrix;
-    Mat3 immediateMatrixStack[3];
+    Mat3 immediateMatrixStack[6];
     Mat3 currentImmMatrix;
 
     // resources for rendering solid shapes

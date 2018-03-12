@@ -807,6 +807,7 @@ GL_FUNC_VAR(glDebugMessageCallback);
 
 #define AIKE_CTRL_MASK  0x8000
 #define AIKE_ALT_MASK   0x4000
+#define AIKE_KEYCODE_MASK 0x3FFF
 
 // yes this is the same as linux keycodes
 enum AikeKeyCodes

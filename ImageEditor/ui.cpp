@@ -405,9 +405,12 @@ static void draw_image_view(Rect viewRect, Rect windowRect,ImageView *state)
         state->imageSpaceCenter = state->offsetOnGrab - dif;
     }
 
-    if(mousehere && g_input->mouseVerticalAxis < -0.001)
+    bool ctrldown = KEY(AIKE_KEY_LEFTCTRL) || KEY(AIKE_KEY_RIGHTCTRL);
+    if(mousehere && ((g_input->mouseVerticalAxis < -0.001 && ctrldown)
+            || BOUNDKEY_UP(AikeInput::KB_ZoomIn)))
         state->scale1000 = getNextZoom(state->scale1000);
-    if(mousehere && g_input->mouseVerticalAxis > 0.001)
+    if(mousehere && ((g_input->mouseVerticalAxis > 0.001 && ctrldown)
+            || BOUNDKEY_UP(AikeInput::KB_ZoomOut)))
         state->scale1000 = getPrevZoom(state->scale1000);
 
     float rscale = (float)((double)state->scale1000 / 1000.0);

@@ -181,20 +181,29 @@ bool x11_create_window(Display* display, int screen, AikeWindow *win, int width,
 
     XSetWindowAttributes winAttr;
     winAttr.event_mask = StructureNotifyMask | KeyPressMask | KeyReleaseMask | PointerMotionMask | ExposureMask;
-    if(nodecorations)
-        winAttr.override_redirect = true;
+    /*if(nodecorations)
+        winAttr.override_redirect = true;*/
     winAttr.background_pixmap = None;
     winAttr.background_pixel = 0;
     winAttr.border_pixel = 0;
     winAttr.colormap = XCreateColormap(display, root_window, vinfo->visual, AllocNone);
+
     unsigned int mask = CWBackPixmap | CWBorderPixel | CWColormap | CWEventMask;
-    if(nodecorations)
-        mask |= CWOverrideRedirect;
+    /*if(nodecorations)
+        mask |= CWOverrideRedirect;*/
     const int window_xpos = 150;
     const int window_ypos = 150;
     Window window = XCreateWindow(display, root_window, window_xpos, window_ypos, width, height, 
             0, vinfo->depth, InputOutput, vinfo->visual, mask, &winAttr);
     XStoreName(display, window, title);
+
+    if(nodecorations)
+    {
+        Atom window_type = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
+        long value = XInternAtom(display, "_NET_WM_WINDOW_TYPE_POPUP_MENU", False);
+        XChangeProperty(display, window, window_type, XA_ATOM, 32, PropModeReplace, (unsigned char *) &value, 1);
+    }
+
     XMapWindow(display, window);
 
     X11WindowState *x11win = (X11WindowState*)malloc(sizeof(X11WindowState));
@@ -391,7 +400,7 @@ void x11_screen_to_window_coord(AikePlatform *platform, AikeWindow *win, float x
 }
 
 
-long x11_window_get_current_desktop(Window window) 
+long x11_window_get_current_desktop(Window window, bool disp) 
 {
 	Atom actual_type_return;
 	int actual_format_return = 0;
@@ -400,15 +409,17 @@ long x11_window_get_current_desktop(Window window)
 	long * desktop = 0;
 	long ret;
 
+    const char *atomname = disp ? "_NET_CURRENT_DESKTOP" : "_NET_WM_DESKTOP";
+
     // XLib is fucking insane, what the fuck
     Display *d = linux.x11.display;
 	if(XGetWindowProperty(d, window, 
-                XInternAtom(d, "_NET_CURRENT_DESKTOP", false), 0, 1, 
+                XInternAtom(d, atomname, false), 0, 1, 
                 false, XA_CARDINAL, &actual_type_return, &actual_format_return,
                 &nitems_return, &bytes_after_return, 
                 (unsigned char**)&desktop) != Success) 
     {
-			return 0;
+        return 0;
 	}
 	if(actual_type_return != XA_CARDINAL || nitems_return == 0) 
     {
@@ -423,9 +434,9 @@ long x11_window_get_current_desktop(Window window)
 
 bool x11_mouse_coord_valid(AikePlatform *platform, AikeWindow *win)
 {
-    long displayDesktop = x11_window_get_current_desktop(DefaultRootWindow(linux.x11.display));
+    long displayDesktop = x11_window_get_current_desktop(DefaultRootWindow(linux.x11.display), true);
     X11WindowState *x11win = (X11WindowState*)win->nativePtr;
-    long windowDesktop = x11_window_get_current_desktop(x11win->window);
+    long windowDesktop = x11_window_get_current_desktop(x11win->window, false);
     // TODO: same screen?
     return displayDesktop == windowDesktop;
 }
