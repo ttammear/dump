@@ -165,18 +165,47 @@ static void font_manager_free_resources(FontManager* fmgr)
     fmgr->numCachedFonts = 0;
 }
 
+void renderer_recalculate_immediate_matrixx(Renderer *renderer)
+{
+    renderer->currentImmMatrix = renderer->immediateMatrixStack[renderer->curMatrix == 0 ? 0 : 1];
+    for(uint32_t i = 2; i <= renderer->curMatrix;i++)
+    {
+        renderer->currentImmMatrix = renderer->currentImmMatrix * renderer->immediateMatrixStack[i];
+    }
+}
+
+void renderer_recalculate_immediate_matrix(Renderer *renderer)
+{
+    if(renderer->curMatrix == 0)
+    {
+        renderer->currentImmMatrix = renderer->immediateMatrixStack[0];
+    }
+    else if(renderer->curMatrix == 1)
+    {
+        renderer->currentImmMatrix = renderer->immediateMatrixStack[1];
+    }
+    else if(renderer->curMatrix == 2)
+    {
+        renderer->currentImmMatrix = renderer->immediateMatrixStack[1] * renderer->immediateMatrixStack[2];
+    }
+    else
+        assert(false);
+}
+
 // TODO: matrices should be multiplied, so that their effects stack??
 void renderer_push_matrix(Renderer *renderer, Mat3 *mat)
 {
     renderer->curMatrix++;
     assert(renderer->curMatrix < ARRAY_COUNT(renderer->immediateMatrixStack));
     renderer->immediateMatrixStack[renderer->curMatrix] = *mat;
+    renderer_recalculate_immediate_matrix(renderer);
 }
 
 void renderer_pop_matrix(Renderer *renderer)
 {
     assert(renderer->curMatrix >= 1);
     renderer->curMatrix--;
+    renderer_recalculate_immediate_matrix(renderer);
 }
 
 static void renderer_init(Renderer *renderer)
@@ -560,7 +589,7 @@ static void renderer_draw_tile(Renderer *renderer, Rect rect, uint32_t layer)
 {
     Vec3 min(rect.x0, rect.y0, 1.0f);
     Vec3 max(rect.x0+rect.width, rect.y0+rect.height, 1.0f);
-    Mat3 *mat = &renderer->immediateMatrixStack[renderer->curMatrix];
+    Mat3 *mat = &renderer->currentImmMatrix;
     min = *mat * min;
     max = *mat * max;
 

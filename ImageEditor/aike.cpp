@@ -40,7 +40,6 @@ vec4 textFragProc()
 vec4 texTileFragProc()
 {
     return texture(tileTex, fragUv);
-    //return vec4(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
 vec4 solidFragProc()
@@ -217,7 +216,8 @@ DLL_PUBLIC void aike_init(AikePlatform *platform)
     g_emgr = &eventManager;
     event_manager_init(g_emgr);
 
-    g_renderer = new Renderer();
+    g_renderer = (Renderer*)aike_alloc(sizeof(Renderer));
+    memset(g_renderer, 0, sizeof(Renderer));
     renderer_init(g_renderer);
 
     g_ui = (UserInterface*)aike_alloc(sizeof(UserInterface));
@@ -272,8 +272,13 @@ DLL_PUBLIC void aike_update(AikePlatform *platform)
     g_input->inputStatesPrev = g_input->inputStates;
     g_input->inputStates = platform->mouseButtons;
 
+    // copy current keystate to prev slot
+    memcpy(g_input->keyStatesPrev, g_input->keyStates, sizeof(g_input->keyStates));
+    // get new state
     assert(sizeof(g_input->keyStates) == sizeof(platform->keyStates));
     memcpy(g_input->keyStates, platform->keyStates, sizeof(g_input->keyStates));
+
+    input_update(g_input, platform);
 
     aike_make_window_current(&platform->mainWin);
     glClearColor(1.0f, 0.0f, 1.0f, 1.0f);
@@ -332,7 +337,7 @@ DLL_PUBLIC void aike_deinit(AikePlatform *platform)
 
     aike_destroy_tile_pool(&g_aike->tilePool);
 
-    delete g_renderer;
+    aike_free(g_renderer);
     memory_manager_print_entries(g_memoryManager, true);
     memory_manager_free_resources(g_memoryManager);
 }

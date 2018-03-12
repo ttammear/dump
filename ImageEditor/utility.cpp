@@ -167,7 +167,7 @@ void memory_manager_remove_entry(MemoryManager *memMgr, void *ptr)
             assert(entry->prev == NULL);
             memMgr->allocationListHead = entry->next;
         }
-        delete entry;
+        free(entry);
     }
     else
     {
@@ -201,7 +201,8 @@ void memory_manager_add_entry(MemoryManager *memMgr, void *ptr, uint32_t uuid, c
         entry->count = 0;
     }
 
-    AllocatedListEntry *allocEntry = new AllocatedListEntry;
+    AllocatedListEntry *allocEntry = (AllocatedListEntry*)malloc(sizeof(AllocatedListEntry));
+    memset(allocEntry, 0, sizeof(AllocatedListEntry));
     allocEntry->next = memMgr->allocationListHead;
     allocEntry->prev = NULL;
     allocEntry->statEntry = &memMgr->entries[index];

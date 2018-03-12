@@ -56,17 +56,6 @@ GL_FUNC_VAR(glUniformMatrix4fv);
 GL_FUNC_VAR(glGetStringi);
 GL_FUNC_VAR(glDebugMessageCallback);
 
-uint32_t linux_to_aike_keymap[] = 
-{
- 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10,
-    11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-    21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
-    31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-    41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
-    51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
-    61, 62, 63, 64, 65, 66, 67, 68
-};
-
 
 struct X11WindowState
 {
@@ -735,6 +724,7 @@ p_libinput_init(bool verbose, bool grab)
 	}
 
 	if (verbose) {
+        // TODO: do these need to be unbound?
 		libinput_log_set_handler(li, log_handler);
 		libinput_log_set_priority(li, LIBINPUT_LOG_PRIORITY_DEBUG);
 	}
@@ -786,8 +776,10 @@ int main(int argc, char *argv[])
     clock_gettime(CLOCK_MONOTONIC, &linux.monotonic_time_start);
     clock_gettime(CLOCK_REALTIME, &linux.realtime_time_start);
 
-    assert(ARRAY_COUNT(linux_to_aike_keymap) == AIKE_KEY_COUNT);
+    AikeTime lieStart = linux_get_monotonic_time(&platform);
     linux.libInput = p_libinput_init(true, false);
+    double liedif = aike_timedif_sec(lieStart, linux_get_monotonic_time(&platform));
+    printf("Libinput took %f seconds to initialize\n", liedif);
 
     if(!glx_check_extensions(linux.x11.display, linux.x11.screen))
     {
@@ -918,6 +910,9 @@ int main(int argc, char *argv[])
             platform.mouseButtons = inputM;
         }
 
+        platform.mouseVerAxis = 0.0;
+        platform.mouseHorAxis = 0.0;
+
         libinput_dispatch(linux.libInput);
         struct libinput_event* lie;
         while((lie = libinput_get_event(linux.libInput)))
@@ -927,20 +922,45 @@ int main(int argc, char *argv[])
             {
                 case LIBINPUT_EVENT_KEYBOARD_KEY:
                     {
-                        printf("keyboard event\n", KEY_A);
+
                         struct libinput_event_keyboard *ke = libinput_event_get_keyboard_event(lie);
                         uint32_t k = libinput_event_keyboard_get_key(ke);
                         libinput_key_state state = libinput_event_keyboard_get_key_state(ke);
                         if(state == LIBINPUT_KEY_STATE_PRESSED && k < AIKE_KEY_COUNT)
                         {
-                            platform.keyStates[linux_to_aike_keymap[k]] = 1;
+                            platform.keyStates[k] = 1;
                         }
                         else if(k < AIKE_KEY_COUNT)
                         {
-                            platform.keyStates[linux_to_aike_keymap[k]] = 0;
+                            platform.keyStates[k] = 0;
                         }
                     }
                     break;
+                case LIBINPUT_EVENT_POINTER_BUTTON:
+                    {
+                        // TODO: maybe we also need pointer position here??
+                        struct libinput_event_pointer *pe = libinput_event_get_pointer_event(lie);
+                        uint32_t btn = libinput_event_pointer_get_button(pe);
+                        libinput_button_state state = libinput_event_pointer_get_button_state(pe);
+                        if(state == LIBINPUT_BUTTON_STATE_PRESSED && btn < AIKE_KEY_COUNT)
+                        {
+                            platform.keyStates[btn] = 1;
+                        }
+                        else if(btn < AIKE_KEY_COUNT)
+                        {
+                            platform.keyStates[btn] = 0;
+                        }
+                    } break;
+                case LIBINPUT_EVENT_POINTER_AXIS:
+                    {
+                        struct libinput_event_pointer *ae = libinput_event_get_pointer_event(lie);
+                        libinput_pointer_axis_source asrc = libinput_event_pointer_get_axis_source(ae);
+                        if(libinput_event_pointer_has_axis(ae, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL))
+                            platform.mouseVerAxis = libinput_event_pointer_get_axis_value_discrete(ae, LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL);
+
+                        if(libinput_event_pointer_has_axis(ae, LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL))
+                            platform.mouseHorAxis = libinput_event_pointer_get_axis_value_discrete(ae, LIBINPUT_POINTER_AXIS_SCROLL_HORIZONTAL);
+                    } break;
                 default:
                     break;
             }

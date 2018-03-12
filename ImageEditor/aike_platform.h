@@ -880,6 +880,363 @@ enum AikeKeyCodes
     AIKE_KEY_F8			  =  66,
     AIKE_KEY_F9			  =  67,
     AIKE_KEY_F10	      =  68,
+    AIKE_KEY_NUMLOCK	  =  69,
+    AIKE_KEY_SCROLLLOCK	  =  70,
+    AIKE_KEY_KP7		  =  71,
+    AIKE_KEY_KP8		  =  72,
+    AIKE_KEY_KP9		  =  73,
+    AIKE_KEY_KPMINUS	  =  74,
+    AIKE_KEY_KP4		  =  75,
+    AIKE_KEY_KP5		  =  76,
+    AIKE_KEY_KP6		  =  77,
+    AIKE_KEY_KPPLUS		  =  78,
+    AIKE_KEY_KP1		  =  79,
+    AIKE_KEY_KP2		  =  80,
+    AIKE_KEY_KP3		  =  81,
+    AIKE_KEY_KP0		  =  82,
+    AIKE_KEY_KPDOT		  =  83,
+
+    AIKE_KEY_ZENKAKUHANKAKU = 85,
+    AIKE_KEY_102ND		  =  86,
+    AIKE_KEY_F11		  =  87,
+    AIKE_KEY_F12		  =  88,
+    AIKE_KEY_RO			  =  89,
+    AIKE_KEY_KATAKANA	  =  90,
+    AIKE_KEY_HIRAGANA	  =  91,
+    AIKE_KEY_HENKAN		  =  92,
+    AIKE_KEY_KATAKANAHIRAGANU = 93,
+    AIKE_KEY_MUHENKAN	  =  94,
+    AIKE_KEY_KPJPCOMMA	  =  95,
+    AIKE_KEY_KPENTER	  =  96,
+    AIKE_KEY_RIGHTCTRL	  =  97,
+    AIKE_KEY_KPSLASH	  =  98,
+    AIKE_KEY_SYSRQ		  =  99,
+    AIKE_KEY_RIGHTALT	  =  100,
+    AIKE_KEY_LINEFEED	  =  101,
+    AIKE_KEY_HOME		  =  102,
+    AIKE_KEY_UP			  =  103,
+    AIKE_KEY_PAGEUP		  =  104,
+    AIKE_KEY_LEFT		  =  105,
+    AIKE_KEY_RIGHT		  =  106,
+    AIKE_KEY_END		  =  107,
+    AIKE_KEY_DOWN		  =  108,
+    AIKE_KEY_PAGEDOWN	  =  109,
+    AIKE_KEY_INSERT		  =  110,
+    AIKE_KEY_DELETE		  =  111,
+    AIKE_KEY_MACRO		  =  112,
+    AIKE_KEY_MUTE		  =  113,
+    AIKE_KEY_VOLUMEDOWN	  =  114,
+    AIKE_KEY_VOLUMEUP	  =  115,
+    AIKE_KEY_POWER		  =  116, /* SC System Power Down */
+    AIKE_KEY_KPEQUAL	  =  117,
+    AIKE_KEY_KPPLUSMINUS  =  118,
+    AIKE_KEY_PAUSE		  =  119,
+    AIKE_KEY_SCALE		  =  120, /* AL Compiz Scale (Expose) */
+
+    AIKE_KEY_KPCOMMA	  =  121,
+    AIKE_KEY_HANGEUL	  =  122,
+    AIKE_KEY_HANGUEL	  =  AIKE_KEY_HANGEUL,
+    AIKE_KEY_HANJA		  =  123,
+    AIKE_KEY_YEN		  =  124,
+    AIKE_KEY_LEFTMETA	  =  125,
+    AIKE_KEY_RIGHTMETA	  =  126,
+    AIKE_KEY_COMPOSE	  =  127,
+
+    AIKE_KEY_STOP		  =  128, /* AC Stop */
+    AIKE_KEY_AGAIN		  =  129,
+    AIKE_KEY_PROPS		  =  130, /* AC Properties */
+    AIKE_KEY_UNDO		  =  131, /* AC Undo */
+    AIKE_KEY_FRONT		  =  132,
+    AIKE_KEY_COPY		  =  133, /* AC Copy */
+    AIKE_KEY_OPEN		  =  134, /* AC Open */
+    AIKE_KEY_PASTE		  =  135, /* AC Paste */
+    AIKE_KEY_FIND		  =  136, /* AC Search */
+    AIKE_KEY_CUT		  =  137, /* AC Cut */
+    AIKE_KEY_HELP		  =  138, /* AL Integrated Help Center */
+    AIKE_KEY_MENU		  =  139, /* Menu (show menu) */
+    AIKE_KEY_CALC		  =  140, /* AL Calculator */
+    AIKE_KEY_SETUP		  =  141,
+    AIKE_KEY_SLEEP		  =  142, /* SC System Sleep */
+    AIKE_KEY_WAKEUP		  =  143, /* System Wake Up */
+    AIKE_KEY_FILE		  =  144, /* AL Local Machine Browser */
+    AIKE_KEY_SENDFILE	  =  145,
+    AIKE_KEY_DELETEFILE	  =  146,
+    AIKE_KEY_XFER		  =  147,
+    AIKE_KEY_PROG1		  =  148,
+    AIKE_KEY_PROG2		  =  149,
+    AIKE_KEY_WWW		  =  150, /* AL Internet Browser */
+    AIKE_KEY_MSDOS		  =  151,
+    AIKE_KEY_COFFEE		  =  152, /* AL Terminal Lock/Screensaver */
+    AIKE_KEY_SCREENLOCK	  =  AIKE_KEY_COFFEE,
+    AIKE_KEY_ROTATE_DISPLAY	= 153, /* Display orientation for e.g. tablets */
+    AIKE_KEY_DIRECTION	  =  AIKE_KEY_ROTATE_DISPLAY,
+    AIKE_KEY_CYCLEWINDOWS =  154,
+    AIKE_KEY_MAIL		  =  155,
+    AIKE_KEY_BOOKMARKS	  =  156, /* AC Bookmarks */
+    AIKE_KEY_COMPUTER	  =  157,
+    AIKE_KEY_BACK		  =  158, /* AC Back */
+    AIKE_KEY_FORWARD	  =  159, /* AC Forward */
+    AIKE_KEY_CLOSECD	  =  160,
+    AIKE_KEY_EJECTCD	  =  161,
+    AIKE_KEY_EJECTCLOSECD =  162,
+    AIKE_KEY_NEXTSONG	  =  163,
+    AIKE_KEY_PLAYPAUSE	  =  164,
+    AIKE_KEY_PREVIOUSSONG =  165,
+    AIKE_KEY_STOPCD		  =  166,
+    AIKE_KEY_RECORD		  =  167,
+    AIKE_KEY_REWIND		  =  168,
+    AIKE_KEY_PHONE		  =  169, /* Media Select Telephone */
+    AIKE_KEY_ISO		  =  170,
+    AIKE_KEY_CONFIG		  =  171, /* AL Consumer Control Configuration */
+    AIKE_KEY_HOMEPAGE	  =  172, /* AC Home */
+    AIKE_KEY_REFRESH	  =  173, /* AC Refresh */
+    AIKE_KEY_EXIT		  =  174, /* AC Exit */
+    AIKE_KEY_MOVE		  =  175,
+    AIKE_KEY_EDIT		  =  176,
+    AIKE_KEY_SCROLLUP	  =  177,
+    AIKE_KEY_SCROLLDOWN	  =  178,
+    AIKE_KEY_KPLEFTPAREN  =  179,
+    AIKE_KEY_KPRIGHTPAREN =  180,
+    AIKE_KEY_NEW		  =  181, /* AC New */
+    AIKE_KEY_REDO		  =  182, /* AC Redo/Repeat */
+
+    AIKE_KEY_F13		  =  183,
+    AIKE_KEY_F14		  =  184,
+    AIKE_KEY_F15		  =  185,
+    AIKE_KEY_F16		  =  186,
+    AIKE_KEY_F17		  =  187,
+    AIKE_KEY_F18		  =  188,
+    AIKE_KEY_F19		  =  189,
+    AIKE_KEY_F20		  =  190,
+    AIKE_KEY_F21		  =  191,
+    AIKE_KEY_F22		  =  192,
+    AIKE_KEY_F23		  =  193,
+    AIKE_KEY_F24		  =  194,
+
+    AIKE_KEY_PLAYCD		  =  200,
+    AIKE_KEY_PAUSECD	  =  201,
+    AIKE_KEY_PROG3		  =  202,
+    AIKE_KEY_PROG4		  =  203,
+    AIKE_KEY_DASHBOARD	  =  204, /* AL Dashboard */
+    AIKE_KEY_SUSPEND	  =  205,
+    AIKE_KEY_CLOSE		  =  206, /* AC Close */
+    AIKE_KEY_PLAY		  =  207,
+    AIKE_KEY_FASTFORWARD  =  208,
+    AIKE_KEY_BASSBOOST	  =  209,
+    AIKE_KEY_PRINT		  =  210,
+    AIKE_KEY_HP			  =  211,
+    AIKE_KEY_CAMERA		  =  212,
+    AIKE_KEY_SOUND		  =  213,
+    AIKE_KEY_QUESTION	  =  214,
+    AIKE_KEY_EMAIL		  =  215,
+    AIKE_KEY_CHAT		  =  216,
+    AIKE_KEY_SEARCH		  =  217,
+    AIKE_KEY_CONNECT	  =  218,
+    AIKE_KEY_FINANCE	  =  219, /* AL Checkbook/Finance */
+    AIKE_KEY_SPORT		  =  220,
+    AIKE_KEY_SHOP		  =  221,
+    AIKE_KEY_ALTERASE	  =  222,
+    AIKE_KEY_CANCEL		  =  223, /* AC Cancel */
+    AIKE_KEY_BRIGHTNESSDOWN	= 224,
+    AIKE_KEY_BRIGHTNESSUP	= 225,
+    AIKE_KEY_MEDIA		  =  226,
+
+    AIKE_KEY_SWITCHVIDEOMODE = 227,	/* Cycle between available video outputs (Monitor/LCD/TV-out/etc) */
+    AIKE_KEY_KBDILLUMTOGGLE	= 228,
+    AIKE_KEY_KBDILLUMDOWN = 229,
+    AIKE_KEY_KBDILLUMUP	  = 230,
+
+    AIKE_KEY_SEND		  =  231, /* AC Send */
+    AIKE_KEY_REPLY		  =  232, /* AC Reply */
+    AIKE_KEY_FORWARDMAIL  =  233, /* AC Forward Msg */
+    AIKE_KEY_SAVE		  =  234, /* AC Save */
+    AIKE_KEY_DOCUMENTS	  =  235,
+
+    AIKE_KEY_BATTERY	  =  236,
+
+    AIKE_KEY_BLUETOOTH	  =  237,
+    AIKE_KEY_WLAN		  =  238,
+    AIKE_KEY_UWB		  =  239,
+
+    AIKE_KEY_UNKNOWN	  =  240,
+
+    AIKE_KEY_VIDEO_NEXT	  =  241, /* drive next video source */
+    AIKE_KEY_VIDEO_PREV	  =  242, /* drive previous video source */
+    AIKE_KEY_BRIGHTNESS_CYCLE = 243, /* brightness up, after max is min */
+    AIKE_KEY_BRIGHTNESS_AUTO  = 244, /* Set Auto Brightness: manual brightness control is off, rely on ambient */
+    AIKE_KEY_BRIGHTNESS_ZERO = AIKE_KEY_BRIGHTNESS_AUTO,
+    AIKE_KEY_DISPLAY_OFF  =  245, /* display device to off state */
+
+    AIKE_KEY_WWAN		  =  246, /* Wireless WAN (LTE, UMTS, GSM, etc.) */
+    AIKE_KEY_WIMAX		  =  AIKE_KEY_WWAN,
+    AIKE_KEY_RFKILL		  =  247, /* Key that controls all radios */
+
+    AIKE_KEY_MICMUTE	  =  248, /* Mute / unmute the microphone */
+
+    AIKE_BTN_MISC		  =  0x100,
+    AIKE_BTN_0			  =  0x100,
+    AIKE_BTN_1			  =  0x101,
+    AIKE_BTN_2			  =  0x102,
+    AIKE_BTN_3			  =  0x103,
+    AIKE_BTN_4			  =  0x104,
+    AIKE_BTN_5			  =  0x105,
+    AIKE_BTN_6			  =  0x106,
+    AIKE_BTN_7			  =  0x107,
+    AIKE_BTN_8			  =  0x108,
+    AIKE_BTN_9			  =  0x109,
+
+    AIKE_BTN_MOUSE		  =  0x110,
+    AIKE_BTN_LEFT		  =  0x110,
+    AIKE_BTN_RIGHT		  =  0x111,
+    AIKE_BTN_MIDDLE		  =  0x112,
+    AIKE_BTN_SIDE		  =  0x113,
+    AIKE_BTN_EXTRA		  =  0x114,
+    AIKE_BTN_FORWARD	  =  0x115,
+    AIKE_BTN_BACK		  =  0x116,
+    AIKE_BTN_TASK		  =  0x117,
+
+    AIKE_BTN_JOYSTICK	  =  0x120,
+    AIKE_BTN_TRIGGER	  =  0x120,
+    AIKE_BTN_THUMB		  =  0x121,
+    AIKE_BTN_THUMB2		  =  0x122,
+    AIKE_BTN_TOP		  =  0x123,
+    AIKE_BTN_TOP2		  =  0x124,
+    AIKE_BTN_PINKIE		  =  0x125,
+    AIKE_BTN_BASE		  =  0x126,
+    AIKE_BTN_BASE2		  =  0x127,
+    AIKE_BTN_BASE3		  =  0x128,
+    AIKE_BTN_BASE4		  =  0x129,
+    AIKE_BTN_BASE5		  =  0x12a,
+    AIKE_BTN_BASE6		  =  0x12b,
+    AIKE_BTN_DEAD		  =  0x12f,
+
+    AIKE_BTN_GAMEPAD	  =  0x130,
+    AIKE_BTN_SOUTH		  =  0x130,
+    AIKE_BTN_A			  =  AIKE_BTN_SOUTH,
+    AIKE_BTN_EAST		  =  0x131,
+    AIKE_BTN_B			  =  AIKE_BTN_EAST,
+    AIKE_BTN_C			  =  0x132,
+    AIKE_BTN_NORTH		  =  0x133,
+    AIKE_BTN_X			  =  AIKE_BTN_NORTH,
+    AIKE_BTN_WEST		  =  0x134,
+    AIKE_BTN_Y			  =  AIKE_BTN_WEST,
+    AIKE_BTN_Z			  =  0x135,
+    AIKE_BTN_TL			  =  0x136,
+    AIKE_BTN_TR			  =  0x137,
+    AIKE_BTN_TL2		  =  0x138,
+    AIKE_BTN_TR2		  =  0x139,
+    AIKE_BTN_SELECT		  =  0x13a,
+    AIKE_BTN_START		  =  0x13b,
+    AIKE_BTN_MODE		  =  0x13c,
+    AIKE_BTN_THUMBL		  =  0x13d,
+    AIKE_BTN_THUMBR		  =  0x13e,
+
+    AIKE_BTN_DIGI		  =  0x140,
+    AIKE_BTN_TOOL_PEN	  =  0x140,
+    AIKE_BTN_TOOL_RUBBER  =  0x141,
+    AIKE_BTN_TOOL_BRUSH	  =  0x142,
+    AIKE_BTN_TOOL_PENCIL  =  0x143,
+    AIKE_BTN_TOOL_AIRBRUSH=  0x144,
+    AIKE_BTN_TOOL_FINGER  =  0x145,
+    AIKE_BTN_TOOL_MOUSE	  =  0x146,
+    AIKE_BTN_TOOL_LENS	  =  0x147,
+    AIKE_BTN_TOOL_QUINTTAP = 0x148,	/* Five fingers on trackpad */
+    AIKE_BTN_STYLUS3	  =  0x149,
+    AIKE_BTN_TOUCH		  =  0x14a,
+    AIKE_BTN_STYLUS		  =  0x14b,
+    AIKE_BTN_STYLUS2	  =  0x14c,
+    AIKE_BTN_TOOL_DOUBLETAP	= 0x14d,
+    AIKE_BTN_TOOL_TRIPLETAP	= 0x14e,
+    AIKE_BTN_TOOL_QUADTAP	= 0x14f, /* Four fingers on trackpad */
+
+    AIKE_BTN_WHEEL		  =  0x150,
+    AIKE_BTN_GEAR_DOWN	  =  0x150,
+    AIKE_BTN_GEAR_UP	  =  0x151,
+
+    AIKE_KEY_OK			  =  0x160,
+    AIKE_KEY_SELECT		  =  0x161,
+    AIKE_KEY_GOTO		  =  0x162,
+    AIKE_KEY_CLEAR		  =  0x163,
+    AIKE_KEY_POWER2		  =  0x164,
+    AIKE_KEY_OPTION		  =  0x165,
+    AIKE_KEY_INFO		  =  0x166, /* AL OEM Features/Tips/Tutorial */
+    AIKE_KEY_TIME		  =  0x167,
+    AIKE_KEY_VENDOR		  =  0x168,
+    AIKE_KEY_ARCHIVE	  =  0x169,
+    AIKE_KEY_PROGRAM	  =  0x16a, /* Media Select Program Guide */
+    AIKE_KEY_CHANNEL	  =  0x16b,
+    AIKE_KEY_FAVORITES	  =  0x16c,
+    AIKE_KEY_EPG		  =  0x16d,
+    AIKE_KEY_PVR		  =  0x16e, /* Media Select Home */
+    AIKE_KEY_MHP		  =  0x16f,
+    AIKE_KEY_LANGUAGE	  =  0x170,
+    AIKE_KEY_TITLE		  =  0x171,
+    AIKE_KEY_SUBTITLE	  =  0x172,
+    AIKE_KEY_ANGLE		  =  0x173,
+    AIKE_KEY_ZOOM		  =  0x174,
+    AIKE_KEY_MODE		  =  0x175,
+    AIKE_KEY_KEYBOARD	  =  0x176,
+    AIKE_KEY_SCREEN		  =  0x177,
+    AIKE_KEY_PC			  =  0x178, /* Media Select Computer */
+    AIKE_KEY_TV			  =  0x179, /* Media Select TV */
+    AIKE_KEY_TV2		  =  0x17a, /* Media Select Cable */
+    AIKE_KEY_VCR		  =  0x17b, /* Media Select VCR */
+    AIKE_KEY_VCR2		  =  0x17c, /* VCR Plus */
+    AIKE_KEY_SAT		  =  0x17d, /* Media Select Satellite */
+    AIKE_KEY_SAT2		  =  0x17e,
+    AIKE_KEY_CD			  =  0x17f, /* Media Select CD */
+    AIKE_KEY_TAPE		  =  0x180, /* Media Select Tape */
+    AIKE_KEY_RADIO		  =  0x181,
+    AIKE_KEY_TUNER		  =  0x182, /* Media Select Tuner */
+    AIKE_KEY_PLAYER		  =  0x183,
+    AIKE_KEY_TEXT		  =  0x184,
+    AIKE_KEY_DVD		  =  0x185, /* Media Select DVD */
+    AIKE_KEY_AUX		  =  0x186,
+    AIKE_KEY_MP3		  =  0x187,
+    AIKE_KEY_AUDIO		  =  0x188, /* AL Audio Browser */
+    AIKE_KEY_VIDEO		  =  0x189, /* AL Movie Browser */
+    AIKE_KEY_DIRECTORY	  =  0x18a,
+    AIKE_KEY_LIST		  =  0x18b,
+    AIKE_KEY_MEMO		  =  0x18c, /* Media Select Messages */
+    AIKE_KEY_CALENDAR	  =  0x18d,
+    AIKE_KEY_RED		  =  0x18e,
+    AIKE_KEY_GREEN		  =  0x18f,
+    AIKE_KEY_YELLOW		  =  0x190,
+    AIKE_KEY_BLUE		  =  0x191,
+    AIKE_KEY_CHANNELUP	  =  0x192, /* Channel Increment */
+    AIKE_KEY_CHANNELDOWN  =  0x193, /* Channel Decrement */
+    AIKE_KEY_FIRST		  =  0x194,
+    AIKE_KEY_LAST		  =  0x195, /* Recall Last */
+    AIKE_KEY_AB			  =  0x196,
+    AIKE_KEY_NEXT		  =  0x197,
+    AIKE_KEY_RESTART  	  =  0x198,
+    AIKE_KEY_SLOW	      =  0x199,
+    AIKE_KEY_SHUFFLE	  =  0x19a,
+    AIKE_KEY_BREAK		  =  0x19b,
+    AIKE_KEY_PREVIOUS	  =  0x19c,
+    AIKE_KEY_DIGITS		  =  0x19d,
+    AIKE_KEY_TEEN		  =  0x19e,
+    AIKE_KEY_TWEN		  =  0x19f,
+    AIKE_KEY_VIDEOPHONE	  =  0x1a0, /* Media Select Video Phone */
+    AIKE_KEY_GAMES	      =  0x1a1, /* Media Select Games */
+    AIKE_KEY_ZOOMIN		  =  0x1a2, /* AC Zoom In */
+    AIKE_KEY_ZOOMOUT	  =  0x1a3, /* AC Zoom Out */
+    AIKE_KEY_ZOOMRESET	  =  0x1a4, /* AC Zoom */
+    AIKE_KEY_WORDPROCESSOR	=0x1a5, /* AL Word Processor */
+    AIKE_KEY_EDITOR		  =  0x1a6, /* AL Text Editor */
+    AIKE_KEY_SPREADSHEET  =  0x1a7, /* AL Spreadsheet */
+    AIKE_KEY_GRAPHICSEDITOR	= 0x1a8, /* AL Graphics Editor */
+    AIKE_KEY_PRESENTATION =  0x1a9, /* AL Presentation App */
+    AIKE_KEY_DATABASE	  =  0x1aa, /* AL Database App */
+    AIKE_KEY_NEWS		  =  0x1ab, /* AL Newsreader */
+    AIKE_KEY_VOICEMAIL	  =  0x1ac, /* AL Voicemail */
+    AIKE_KEY_ADDRESSBOOK  =  0x1ad, /* AL Contacts/Address Book */
+    AIKE_KEY_MESSENGER	  =  0x1ae, /* AL Instant Messaging */
+    AIKE_KEY_DISPLAYTOGGLE=  0x1af, /* Turn display (LCD) on and off */
+    AIKE_KEY_BRIGHTNESS_TOGGLE = AIKE_KEY_DISPLAYTOGGLE,
+    AIKE_KEY_SPELLCHECK	  =  0x1b0, /* AL Spell Check */
+    AIKE_KEY_LOGOFF	      =  0x1b1, /* AL Logoff */
+    
     AIKE_KEY_COUNT
 };
 
@@ -914,10 +1271,11 @@ struct AikePlatform
     float mouseY;
     float mouseScreenX;
     float mouseScreenY;
+    float mouseVerAxis;
+    float mouseHorAxis;
     uint32_t mouseButtons;
     // keyboard
     uint16_t keyStates[AIKE_KEY_COUNT];
-    uint16_t keyStatesPrev[AIKE_KEY_COUNT];
 
     AikeTime startTime;
 

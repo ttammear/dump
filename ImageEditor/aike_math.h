@@ -42,6 +42,10 @@ inline Vec2 operator * (Vec2 const &v, float m)
     return Vec2(m*v.x, m*v.y);
 }
 
+inline Vec2 operator / (Vec2 const &v, float m)
+{
+    return Vec2(v.x / m, v.y / m);
+}
 
 struct Vec3
 {
@@ -69,6 +73,11 @@ struct Vec3
         };
     };
 };
+
+inline Vec3 operator + (Vec3 const &l, Vec3 const &r)
+{
+    return Vec3(l.x + r.x, l.y + r.y, l.z + r.z);
+}
 
 struct Vec4
 {
@@ -148,7 +157,25 @@ struct Mat3
         Mat3 ret;
         ret.m00 =     s; ret.m10 =  0.0f; ret.m20 =  0.0f;
         ret.m01 =  0.0f; ret.m11 =     s; ret.m21 =  0.0f;
-        ret.m02 = s*o.x; ret.m12 = s*o.y; ret.m22 =     s;
+        ret.m02 = s*o.x; ret.m12 = s*o.y; ret.m22 =  1.0f;
+        return ret;
+    }
+
+    inline static Mat3 translate(Vec2 t)
+    {
+        Mat3 ret;
+        ret.m00 =   1.0; ret.m10 =  0.0f; ret.m20 =  0.0f;
+        ret.m01 =  0.0f; ret.m11 =  1.0f; ret.m21 =  0.0f;
+        ret.m02 =   t.x; ret.m12 =   t.y; ret.m22 =  1.0f;
+        return ret;
+    }
+
+    inline static Mat3 scale(Vec2 s)
+    {
+        Mat3 ret;
+        ret.m00 =  s.x; ret.m10 =  0.0f; ret.m20 = 0.0f;
+        ret.m01 = 0.0f; ret.m11 =   s.y; ret.m21 = 0.0f;
+        ret.m02 = 0.0f; ret.m12 =  0.0f; ret.m22 = 1.0f;
         return ret;
     }
 
@@ -163,7 +190,7 @@ struct Mat3
 
     union
     {
-        float m[3][3];
+        float cr[3][3];
         struct 
         {
             float m00, m10, m20,
@@ -210,6 +237,23 @@ Vec3 operator * (Mat3& mat, Vec3& vec)
                 mat.m10*vec.x + mat.m11*vec.y + mat.m12*vec.z,
                 mat.m20*vec.x + mat.m21*vec.y + mat.m22*vec.z
             );
+}
+
+inline Mat3 operator * (Mat3 const &l, Mat3 const &r)
+{
+	Mat3 ret;
+	for (int col = 0; col < 3; col++)
+	{
+		for (int row = 0; row < 3; row++)
+		{
+			ret.cr[col][row] = 0.0f;
+			for (int n = 0; n < 3; n++)
+			{
+				ret.cr[col][row] += l.cr[n][row] * r.cr[col][n];
+			}
+		}
+	}
+	return ret;
 }
 
 #define IN_RECT(rectangle, point) (point.x > rectangle.x0 && point.x < rectangle.x0+rectangle.width && point.y > rectangle.y0 && point.y < rectangle.y0+rectangle.height)

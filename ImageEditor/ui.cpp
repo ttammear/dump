@@ -29,8 +29,8 @@ void ui_free_view(UserInterface *ui, AikeViewState *view)
 static void image_view_init(ImageView *imgView)
 {
     imgView->offset = Vec2(0.0f, 0.0f);
-    imgView->scale = 1.0f;
-    imgView->imageSpaceCenter = Vec2(0.0f, 0.0f);
+    imgView->scale1000 = 1000;
+    imgView->imageSpaceCenter = Vec2(600.0f, 600.0f);
     imgView->grabbing = false;
 }
 
@@ -362,9 +362,10 @@ static bool context_menu_create_proc(void* ptr)
     else return false;
 }
 
-static void draw_image_view(Rect viewRect, ImageView *state)
+static void draw_image_view(Rect viewRect, Rect windowRect,ImageView *state)
 {
     // Draw background checkerboard pattern
+    //
     // TODO: find a way to do this with 1 quad?
     AikeImage *img = aike_get_dummy_image(g_aike);
     if(img != NULL)
@@ -383,47 +384,44 @@ static void draw_image_view(Rect viewRect, ImageView *state)
         }
     }
 
-#if 1
-    if(state->scale <= 0.0f)
-        state->scale = 1.0f;
-
-    bool mousehere = aike_mouse_in_window_rect(g_platform, g_renderer->curWindow, viewRect);
-    bool wasGrabbing = state->grabbing;
-    // TODO: KEYDOWN
-    state->grabbing = KEY(AIKE_KEY_SPACE) && (mousehere || state->grabbing);
-    if(!wasGrabbing && state->grabbing) // rising edge
+    // Image controls, zooming and moving
+    //
+    
+    bool mousehere = aike_mouse_in_window_rect(g_platform, g_renderer->curWindow, windowRect);
+    if(mousehere && BOUNDKEY_DOWN(AikeInput::KB_Grab))
     {
         state->grabbing = true;
         state->grabPoint = g_input->mousePos;
-        state->offsetOnGrab = state->offset;
+        state->offsetOnGrab = state->imageSpaceCenter;
     }
-    else if(wasGrabbing && !state->grabbing) // falling edge
+    else if(state->grabbing && BOUNDKEY_UP(AikeInput::KB_Grab))
     {
         state->grabbing = false;
     }
     if(state->grabbing)
     {
-        // TODO: this division is unituitive
-        Vec2 dif = (g_input->mousePos - state->grabPoint) * (1.0f/state->scale);
-        state->offset = state->offsetOnGrab + dif;
+        double rscale = (double)state->scale1000 / 1000.0;
+        Vec2 dif = (g_input->mousePos - state->grabPoint) / rscale;
+        state->imageSpaceCenter = state->offsetOnGrab - dif;
     }
-    if(mousehere && KEY(AIKE_KEY_MINUS))
-    {
-        state->scale += 0.1f;
-    }
-    if(mousehere && KEY(AIKE_KEY_EQUAL) && state->scale > 0.1f)
-    {
-        state->scale -= 0.1f;
-    }
-#else
-    Vec2 offset(0.0f, 0.0f);
-    float scale = 1.0f;
-#endif
 
-    Mat3 mat = Mat3::offsetAndScale(state->offset, state->scale);
+    if(mousehere && g_input->mouseVerticalAxis < -0.001)
+        state->scale1000 = getNextZoom(state->scale1000);
+    if(mousehere && g_input->mouseVerticalAxis > 0.001)
+        state->scale1000 = getPrevZoom(state->scale1000);
+
+    float rscale = (float)((double)state->scale1000 / 1000.0);
+    // always keep image center at the same position
+    Vec2 curCenterPosition((viewRect.width / (2.0f*rscale)), (viewRect.height / (2.0f*rscale)));
+    Vec2 offset = state->imageSpaceCenter - curCenterPosition;
+
+    Mat3 mat = Mat3::offsetAndScale(offset*-1.0f, rscale);
     renderer_push_matrix(g_renderer, &mat);
 
+
     // draw image tiles
+    //
+
     img = aike_get_first_image(g_aike);
     if(img == NULL)
         return;
@@ -439,8 +437,10 @@ static void draw_image_view(Rect viewRect, ImageView *state)
             ImageTile *tile = (ImageTile*)kh_value(h, k);
             int32_t x = tile->tileX;
             int32_t y = tile->tileY;
-            float y0 = viewRect.y0;
-            Rect tileR(viewRect.x0 + AIKE_IMG_CHUNK_SIZE*y, y0+AIKE_IMG_CHUNK_SIZE*x, AIKE_IMG_CHUNK_SIZE, AIKE_IMG_CHUNK_SIZE);
+            Vec2 min(AIKE_IMG_CHUNK_SIZE*y, AIKE_IMG_CHUNK_SIZE*x);
+            Vec2 size(AIKE_IMG_CHUNK_SIZE, AIKE_IMG_CHUNK_SIZE);
+
+            Rect tileR(min.x, min.y, size.x, size.y);
             renderer_draw_tile(g_renderer, tileR, tile->glLayer);
         }
     }
@@ -465,18 +465,28 @@ static void draw_view(Rect viewRect, AikeViewState *viewState)
     glScissor(glX0, glY0, glWidth, glHeight);
     glEnable(GL_SCISSOR_TEST);
 
+    Rect localViewRect;
+    localViewRect = viewRect;
+    localViewRect.x0 = 0.0f;
+    localViewRect.y0 = 0.0f;
+
+    Mat3 mat = Mat3::translate(Vec2(viewRect.x0, viewRect.y0));
+    renderer_push_matrix(g_renderer, &mat);
+
     switch(viewState->type)
     {
         case AikeViewState::Unknown:
             break;
         case AikeViewState::ImageView:
-            draw_image_view(viewRect, &viewState->imgView);
+            draw_image_view(localViewRect, viewRect, &viewState->imgView);
             break;
         default:
             fprintf(stderr, "Unknwon view! (%d)\n", viewState->type);
             break;
     }
     renderer_render(g_renderer);
+
+    renderer_pop_matrix(g_renderer);
     glDisable(GL_SCISSOR_TEST);
 }
 

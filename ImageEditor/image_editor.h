@@ -131,6 +131,7 @@ struct Renderer
 
     uint32_t curMatrix;
     Mat3 immediateMatrixStack[3];
+    Mat3 currentImmMatrix;
 
     // resources for rendering solid shapes
     //QuadBuffer solidBuffer;
@@ -205,10 +206,56 @@ struct ContextArea
     uint32_t numOptions;
 };
 
+static uint32_t zoomTable[]
+{
+       60,
+       70,
+       80,
+      100,
+      200,
+      300,
+      400,
+      500,
+      650,
+      800,
+     1000,
+     1500,
+     2000,
+     3000,
+     4500,
+     6500,
+     9500,
+    14500,
+    20000,
+    40000
+};
+
+const uint32_t startZoom = 10;
+
+static inline uint32_t getNextZoom(uint32_t current)
+{
+    for(uint32_t i = 0; i < ARRAY_COUNT(zoomTable); i++)
+    {
+        if(zoomTable[i] > current)
+            return zoomTable[i];
+    }
+    return zoomTable[ARRAY_COUNT(zoomTable) - 1];
+}
+
+static inline uint32_t getPrevZoom(uint32_t current)
+{
+    for(int32_t i = ARRAY_COUNT(zoomTable)-1; i >= 0; i--)
+    {
+        if(zoomTable[i] < current)
+            return zoomTable[i];
+    }
+    return zoomTable[0];
+}
+
 struct ImageView
 {
     Vec2 offset;
-    float scale;
+    int32_t scale1000;
     Vec2 imageSpaceCenter;
 
     // grabbing state
@@ -390,6 +437,10 @@ size_t strlcpy(char *dst, const char *src, size_t siz);
 #define KEY(x) ({bool keyret_ = g_input->keyStates[(x)]; assert(x < AIKE_KEY_COUNT); keyret_;})
 #endif
 
+#define BOUNDKEY(x) ((g_input->keyBindStates[(x)] != 0))
+#define BOUNDKEY_DOWN(x) ((g_input->keyBindStatesPrev[(x)] == 0) && (g_input->keyBindStates[(x)] != 0))
+#define BOUNDKEY_UP(x) ((g_input->keyBindStatesPrev[(x)] != 0) && (g_input->keyBindStates[(x)] == 0))
+
 #define AIKE_MAX_KEYBINDS 2
 
 // Input
@@ -406,8 +457,14 @@ struct AikeInput
 
     Vec2 mousePos;
     Vec2 mouseScreenPos;
+    double mouseVerticalAxis;
+    double mouseHorizontalAxis;
 
     uint16_t keyBinds[KB_Count][AIKE_MAX_KEYBINDS];
+    uint16_t keyBindStates[KB_Count];
+    uint16_t keyBindStatesPrev[KB_Count];
+
+    // key states from platform
     uint16_t keyStates[AIKE_KEY_COUNT];
     uint16_t keyStatesPrev[AIKE_KEY_COUNT];
 
@@ -417,6 +474,7 @@ struct AikeInput
 extern AikeInput *g_input;
 
 void input_init(AikeInput *input);
+void input_update(AikeInput *input, AikePlatform *platform);
 
 // Events
 
