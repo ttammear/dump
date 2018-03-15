@@ -146,7 +146,6 @@ void* struct_pool_alloc(struct StructPool *pool)
     }
 
 return_pool_element:
-    assert(found);
     pool->count++;
     return ret;
 }

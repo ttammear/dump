@@ -23,7 +23,8 @@
 #define COND_PRINT(x, ...) if(x) printf(__VA_ARGS__);
 #define ARRAY_COUNT(x) (sizeof(x) / sizeof(x[0]))
 
-#define aike_log_warning(string, ...) printf(string, __VA_ARGS__)
+#define aike_log_warning(string, ...) (printf(string, __VA_ARGS__))
+#define aike_fatal(msg, ...) (printf(msg"\n", ##__VA_ARGS__), exit(-1))
 
 #ifdef AIKE_DEBUG
 #define DEBUGINT(x) int32_t x;

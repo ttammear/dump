@@ -180,15 +180,15 @@ extern "C"
 
 DLL_PUBLIC void aike_update_window(AikePlatform *platform, AikeWindow *win)
 {
-    layout_tree_resize(&g_ui->layoutTree, win->screenRect.width, win->screenRect.height);
-    g_renderer->projection = Mat4::proj2d((float)win->screenRect.width, (float)win->screenRect.height);
+    layout_tree_resize(&g_ui->layoutTree, win->width, win->height);
+    g_renderer->projection = Mat4::proj2d((float)win->width, (float)win->height);
     GLint projMLoc = glGetUniformLocation(g_renderer->mainProgram, "projection");
     if(projMLoc == -1)
         printf("projection matrix not found!\n");
     // TODO: this should not be needed!
     glUseProgram(g_renderer->mainProgram);
     glUniformMatrix4fv(projMLoc, 1, GL_FALSE, (GLfloat*)&g_renderer->projection);
-    glViewport(0, 0, win->screenRect.width, win->screenRect.height);
+    glViewport(0, 0, win->width, win->height);
 }
 
 void aike_make_window_current(AikeWindow *window)

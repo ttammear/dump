@@ -84,7 +84,8 @@ static void user_interface_free_resources(UserInterface *ui)
 static ContextArea* user_interface_add_context(UserInterface *ui)
 {
     ContextArea *ret = (ContextArea*)struct_pool_alloc(&ui->contextPool);
-    assert(ret != NULL); // pool empty
+    if(ret == NULL)
+        aike_fatal("Ran out of context entries!");
     ContextArea **listEntry = (ContextArea**)struct_array_add(&ui->contextList);
     *listEntry = ret;
     return ret;
@@ -457,14 +458,14 @@ static void draw_view(Rect viewRect, AikeViewState *viewState)
     // we have to do so many extra draw calls
     // just because we need GL_SCISSOR_TEST
     //    uint32_t winW = g_renderer->curWindow->screenRect.width;
-    uint32_t winH = g_renderer->curWindow->screenRect.height;
+    uint32_t winH = g_renderer->curWindow->height;
     renderer_render(g_renderer); // flush view
 
     // enable scissor test
     uint32_t glX0 = roundToInt(viewRect.x0);
     uint32_t glY0 = roundToInt(winH - viewRect.height - viewRect.y0);
     uint32_t glWidth = roundToInt(viewRect.width);
-    uint32_t glHeight = roundToInt(winH - viewRect.y0);
+    uint32_t glHeight = roundToInt(viewRect.height);
     glScissor(glX0, glY0, glWidth, glHeight);
     glEnable(GL_SCISSOR_TEST);
 
@@ -581,7 +582,8 @@ static bool context_menu_close_proc(void* ptr)
 static bool context_menu_leftc_close_proc(void *ptr)
 {
     ContextMenu *menu = (ContextMenu*)ptr;
-    if(!aike_mouse_in_window_rect(g_platform, &g_platform->mainWin, menu->window.screenRect))
+    AikeWindow *win = &menu->window;
+    if(!aike_mouse_in_window_rect(g_platform, &g_platform->mainWin, Rect(win->screenX, win->screenY, win->width, win->height)))
     {
         context_menu_close_proc(ptr);
         return true;
@@ -654,18 +656,18 @@ static void context_menu_render(Renderer *renderer, ContextMenu *menu)
     CachedFont *font = renderer->fontManager.cachedFonts[1];
 
     aike_make_window_current(&menu->window);
-    g_platform->resize_window(g_platform, &menu->window, menu->window.screenRect.width, menu->numOptions * (font->size+5.0f)+5.0f);
+    g_platform->resize_window(g_platform, &menu->window, menu->window.width, menu->numOptions * (font->size+5.0f)+5.0f);
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     for(int i = 0; i < menu->numOptions; i++)
     {
-        float height = menu->window.screenRect.height;
+        float height = menu->window.height;
         float elHeight = font->size;
-        Rect trect(30.0f, i * (elHeight+5.0f), menu->window.screenRect.width, elHeight);
+        Rect trect(30.0f, i * (elHeight+5.0f), menu->window.width, elHeight);
         renderer_render_text(renderer, font, trect, menu->names[i], TextAlignment_Left);
         
-        Rect mouseRect(0.0f, i * (elHeight+5.0f), menu->window.screenRect.width, elHeight + 5.0f);
+        Rect mouseRect(0.0f, i * (elHeight+5.0f), menu->window.width, elHeight + 5.0f);
 
         if(aike_mouse_in_window_rect(g_platform, &menu->window, mouseRect))
         {
