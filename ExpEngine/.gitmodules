@@ -1,0 +1,3 @@
+[submodule "AikePlatform"]
+	path = AikePlatform
+	url = ../AikePlatform/
