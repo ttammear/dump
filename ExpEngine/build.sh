@@ -1,7 +1,12 @@
 cd "$(dirname "$0")"
-set -e
 
+cd AikePlatform
+git fetch
+git reset --hard origin/master
 git submodule update --recursive
+cd ..
+
+set -e
 
 STARTTIME=$(date +%s%N)
 clang ./AikePlatform/linux_main.cpp -D AIKE_DEBUG -fno-exceptions -std=c++11 -ggdb -lGL -lm -lX11 -ldl -linput -ludev -rdynamic -pthread -Wshadow -o ../ExpEngineBuild/Engine.out

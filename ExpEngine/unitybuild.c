@@ -7,14 +7,19 @@
 #include <string.h>
 #include <stddef.h>
 
-#ifdef _DEBUG
+// TODO: tt_simd?
+#define TT_SIMD_32_WIDTH   4
+
+
 #include "debug.h"
+#ifdef _DEBUG
 #include "debug.c"
 #endif
 
 #define TT_HELPER_IMPL
 #include "libs/tt_helpers.h"
 #include "libs/tt_types.h"
+#include "libs/tt_mt_ring_queue.h"
 
 #define STB_SPRINTF_IMPLEMENTATION
 #include "libs/stb_sprintf.h"
@@ -32,3 +37,7 @@
 
 #include "fib.c"
 #include "opengl_renderer.c"
+
+#ifdef _DEBUG
+static_assert(__COUNTER__ < PROFILER_MAX_ENTRIES_PER_FRAME, "not enough profiler slots");
+#endif

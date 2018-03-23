@@ -48,6 +48,72 @@ struct Mat4
     };
 };
 
+/*struct Mat4_simd
+{
+    TT_SIMD_T m11, m12, m13, m14;
+    TT_SIMD_T m21, m22, m23, m24;
+    TT_SIMD_T m31, m32, m33, m34;
+    TT_SIMD_T m41, m42, m43, m44;
+};
+
+void mat4_simd_mul(struct Mat4_simd *result, struct Mat4_simd *l, struct Mat4 *r)
+{
+
+}*/
+
+struct Mat4_sse2
+{
+    union {
+        struct {
+            __m128 m11, m12, m13, m14;
+            __m128 m21, m22, m23, m24;
+            __m128 m31, m32, m33, m34;
+            __m128 m41, m42, m43, m44;
+        };
+        struct
+        {
+            __m128 mm[4][4];
+        };
+        struct
+        {
+            __m128 m[16];
+        };
+    };
+};
+
+void mat4_mul_sse2(struct Mat4_sse2 *m, struct Mat4_sse2 *l, struct Mat4_sse2 *r)
+{
+    for (int row = 0; row < 4; row++)
+	{
+		for (int col = 0; col < 4; col++)
+		{
+            m->mm[row][col] = _mm_add_ps(_mm_mul_ps(l->mm[0][col], r->mm[row][0]), 
+                    _mm_add_ps(_mm_mul_ps(l->mm[1][col], r->mm[row][1]), 
+                    _mm_add_ps(_mm_mul_ps(l->mm[2][col], r->mm[row][2]), 
+                    _mm_mul_ps(l->mm[3][col], r->mm[row][3]))));
+		}
+	}
+}
+
+static inline void mat4_load_sse2(struct Mat4_sse2 *dst, struct Mat4* m1, struct Mat4 *m2, struct Mat4 *m3, struct Mat4 *m4)
+{
+    for(int i = 0; i < 16; i++)
+    {
+        _Alignas(16) float data[4] = {m1->m[i], m2->m[i], m3->m[i], m4->m[i]};
+        dst->m[i] = _mm_load_ps(data);
+    }
+}
+
+static inline void mat4_extract_sse2(struct Mat4 *dst, struct Mat4_sse2 *src, u32 idx)
+{
+    for(int i = 0; i < 16; i++)
+    {
+        _Alignas(16) float data[4];
+        _mm_store_ps(data, src->m[i]);
+        dst->m[i] = data[idx];
+    }
+}
+
 static inline struct V2 make_v2(r32 x, r32 y)
 {
     struct V2 ret;
@@ -165,17 +231,36 @@ static inline void mat4_identity(struct Mat4 *m)
 
 static inline void mat4_mul(struct Mat4 *m, struct Mat4 *l, struct Mat4 *r)
 {
-	for (int col = 0; col < 4; col++)
+/*	
+    memset(m, 0, sizeof(struct Mat4));
+    for (int row = 0; row < 4; row++)
 	{
-		for (int row = 0; row < 4; row++)
+		for (int col = 0; col < 4; col++)
 		{
-			m->cr[col][row] = 0.0f;
 			for (int n = 0; n < 4; n++)
 			{
-				m->cr[col][row] += l->cr[n][row] * r->cr[col][n];
+				m->cr[row][col] += l->cr[n][col] * r->cr[row][n];
 			}
 		}
 	}
+*/
+    // compiler just fails to unroll it, this is 2x faster
+    m->m11 = l->m11 * r->m11 + l->m21 * r->m12 + l->m31 * r->m13 + l->m41 * r->m14;
+    m->m12 = l->m12 * r->m11 + l->m22 * r->m12 + l->m32 * r->m13 + l->m42 * r->m14;
+    m->m13 = l->m13 * r->m11 + l->m23 * r->m12 + l->m33 * r->m13 + l->m43 * r->m14;
+    m->m14 = l->m14 * r->m11 + l->m24 * r->m12 + l->m34 * r->m13 + l->m44 * r->m14;
+    m->m21 = l->m11 * r->m21 + l->m21 * r->m22 + l->m31 * r->m23 + l->m41 * r->m24;
+    m->m22 = l->m12 * r->m21 + l->m22 * r->m22 + l->m32 * r->m23 + l->m42 * r->m24;
+    m->m23 = l->m13 * r->m21 + l->m23 * r->m22 + l->m33 * r->m23 + l->m43 * r->m24;
+    m->m24 = l->m14 * r->m21 + l->m24 * r->m22 + l->m34 * r->m23 + l->m44 * r->m24;
+    m->m31 = l->m11 * r->m31 + l->m21 * r->m32 + l->m31 * r->m33 + l->m41 * r->m34;
+    m->m32 = l->m12 * r->m31 + l->m22 * r->m32 + l->m32 * r->m33 + l->m42 * r->m34;
+    m->m33 = l->m13 * r->m31 + l->m23 * r->m32 + l->m33 * r->m33 + l->m43 * r->m34;
+    m->m34 = l->m14 * r->m31 + l->m24 * r->m32 + l->m34 * r->m33 + l->m44 * r->m34;
+    m->m41 = l->m11 * r->m41 + l->m21 * r->m42 + l->m31 * r->m43 + l->m41 * r->m44;
+    m->m42 = l->m12 * r->m41 + l->m22 * r->m42 + l->m32 * r->m43 + l->m42 * r->m44;
+    m->m43 = l->m13 * r->m41 + l->m23 * r->m42 + l->m33 * r->m43 + l->m43 * r->m44;
+    m->m44 = l->m14 * r->m41 + l->m24 * r->m42 + l->m34 * r->m43 + l->m44 * r->m44;
 }
 
 static void v4_mat3_mul(struct V4 *res, struct V4 *v, struct Mat4 *m)
@@ -186,24 +271,22 @@ static void v4_mat3_mul(struct V4 *res, struct V4 *v, struct Mat4 *m)
     res->w = v->x*m->m14+v->y*m->m24+v->z*m->m34+v->w*m->m44;
 }
 
-static inline void mat4_trs(struct Mat4 *m, struct V3 t, struct Quat r, struct V3 s)
+static inline void mat4_trs(struct Mat4 *res, struct V3 t, struct Quat r, struct V3 s)
 {
-    struct Mat4 translate;
-    mat4_identity(&translate);
-    translate.m41 = t.x;
-    translate.m42 = t.y;
-    translate.m43 = t.z;
-
-    struct Mat4 rotate;
-    mat4_rotation(&rotate, &r);
-
-    struct Mat4 scale;
-    mat4_identity(&scale);
-    scale.m11 = s.x;
-    scale.m22 = s.y;
-    scale.m33 = s.z;
-
-    struct Mat4 transRot;
-    mat4_mul(&transRot, &translate, &rotate);
-    mat4_mul(m, &transRot, &scale);
+    res->m11 = (1.0f-2.0f*(r.y*r.y+r.z*r.z))*s.x;
+    res->m12 = (r.x*r.y+r.z*r.w)*s.x*2.0f;
+    res->m13 = (r.x*r.z-r.y*r.w)*s.x*2.0f;
+    res->m14 = 0.0f;
+    res->m21 = (r.x*r.y-r.z*r.w)*s.y*2.0f;
+    res->m22 = (1.0f-2.0f*(r.x*r.x+r.z*r.z))*s.y;
+    res->m23 = (r.y*r.z+r.x*r.w)*s.y*2.0f;
+    res->m24 = 0.0f;
+    res->m31 = (r.x*r.z+r.y*r.w)*s.z*2.0f;
+    res->m32 = (r.y*r.z-r.x*r.w)*s.z*2.0f;
+    res->m33 = (1.0f-2.0f*(r.x*r.x+r.y*r.y))*s.z;
+    res->m34 = 0.0f;
+    res->m41 = t.x;
+    res->m42 = t.y;
+    res->m43 = t.z;
+    res->m44 = 1.0f;
 }

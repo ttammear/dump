@@ -14,33 +14,19 @@ void entry_recursive(struct ProfileEntry *entry, int depth)
 {
     while(entry != NULL)
     {
-        uint64_t cycles = entry->end - entry->start;
+        uint64_t cycles = entry->sum;
         double milliseconds = (double)cycles / 2800000.0;
-        for(int i = 0; i < depth; i++)
+        /*for(int i = 0; i < depth; i++)
             printf(" "); 
-        printf("%s %lucycles %fms\n", entry->locationStr, cycles, milliseconds);
+        printf("%s %lucycles %fms\n", entry->locationStr, cycles, milliseconds);*/
         entry_recursive(entry->firstChild, depth+1);
         entry = entry->nextSibling;
     }
 }
 
-double debug_frame_report()
+void debug_frame_report()
 {
-    /*double hack;
-    for(int i = 0; i < g_profState->freeEntryId; i++)
-    {
-        struct ProfileEntry *entry = &g_profState->entries[g_profState->curFrame][i];
-        uint64_t cycles = entry->end - entry->start;
-        double milliseconds = (double)cycles / 2800000.0;
-        //printf("%s %lucycles %fms\n", entry->locationStr, cycles, milliseconds);
-        hack = milliseconds;
-    }*/
-
-    printf("%d entries\n", g_profState->freeEntryId);
-
-    entry_recursive(g_profState->root, 0);
-
-    return 0.0;
+    entry_recursive(g_profState->root->firstChild, 0);
 }
 
 void debug_destroy()
@@ -50,12 +36,27 @@ void debug_destroy()
 
 void debug_start_frame()
 {
+    for(int i = 0; i < PROFILER_MAX_ENTRIES_PER_FRAME; i++)
+    {
+        struct ProfileEntry *ent = &g_profState->entries[g_profState->curFrame][i];
+        ent->sum = 0;
+        ent->init = false;
+        ent->firstChild = NULL;
+        ent->nextSibling = NULL;
+    }
+    for(int i = 0; i < PROFILER_MAX_NESTING; i++)
+    {
+        struct OpenProfileEntry *oent = &g_profState->openEntries[i];
+        oent->lastChild = NULL;
+    }
+
     g_profState->freeEntryId = 0;
 
-    struct ProfileEntry *root = PROF__GET_ENTRY();
+    struct ProfileEntry *root = PROF__GET_ENTRY_GUID();
     root->firstChild = NULL;
     root->nextSibling = NULL;
     root->locationStr = "Root";
+    root->init = true;
     g_profState->openEntries[0].entry = root;
     g_profState->openEntries[0].lastChild = NULL;
     g_profState->curSEntry = 1;

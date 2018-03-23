@@ -3,70 +3,26 @@
 #define RENDERER_TYPE_OPENGL 1
 #define RENDERER_TYPE_HEADLESS 2
 
-#define RENDER_EVENT_HANDLER_MAX_SUBSCRIBERS 1024
-
-enum RenderEvent_E
-{
-    RenderEvent_MeshUpdate,
-    RenderEvent_MeshDestroy,
-    RenderEvent_TextureUpdate,
-    RenderEvent_TextureDestroy,
-    RenderEvent_MaterialUpdate,
-    RenderEvent_MaterialDestroy,
-    RenderEvent_Count
-};
+#define MAX_ATTRIBUTE_BUFFERS 8
 
 #define tt_render_warning(x)
 #define tt_render_fatal(x)
 
-enum MeshFlags
-{ 
-    MeshFlag_Dirty          = 1<<0,
-    MeshFlag_HasVertices    = 1<<1,
-    MeshFlag_HasIndices     = 1<<2,
-    MeshFlag_HasTexcoords   = 1<<3,
-    MeshFlag_HasNormals     = 1<<4,
-    MeshFlag_HasColors      = 1<<5,
-    MeshFlag_Initialized    = 1<<6
-};
+#define MATERIAL_MAX_SHADERS 8
 
-enum TextureFlags_E
-{
-    TextureFlag_Dirty           = 1<<0,
-    TextureFlag_HasData         = 1<<1,
-    TextureFlag_Initialized     = 1<<2
-};
+#define renderer_queue_message(r, m) ring_queue_enqueue(RenderMessage, &r->ch.toRenderer, m)
+#define renderer_next_message(r, m) ring_queue_dequeue(RenderMessage, &r->ch.fromRenderer, m)
 
-typedef void (*RenderEventCallback_F)(u32 eventId, void *eventData, void *usrPtr);
+// TODO:????
+#define INSTANCE_BUFFER_COUNT 3
+#define MAX_INSTANCE_BUFFERS 3
 
+#define MATRIX_BUFFER_COUNT 1
+#define MAX_MATRIX_BUFFERS  1
 
-struct RenderEventSubEntry
-{
-    void *usrPtr;
-    RenderEventCallback_F callback;
-    struct RenderEventSubEntry *next;
-    struct RenderEventSubEntry *prev;
-};
-
-struct RenderEventHandler
-{
-    u32 firstFree;
-    u16 freelist[RENDER_EVENT_HANDLER_MAX_SUBSCRIBERS];
-    struct RenderEventSubEntry entryPool[RENDER_EVENT_HANDLER_MAX_SUBSCRIBERS];
-    struct RenderEventSubEntry *entries[RenderEvent_Count];
-};
-
-
-extern struct RenderEventHandler *g_renderEventHandler;
-
-void init_render_event_handler();
-void* subscribe_to_render_event(u32, RenderEventCallback_F, void* usrPtr);
-void unsubscribe_from_render_event(u32 eventId, void *ptr);
-void trigger_render_event(u32 eventId, void *eventData);
 
 struct Mesh
 {
-    u16 flags;
     u16 numVertices;
     u32 numIndices;
 
@@ -75,49 +31,27 @@ struct Mesh
     uintptr_t rendererHandle2;
     uintptr_t rendererHandle3;
 
-    struct V3 *vertices;
-    struct V3 *texCoords;
-    struct V3 *normals;
-    struct V4 *colors;
-    u16 *indices;
+    uint8_t attribTypes[MAX_ATTRIBUTE_BUFFERS];
+    uint32_t attribOffsets[MAX_ATTRIBUTE_BUFFERS];
+
+    uint32_t vertexStride;
+    uint32_t vertexBufferSize;
+    uint32_t indexBufferSize;
 
     //TODO: temp
     struct Texture *tex;
 };
 
-enum TextureFormat_E
-{
-    TextureFormat_None,
-    TextureFormat_RGB,
-    TextureFormat_RGBA,
-    TextureFormat_R8,
-    TextureFormat_Count
-};
-
 struct Texture
 {
-    u16 flags;
     u16 format;
     u32 width;
     u32 height;
 
     uintptr_t rendererHandle;
-
-    void *data;
+    uintptr_t rendererHandle2;
+    uint32_t bufferSize;
 };
-
-
-// NOTES:
-// should avoid doing immediate state changes in command buffer
-// ideally a command buffer could be executed by multiple threads (Vulkan, DX12 etc)
-// state changes like viewport or matrix change would require a fence
-// the alternative would be to copy the data somehow
-// for example a command buffer could also have a matrix buffer
-// and each command requiring a matrix could store an index to that buffer
-// that could probably be done atomically during command buffer generation
-
-// TODO: RenderTarget
-// push_render_target(); ?? 
 
 enum ShaderType_E
 {
@@ -129,50 +63,168 @@ enum ShaderType_E
     ShaderType_Count
 };
 
-#define MATERIAL_MAX_SHADERS 8
-
-enum ShaderFlags
+enum VertexAttributeType
 {
-    ShaderFlag_Initialized = 1<<0,
-    ShaderFlag_Dirty       = 1<<1,
-    ShaderFlag_Active      = 1<<2,
+    Vertex_Attribute_Type_None = 0,
+    Vertex_Attribute_Type_Vec4,
+    Vertex_Attribute_Type_Vec3,
+    Vertex_Attribute_Type_Vec2,
+    Vertex_Attribute_Type_Float
 };
 
-enum MaterialFlags
+enum TextureFormat
 {
-    MaterialFlag_Dirty          =   1<<0,
-    MaterialFlag_Initialized    =   1<<1,
-    MaterialFlag_Valid          =   1<<2
+    Texture_Format_None,
+    Texture_Format_RGBA,
+    Texture_Format_RGBA32F,
+    Texture_Format_R32F,
+    Texture_Format_R32I,
+    Texture_Format_R8F,
+    Texture_Format_R8U,
+};
+
+enum RenderMessageType
+{
+    Render_Message_Mesh_Query,
+    Render_Message_Mesh_Query_Result,
+    Render_Message_Mesh_Update,
+    Render_Message_Mesh_Ready,
+    Render_Message_Material_Query,
+    Render_Message_Material_Ready,
+    Render_Message_Texture_Query,
+    Render_Message_Texture_Query_Response,
+    Render_Message_Texture_Update,
+    Render_Message_Texture_Ready,
 };
 
 struct Shader
 {
     uintptr_t rendererHandle;
-    uint32_t flags;
     u32 type;
-    const char *source;
 };
 
 struct Material
 {
+    b32 isValid;
     uintptr_t rendererHandle;
-    uint32_t flags;
     uint32_t perInstanceDataSize;
     struct Shader shaders[MATERIAL_MAX_SHADERS];
+};
+
+static const uint32_t s_vertexAttributeTypeSizes[] = 
+{
+    [Vertex_Attribute_Type_None] = 0,
+    [Vertex_Attribute_Type_Vec4] = 16,
+    [Vertex_Attribute_Type_Vec3] = 12,
+    [Vertex_Attribute_Type_Vec2] = 8,
+    [Vertex_Attribute_Type_Float] = 4,
+};
+
+static const uint32_t s_vertexAttributeTypePrims[] = 
+{
+    [Vertex_Attribute_Type_None] = 0,
+    [Vertex_Attribute_Type_Vec4] = 4,
+    [Vertex_Attribute_Type_Vec3] = 3,
+    [Vertex_Attribute_Type_Vec2] = 2,
+    [Vertex_Attribute_Type_Float] = 1,
+};
+
+struct MeshQuery
+{
+    void *userData;
+    uint32_t meshId;
+    uint32_t vertexCount;
+    uint32_t indexCount;
+    b32 largeIndices;
+    uint32_t dataStorageSize;
+    uint8_t attributeTypes[MAX_ATTRIBUTE_BUFFERS];
+};
+
+struct MeshQueryResult
+{
+    uint32_t meshId;
+    void *userData;
+    void *vertBufPtr;
+    void *idxBufPtr;
+    void *dataBufPtr;
+};
+
+struct MeshUpdate
+{
+    uint32_t meshId;
+};
+
+struct MaterialQuery
+{
+    void *userData;
+    uint32_t materialId;
+    uint8_t shaderTypes[MATERIAL_MAX_SHADERS];
+    const void *shaderCodes[MATERIAL_MAX_SHADERS];
+    uint32_t shaderLengths[MATERIAL_MAX_SHADERS];
+};
+
+struct MaterialQueryDone
+{
+    uint32_t materialId;
+    void *userData;
+};
+
+struct TextureQuery
+{
+    void *userData;
+    uint32_t textureId;
+    uint32_t width;
+    uint32_t height;
+    enum TextureFormat format;
+};
+
+struct TextureQueryResponse
+{
+    uint32_t textureId;
+    void *userData;
+    void *textureDataPtr;
+};
+
+struct TextureUpdate
+{
+    uint32_t textureId;
+    void *userData;
+};
+
+typedef struct RenderMessage
+{
+    uint32_t type;
+    union 
+    {
+        struct MeshQuery meshQuery;
+        struct MeshQueryResult meshQueryResult;
+        struct MeshUpdate meshUpdate;
+        struct MaterialQuery materialQuery;
+        struct MaterialQueryDone materialQueryDone;
+        struct TextureQuery texQ;
+        struct TextureQueryResponse texQR;
+        struct TextureUpdate texU;
+    };
+} RenderMessage;
+
+DEFINE_RING_QUEUE(RenderMessage, 10);
+
+struct RenderMessageChannel
+{
+    RING_QUEUE_TYPE(RenderMessage) toRenderer;
+    RING_QUEUE_TYPE(RenderMessage) fromRenderer;
 };
 
 struct Renderer
 {
     uint32_t type;
     struct Material fallbackMaterial;
+    struct Mesh *meshes;
+    struct Material *materials;
+    struct Texture *textures;
+
+    struct RenderMessageChannel ch;
 };
-
-// TODO:????
-#define INSTANCE_BUFFER_COUNT 3
-#define MAX_INSTANCE_BUFFERS 3
-
-#define MATRIX_BUFFER_COUNT 1
-#define MAX_MATRIX_BUFFERS  1
 
 struct OpenGLRenderer
 {
@@ -189,46 +241,11 @@ struct OpenGLRenderer
     // buffer for MVP matrix
     u32 matrixBuffers[MATRIX_BUFFER_COUNT];
     u32 curMatrixBufferIdx;
-
-    void *meshUpdateEventHandle;
-    void *meshDestroyEventHandle;
-    void *textureUpdateEventHandle;
-    void *textureDestroyEventHandle;
-    void *materialUpdateEventHandle;
-    void *materialDestroyEventHandle;
 };
 
-
-
-struct Mesh *create_mesh();
 struct Renderer *create_renderer(u32 rendererType);
-struct Texture *create_texture();
-
 struct Renderer *create_opengl_renderer();
-
-void destroy_mesh(struct Mesh *mesh);
 void destroy_opengl_renderer(struct OpenGLRenderer *glrend);
 void destroy_renderer(struct Renderer *renderer);
-void destroy_texture(struct Texture *tex);
-
-void mesh_copy_vertices(struct Mesh *mesh, struct V3 *vertices, u32 count);
-void mesh_copy_texcoords(struct Mesh *mesh, struct V3 *texCoords, u32 count);
-void mesh_copy_normals(struct Mesh *mesh, struct V3 *normals, u32 count);
-void mesh_copy_colors(struct Mesh *mesh, struct V4 *colors, u32 count);
-void mesh_copy_indices(struct Mesh *mesh, u16 *indices, u32 count);
-void mesh_queue_for_update(struct Mesh *mesh);
-u32 tex_format_get_comps(u16 format);
-void texture_copy_data(struct Texture *tex, u32 width, u32 height, u16 format, void *data);
-void texture_queue_for_update(struct Texture *tex);
-
-void material_init(struct Material *mat);
-void material_destroy(struct Material *mat);
-void material_add_shader(struct Material *mat, u32 type, const char *source);
-void material_remove_shader(struct Material *mat, u32 index);
-void material_queue_for_update(struct Material *mat);
-b32 material_find_shader_of_type(struct Material *mat, u32 type, u32 *ret);
-
-void material_init(struct Material *mat);
-
 void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer *rbuf);
 

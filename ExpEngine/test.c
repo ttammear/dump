@@ -59,26 +59,27 @@ void rview_builder_reset(struct RenderViewBuilder *builder)
     buf_clear(builder->instanceDataBuf);
 }
 
-int findEntry(struct RenderViewBuilder *builder, struct Mesh *mesh, struct Material *material)
+int findEntry(struct RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId)
 {
     // TODO: NEED constant time lookup here
     int32_t count = buf_len(builder->meshBuf);
     for(int i = 0; i < count; i++)
     {
-        if(builder->meshBuf[i].mesh == mesh && builder->meshBuf[i].material == material)
+        if(builder->meshBuf[i].meshId == meshId && builder->meshBuf[i].materialId == materialId)
             return i;
     }
     return -1;
 }
 
-void add_mesh_instance(struct RenderViewBuilder *builder, struct Mesh *mesh, struct Material *material, struct Mat4 *modelM, void *instanceData, u32 instanceDataSize)
+
+void add_mesh_instance(struct RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId, struct Mat4 *modelM, void *instanceData, u32 instanceDataSize)
 {
-    int entryIdx = findEntry(builder, mesh, material);
+    int entryIdx = findEntry(builder, meshId, materialId);
     if(entryIdx < 0)
     {
         buf_push(builder->meshBuf, (struct BuilderMeshEntry){ 
-                    .mesh = mesh,
-                    .material = material
+                    .meshId = meshId,
+                    .materialId = materialId
             });
         entryIdx = buf_len(builder->meshBuf)-1;
     }
@@ -97,9 +98,10 @@ void add_mesh_instance(struct RenderViewBuilder *builder, struct Mesh *mesh, str
     builder->meshBuf[entryIdx].instanceCount++;
 }
 
+
 void build_view(struct RenderViewBuilder *builder, struct RenderViewBuffer *buf)
 {
-    PROF_START();
+    PROF_BLOCK();
     struct RenderView *view = &buf->view;
     view->numSpaces = 1;
     view->numPostProcs = 0;
@@ -121,26 +123,44 @@ void build_view(struct RenderViewBuilder *builder, struct RenderViewBuffer *buf)
 
         struct RenderMeshEntry *entry = rview_buffer_allocate_from(buf, renderMeshEntrySize);
         assert(entry != NULL);
-        entry->mesh = builder->meshBuf[i].mesh;
-        entry->material = builder->meshBuf[i].material;
+        entry->meshId = builder->meshBuf[i].meshId;
+        entry->materialId = builder->meshBuf[i].materialId;
         entry->numInstances = 0;
 
         space->meshEntries[i] = entry;
     }
 
     count = buf_len(builder->instanceBuf);
+    u32 matCount = ALIGN_UP(count, TT_SIMD_32_WIDTH);
+    struct Mat4_sse2 *tmatBuf = rview_buffer_allocate_from(buf, sizeof(struct Mat4) * matCount);
+    view->tmatrixBuf = tmatBuf;
+
     for(u32 i = 0; i < count; i++)
     {
         struct BuilderMeshInstance *binstance = &builder->instanceBuf[i];
         struct RenderMeshEntry *mentry = view->space->meshEntries[binstance->mentryIdx];
         struct RenderMeshInstance *rinstance = &mentry->instances[mentry->numInstances++];
-        rinstance->modelM = binstance->modelM;
+        rinstance->matrixIndex = i;
         rinstance->instanceDataPtr = rview_buffer_allocate_from(buf, binstance->instanceDataSize);
         assert(rinstance->instanceDataPtr != NULL);
         memcpy(rinstance->instanceDataPtr, &builder->instanceDataBuf[binstance->instanceDataIdx], binstance->instanceDataSize);
         rinstance->instanceDataSize = binstance->instanceDataSize;
         // TODO: uniforms
     }
+
+    PROF_START_STR("Matrix multiplication");
+    for(u32 i = 0; i < matCount/4; i++)
+    {
+        struct Mat4 *m1 = &builder->instanceBuf[i*4].modelM;
+        struct Mat4 *m2 = &builder->instanceBuf[i*4+1].modelM;
+        struct Mat4 *m3 = &builder->instanceBuf[i*4+2].modelM;
+        struct Mat4 *m4 = &builder->instanceBuf[i*4+3].modelM;
+
+        struct Mat4_sse2 modelMatrices;
+        mat4_load_sse2(&modelMatrices, m1, m2, m3, m4);
+        mat4_mul_sse2(&tmatBuf[i], &view->worldToClip, &modelMatrices);
+    }
+    PROF_END();
 
 #ifdef _DEBUG
     // NOTE: just a sanity check, functionally this does nothing!
@@ -150,7 +170,6 @@ void build_view(struct RenderViewBuilder *builder, struct RenderViewBuffer *buf)
         assert(view->space->meshEntries[i]->numInstances == builder->meshBuf[i].instanceCount);
     }
 #endif
-    PROF_END();
 }
 
 void swap_buffer_init(struct SwapBuffer *sb)
