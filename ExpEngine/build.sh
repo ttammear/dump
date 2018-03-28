@@ -1,5 +1,7 @@
 cd "$(dirname "$0")"
 
+STARTTIME=$(date +%s%N)
+
 cd AikePlatform
 git fetch
 git reset --hard origin/master
@@ -8,13 +10,19 @@ cd ..
 
 set -e
 
-STARTTIME=$(date +%s%N)
+echo 'compiling platform...'
 clang ./AikePlatform/linux_main.cpp -D AIKE_DEBUG -fno-exceptions -std=c++11 -ggdb -lGL -lm -lX11 -ldl -linput -ludev -rdynamic -pthread -Wshadow -o ../ExpEngineBuild/Engine.out
 
-echo 'compiling...'
-clang -I./AikePlatform unitybuild.c -shared -Wno-unused-parameter -Wshadow -std=c11 -gdwarf-4 -fPIC -o ../ExpEngineBuild/libAike.so -O0 -ffast-math -lm -lGL -pthread -D_DEBUG --no-undefined
+echo 'compiling engine...'
+clang -I./AikePlatform unitybuild.c -Wshadow -std=c11 -ggdb3 -fPIC -c -o ./obj/engine.o -O0 -ffast-math -pthread -D_DEBUG2
 
-echo 'done... deploying...'
+#clang -c -O2 -fPIC libs_static.c -o ./obj/libs.o
+
+echo 'linking engine...'
+gold ./obj/engine.o ./obj/libs.o -shared -lm -lGL -fPIC -g -o ../ExpEngineBuild/libAike.so
+
+CURTIME=$(date +%s%N)
+echo "done in $(($(($CURTIME - $STARTTIME))/1000000))ms!"
 
 if [ $1 == 'run' ]
 then

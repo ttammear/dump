@@ -263,13 +263,13 @@ static inline void mat4_mul(struct Mat4 *m, struct Mat4 *l, struct Mat4 *r)
     m->m44 = l->m14 * r->m41 + l->m24 * r->m42 + l->m34 * r->m43 + l->m44 * r->m44;
 }
 
-static void v4_mat3_mul(struct V4 *res, struct V4 *v, struct Mat4 *m)
+/*static void v4_mat3_mul(struct V4 *res, struct V4 *v, struct Mat4 *m)
 {
     res->x = v->x*m->m11+v->y*m->m21+v->z*m->m31+v->w*m->m41;
     res->y = v->x*m->m12+v->y*m->m22+v->z*m->m32+v->w*m->m42;
     res->z = v->x*m->m13+v->y*m->m23+v->z*m->m33+v->w*m->m43;
     res->w = v->x*m->m14+v->y*m->m24+v->z*m->m34+v->w*m->m44;
-}
+}*/
 
 static inline void mat4_trs(struct Mat4 *res, struct V3 t, struct Quat r, struct V3 s)
 {

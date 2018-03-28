@@ -1,5 +1,26 @@
 #pragma once
 
+#pragma push(pack, 1)
+struct UIVertex
+{
+    struct V4 position;
+    struct V2 texCoord;
+    uint32_t color;
+//    struct V4 color;
+};
+#pragma pop(pack)
+
+struct UIBatch
+{
+    uint32_t textureId;
+    uint32_t scissorX0;
+    uint32_t scissorY0;
+    uint32_t scissorX1;
+    uint32_t scissorY1;
+    uint32_t indexStart;
+    uint32_t indexCount;
+};
+
 struct RenderMeshInstance
 {
     u32 matrixIndex;
@@ -42,6 +63,16 @@ struct RenderView
     u32 numPostProcs;
     u32 numSteps;
 
+    uint32_t numVertices;
+    struct UIVertex *vertices;
+    uint32_t numIndices;
+    uint16_t *indices;
+    uint32_t materialId;
+    struct Mat4 orthoMatrix;
+
+    uint32_t numUIBatches;
+    struct UIBatch *uiBatches;
+
     struct Mat4_sse2 *tmatrixBuf;
 
     struct Mat4_sse2 worldToClip;
@@ -83,15 +114,28 @@ struct RenderViewBuilder
 {
     struct BuilderMeshEntry *meshBuf;
     struct BuilderMeshInstance *instanceBuf;
+    struct Mat4 viewProjection;
+
+    struct Mat4 uiViewProjection;
+    struct UIVertex *vertices;
+    uint16_t *indices;
+    uint32_t materialId;
+    struct Mat4 orthoMatrix;
+    uint32_t indexBase;
+
+    struct UIBatch *batches;
+    struct UIBatch curBatch;
+    bool beginBatch;
+
     u8 *instanceDataBuf;;
 };
 
 struct SwapBuffer
 {
     struct RenderViewBuffer *viewBuffers[3];
-    struct RenderViewBuffer *freeViewBuffer;
-    volatile u32 viewBuffersTaken;
-    volatile u32 numSwaps;
+    _Alignas(512) struct RenderViewBuffer *freeViewBuffer;
+    _Alignas(512) volatile u32 viewBuffersTaken;
+    _Alignas(512) volatile u32 numSwaps;
 };
 
 struct RenderViewBuffer* rview_buffer_init(void *memory, u32 size);

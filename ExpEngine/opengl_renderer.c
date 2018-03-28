@@ -18,6 +18,64 @@
 static_assert(MAX_INSTANCE_BUFFERS >= INSTANCE_BUFFER_COUNT, "Instance buffer count can't be larger than MAX_INSTANCE_BUFFERS, consider increasing both.");
 static_assert(UNIFORM_BUFFER_COUNT <= 36, "OpenGL does not guarantee more than 36 uniform buffer bindings, thus some hardware might not support it");
 
+static const char *fallbackVert =
+"#version 330 core\n"
+"attribute vec4 coordinates;\n"
+"layout (std140) uniform matrixBlock\n"
+"{\n"
+    "mat4 matrices[128];\n"
+"};\n"
+"void main(void) {\n"
+    "gl_Position = matrices[gl_InstanceID] * coordinates;\n"
+"}\n";
+static const char *fallbackFrag = 
+"#version 330 core\n"
+"void main(void) {\n"
+    "gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);\n"
+"}\n";
+
+static float glDefaultMesh[] =
+{
+    -0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+     0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+     0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    -0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+     0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+     0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+     0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+     0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+     0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    -0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+     0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    -0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    -0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    -0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    -0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+     0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+     0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    -0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+     0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+     0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    -0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f
+};
+
+static unsigned short glDefaultMeshIdx[] =
+{
+	2,  1,   0,  0,  3,  2,
+	6,  5,   4,  4,  7,  6,
+    10, 9,   8,  8, 11, 10,
+	14, 13, 12, 12, 15, 14,
+	18, 17, 16, 16, 19, 18,
+	22, 21, 20, 20, 23, 22
+};
+
+
+static uint32_t frameId;
+struct GLMesh *get_mesh_safe(struct OpenGLRenderer *renderer, uint32_t meshId);
+
 GLenum shader_type_to_glenum(u32 type)
 {
     switch(type)
@@ -117,7 +175,32 @@ const char *opengl_type_to_str(GLint type)
     }
 }
 
-void opengl_process_program(GLuint program, struct Material *material)
+void opengl_notify_sync(struct OpenGLRenderer *renderer, GLsync *sync, OnSyncAction_t action, void* userData)
+{
+    printf("Notify sync at frame %d\n", frameId);
+    assert(renderer->numFreeSyncPoints > 0);
+    uint32_t freeIdx = renderer->syncPointFreeList[--renderer->numFreeSyncPoints];
+    struct GLSyncPoint *syncp = &renderer->syncPoints[freeIdx];
+    syncp->sync = sync;
+    syncp->onSync = action;
+    syncp->userData = userData;
+    syncp->active = true;
+}
+
+void opengl_trigger_sync(struct OpenGLRenderer *renderer, uint32_t syncId)
+{
+    printf("Trigger sync at frame %d\n", frameId);
+    assert(renderer->numFreeSyncPoints < GL_RENDERER_MAX_SYNC_POINTS);
+    struct GLSyncPoint *syncp = &renderer->syncPoints[syncId];
+    syncp->onSync(renderer, syncp->userData);
+    syncp->sync = NULL;
+    syncp->onSync = NULL;
+    syncp->userData = NULL;
+    syncp->active = false;
+    renderer->syncPointFreeList[renderer->numFreeSyncPoints++] = syncId;
+}
+
+void opengl_process_program(GLuint program, struct GLMaterial *material)
 {
     GLint nUniforms;
     glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &nUniforms);
@@ -149,7 +232,6 @@ void opengl_process_program(GLuint program, struct Material *material)
 
     // find the size of istance data struct
     GLuint instanceBlock = glGetUniformBlockIndex(program, "instanceData");
-    u32 instanceDataSize = 0;
     if(instanceBlock != GL_INVALID_INDEX)
     {
         GLuint instanceDataIndices[nUniforms];
@@ -219,15 +301,16 @@ static inline void opengl_change_instance_buffer(struct OpenGLRenderer *renderer
     renderer->curInstanceBufferIdx = ++renderer->curInstanceBufferIdx%INSTANCE_BUFFER_COUNT;
 }
 
-void opengl_flush_instances(struct OpenGLRenderer *renderer, struct Mesh *mesh, struct Material *mat, u32 instanceCount, void *uniformData, u32 uniformDataSize, void *matData)
+void opengl_flush_instances(struct OpenGLRenderer *renderer, struct GLMesh *mesh, struct GLMaterial *mat, u32 instanceCount, void *uniformData, u32 uniformDataSize, void *matData)
 {
     PROF_BLOCK();
     u32 bufIdx = renderer->curInstanceBufferIdx;
     glBindBuffer(GL_UNIFORM_BUFFER, renderer->instanceDataBuffers[bufIdx]);
+    CHECK_BUF_ALIGN(uniformDataSize);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, uniformDataSize, uniformData);
 
     // prepare mesh, program and uniforms
-    GLuint program = (GLuint)mat->rendererHandle;
+    GLuint program = (GLuint)mat->glProgram;
     glUseProgram(program);
     GLuint blockIdx = glGetUniformBlockIndex(program, "instanceBlock");
     if(blockIdx != GL_INVALID_INDEX)
@@ -235,18 +318,21 @@ void opengl_flush_instances(struct OpenGLRenderer *renderer, struct Mesh *mesh, 
 
     bufIdx = renderer->curMatrixBufferIdx;
     glBindBuffer(GL_UNIFORM_BUFFER, renderer->matrixBuffers[bufIdx]);
+    CHECK_BUF_ALIGN(instanceCount*sizeof(struct Mat4));
     glBufferSubData(GL_UNIFORM_BUFFER, 0, instanceCount*sizeof(struct Mat4), matData);
     blockIdx = glGetUniformBlockIndex(program, "matrixBlock");
     if(blockIdx != GL_INVALID_INDEX)
         glUniformBlockBinding(program, blockIdx, UNIFORM_BUFFER_MATRICES+bufIdx);
 
     // TODO
-    if(mesh->tex != NULL)
+    //assert(false);
+    
+    //if(mesh->tex != NULL)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, mesh->tex->rendererHandle);
+        glBindTexture(GL_TEXTURE_2D, renderer->textures[1].glTex);
     }
-    glBindVertexArray(mesh->rendererHandle3);
+    glBindVertexArray(mesh->glVao);
 
     glDrawElementsInstanced(GL_TRIANGLES, mesh->numIndices, GL_UNSIGNED_SHORT, 0, instanceCount);
 
@@ -274,20 +360,38 @@ void calculate_vertex_buffer_size(struct MeshQuery *mq, uint32_t *size, uint32_t
     *stride = perVertexSize;
 }
 
+struct GLMesh* get_mesh(struct OpenGLRenderer *renderer, uint32_t meshId)
+{
+    if(meshId >= buf_len(renderer->meshes))
+    {
+        // TODO: log error
+        return NULL;
+    }
+    struct GLMesh *ret = &renderer->meshes[meshId];
+    assert(ret->id == meshId);
+    return ret;
+}
+
+struct GLMesh *get_mesh_safe(struct OpenGLRenderer *renderer, uint32_t meshId)
+{
+    if(meshId >= buf_len(renderer->meshes))
+    {
+        return &renderer->meshes[0];
+    }
+    struct GLMesh *ret = &renderer->meshes[meshId];
+    assert(ret->id == meshId);
+    return ret;
+}
+
 void opengl_handle_mesh_query(struct OpenGLRenderer *renderer, struct MeshQuery *mq)
 {
     uint32_t meshId = mq->meshId;
     if(meshId == 0)
     {
-        struct Mesh mesh = {};
-        buf_push(renderer->renderer.meshes, mesh);
-        meshId = buf_len(renderer->renderer.meshes) - 1;
+        meshId = buf_len(renderer->meshes);
+        struct GLMesh mesh = {.id = meshId};
+        buf_push(renderer->meshes, mesh);
         printf("new mesh %d\n", meshId);
-    }
-    else if(meshId >= buf_len(renderer->renderer.meshes))
-    {
-        // TODO: log error
-        return;
     }
 
     uint32_t vertBufSize, vertexStride;
@@ -300,47 +404,61 @@ void opengl_handle_mesh_query(struct OpenGLRenderer *renderer, struct MeshQuery 
         return;
     }
 
-    struct Mesh *mesh = &renderer->renderer.meshes[meshId];
+    struct GLMesh *mesh = get_mesh(renderer, meshId);
+    if(!mesh)
+        return;
+    if(mesh->state != GL_Mesh_State_Init && mesh->state != GL_Mesh_State_Ready)
+    {
+        // TODO: log error
+        return;
+    }
 
-    GLuint vao = mesh->rendererHandle3;
+    GLuint vao = mesh->glVao;
     if(vao == 0)
     {
         glGenVertexArrays(1, &vao);
-        mesh->rendererHandle3 = (uintptr_t)vao;
+        mesh->glVao = (uintptr_t)vao;
     }
     glBindVertexArray(vao);
 
-    GLuint vbo = (GLuint)mesh->rendererHandle;
+    GLuint vbo = (GLuint)mesh->glVbo;
     if(vbo == 0)
     {
         glGenBuffers(1, &vbo);
-        mesh->rendererHandle = (uintptr_t)vbo;
+        mesh->glVbo = (uintptr_t)vbo;
     }
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     if(mesh->vertexBufferSize < vertBufSize)
     {
+        CHECK_BUF_ALIGN(vertBufSize);
         glBufferData(GL_ARRAY_BUFFER, vertBufSize, 0, GL_STATIC_DRAW);
         mesh->vertexBufferSize = vertBufSize;
     }
+    // TODO: if the mesh is being draw we might need sync (defer this command)
+    CHECK_BUF_ALIGN(vertBufSize);
     void *vertPtr = glMapBufferRange(GL_ARRAY_BUFFER, 0, vertBufSize, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
-    GLuint ebo = (GLuint)mesh->rendererHandle2;
+    GLuint ebo = (GLuint)mesh->glEbo;
     if(ebo == 0)
     {
         glGenBuffers(1, &ebo);
-        mesh->rendererHandle2 = (uintptr_t)ebo;
+        mesh->glEbo = (uintptr_t)ebo;
     }
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     if(mesh->indexBufferSize < indexBufSize)
     {
+        CHECK_BUF_ALIGN(indexBufSize);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexBufSize, 0, GL_STATIC_DRAW);
         mesh->indexBufferSize = indexBufSize;
     }
+    // TODO: if the mesh is being drawn we might need sync (defer this command)
+    CHECK_BUF_ALIGN(indexBufSize);
     void *indexPtr = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, indexBufSize, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
     mesh->vertexStride = vertexStride;
     mesh->numVertices = mq->vertexCount;
     mesh->numIndices = mq->indexCount;
+    mesh->state = GL_Mesh_State_Dirty;
     memcpy(mesh->attribOffsets, &attribOffsets, sizeof(mesh->attribOffsets));
     memcpy(mesh->attribTypes, &mq->attributeTypes, sizeof(mesh->attribTypes));
 
@@ -350,9 +468,24 @@ void opengl_handle_mesh_query(struct OpenGLRenderer *renderer, struct MeshQuery 
     msg.type = Render_Message_Mesh_Query_Result;
     msg.meshQueryResult.meshId = meshId;
     msg.meshQueryResult.userData = mq->userData;
+    msg.meshQueryResult.onComplete = mq->onComplete;
     msg.meshQueryResult.vertBufPtr = vertPtr;
     msg.meshQueryResult.idxBufPtr = indexPtr;
     msg.meshQueryResult.dataBufPtr = NULL; // TODO
+    ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
+}
+
+void opengl_mesh_ready(struct OpenGLRenderer *renderer, struct GLMesh* mesh)
+{
+    assert(mesh->state == GL_Mesh_State_Wait_Sync);
+    mesh->state = GL_Mesh_State_Ready;
+    glDeleteSync(mesh->fence);
+    mesh->fence = NULL;
+    RenderMessage msg = {};
+    msg.type = Render_Message_Mesh_Ready;
+    msg.meshR.meshId = mesh->id;
+    msg.meshR.userData = mesh->userData;
+    msg.meshR.onComplete = mesh->onComplete;
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
@@ -360,15 +493,18 @@ void opengl_handle_mesh_update(struct OpenGLRenderer *renderer, struct MeshUpdat
 {
     // TODO: handle errors
     uint32_t meshId = mu->meshId;
-    assert(meshId < buf_len(renderer->renderer.meshes));
-    struct Mesh *mesh = &renderer->renderer.meshes[meshId];
-    assert(mesh->rendererHandle != 0);
-    assert(mesh->rendererHandle2 != 0);
-    assert(mesh->rendererHandle3 != 0);
+    struct GLMesh *mesh = get_mesh(renderer, meshId);
+    if(!mesh)
+        return;
+    if(mesh->state != GL_Mesh_State_Dirty)
+        return; // TODO log error
+    assert(mesh->glVbo != 0);
+    assert(mesh->glEbo != 0);
+    assert(mesh->glVao != 0);
     GLuint vao, vbo, ebo;
-    vao = (GLuint)mesh->rendererHandle3;
-    vbo = (GLuint)mesh->rendererHandle;
-    ebo = (GLuint)mesh->rendererHandle2;
+    vao = (GLuint)mesh->glVao;
+    vbo = (GLuint)mesh->glVbo;
+    ebo = (GLuint)mesh->glEbo;
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glUnmapBuffer(GL_ARRAY_BUFFER);
@@ -384,18 +520,22 @@ void opengl_handle_mesh_update(struct OpenGLRenderer *renderer, struct MeshUpdat
         if(type != Vertex_Attribute_Type_None)
         {
             glEnableVertexAttribArray(i+1);
-            printf("attrib %d %d\n", i+1, mesh->attribOffsets[i]);
             glVertexAttribPointer(i+1, numfloats, GL_FLOAT, false, mesh->vertexStride, (GLvoid*)(uintptr_t)mesh->attribOffsets[i]);
         }
         else
             glDisableVertexAttribArray(i+1);
     }
-    //glBindBuffer(GL_ARRAY_BUFFER, 0);
-    //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    mesh->state = GL_Mesh_State_Wait_Sync;
+    mesh->fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    mesh->userData = mu->userData;
+    mesh->onComplete = mu->onComplete;
+    opengl_notify_sync(renderer, &mesh->fence, (OnSyncAction_t)opengl_mesh_ready, mesh);
     glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
-void opengl_destroy_material(struct Material *material)
+void opengl_destroy_material(struct GLMaterial *material)
 {
     GLuint glshader;
     for(int i = 0; i < MATERIAL_MAX_SHADERS; i++)
@@ -405,34 +545,68 @@ void opengl_destroy_material(struct Material *material)
         {
             case ShaderType_GLSL_Vert:
             case ShaderType_GLSL_Frag:
-                glshader = (GLuint)material->shaders[i].rendererHandle;
+                glshader = material->shaders[i].glShader;
                 if(glshader != 0)
                 {
                     glDeleteShader(glshader);
-                    material->shaders[i].rendererHandle = 0;
+                    material->shaders[i].glShader = 0;
                 }
                 break;
             default:
                 break;
         }
     }
-    if(material->rendererHandle != 0)
+    if(material->glProgram != 0)
     {
-        glDeleteProgram((GLuint)material->rendererHandle);
-        material->rendererHandle = 0;
+        glDeleteProgram((GLuint)material->glProgram);
+        material->glProgram = 0;
     }
 }
 
-void opengl_handle_material_query(struct OpenGLRenderer *renderer, struct MaterialQuery *mq)
+struct GLMaterial *get_material(struct OpenGLRenderer *renderer, uint32_t matId)
+{
+    if(matId >= buf_len(renderer->materials))
+    {
+        // TODO: log error
+        return NULL;
+    }
+    struct GLMaterial *ret = &renderer->materials[matId];
+    assert(ret->id == matId);
+    return ret;
+}
+
+void opengl_material_ready(struct OpenGLRenderer *renderer, struct GLMaterial *mat)
+{
+    printf("material updated!\n");
+    glDeleteSync(mat->fence);
+    mat->fence = NULL;
+    mat->state = GL_Material_State_Ready;
+
+    RenderMessage msg = {};
+    msg.type = Render_Message_Material_Ready;
+    msg.matR.materialId = mat->id;
+    msg.matR.userData = mat->userData;
+    ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
+}
+
+void opengl_handle_material_query(struct OpenGLRenderer *renderer, struct MaterialQuery *mq, bool internal)
 {
     uint32_t materialId = mq->materialId;
     if(materialId == 0)
     {
-        struct Material mat = {};
-        buf_push(renderer->renderer.materials, mat);
-        materialId = buf_len(renderer->renderer.materials)-1;
+        materialId = buf_len(renderer->materials);
+        struct GLMaterial mat = {.id = materialId};
+        buf_push(renderer->materials, mat);
     }
-    struct Material *material = &renderer->renderer.materials[materialId];
+    struct GLMaterial *material = get_material(renderer, materialId);
+    if(material == NULL)
+        return;
+    if(material->state != GL_Material_State_Init && material->state != GL_Material_State_Ready)
+    {
+        // TODO: log error
+        return;
+    }
+
     GLuint shadersToLink[MATERIAL_MAX_SHADERS];
     uint32_t numLink = 0;
 
@@ -444,32 +618,32 @@ void opengl_handle_material_query(struct OpenGLRenderer *renderer, struct Materi
         {
             case ShaderType_GLSL_Vert:
             case ShaderType_GLSL_Frag:
-                glshader = (GLuint)material->shaders[i].rendererHandle;
+                glshader = (GLuint)material->shaders[i].glShader;
                 if(glshader == 0)
                 {
                     glshader = glCreateShader(type == ShaderType_GLSL_Vert 
                             ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER);
-                    material->shaders[i].rendererHandle = (uintptr_t)glshader;
+                    material->shaders[i].glShader = (uintptr_t)glshader;
                 }
                 glShaderSource(glshader, 1, (const GLchar*const*)&mq->shaderCodes[i], (const GLint*)&mq->shaderLengths[i]);
                 glCompileShader(glshader);
                 shadersToLink[numLink++] = glshader;
                 break;
             case ShaderType_None:
-                glshader = (GLuint)material->shaders[i].rendererHandle;
+                glshader = (GLuint)material->shaders[i].glShader;
                 if(glshader != 0)
                 {
                     glDeleteShader(glshader);
-                    material->shaders[i].rendererHandle = 0;
+                    material->shaders[i].glShader = 0;
                 }
                 break;
         }
     }
-    GLuint program = (GLuint)material->rendererHandle;
+    GLuint program = (GLuint)material->glProgram;
     if(numLink > 0 && program == 0)
     {
         program = glCreateProgram();
-        material->rendererHandle = (uintptr_t)program;
+        material->glProgram = program;
     }
     if(numLink > 0)
     {
@@ -515,7 +689,7 @@ void opengl_handle_material_query(struct OpenGLRenderer *renderer, struct Materi
                     "------------ END OF REPORT -------------------------\n"
                     , errorBuf);
             opengl_destroy_material(material);
-            buf_pop_back(renderer->renderer.materials);
+            buf_pop_back(renderer->materials);
             //  TODO: log error
             return;
         }
@@ -523,19 +697,35 @@ void opengl_handle_material_query(struct OpenGLRenderer *renderer, struct Materi
     else if(program != 0)
     {
         glDeleteProgram(program);
-        material->rendererHandle = 0;
+        material->glProgram = 0;
         material->isValid = false;
         opengl_destroy_material(material);
-        buf_pop_back(renderer->renderer.materials);
+        buf_pop_back(renderer->materials);
         // TODO: log error
         return;
     }
 
-    RenderMessage msg = {};
-    msg.type = Render_Message_Material_Ready;
-    msg.materialQueryDone.materialId = materialId;
-    msg.materialQueryDone.userData = mq->userData;
-    ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
+    material->state = GL_Material_State_Wait_Sync;
+    material->userData = mq->userData;
+
+    if(!internal)
+    {
+        material->fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        opengl_notify_sync(renderer, &material->fence, (OnSyncAction_t)opengl_material_ready, material);
+
+    }
+}
+
+static inline struct GLTexture *get_texture(struct OpenGLRenderer *renderer, uint32_t texId)
+{
+    if(texId >= buf_len(renderer->textures))
+    {
+        // TODO: log error
+        return NULL;
+    }
+    struct GLTexture *ret = &renderer->textures[texId];
+    assert(ret->id == texId);
+    return ret;
 }
 
 void opengl_handle_texture_query(struct OpenGLRenderer *renderer, struct TextureQuery *tq)
@@ -550,18 +740,24 @@ void opengl_handle_texture_query(struct OpenGLRenderer *renderer, struct Texture
     uint32_t textureId = tq->textureId;
     if(textureId == 0)
     {
-        struct Texture tex = {};
-        buf_push(renderer->renderer.textures, tex);
-        textureId = buf_len(renderer->renderer.textures)-1;
+        textureId = buf_len(renderer->textures);
+        struct GLTexture tex = {.id = textureId};
+        buf_push(renderer->textures, tex);
     }
-    struct Texture *tex = &renderer->renderer.textures[textureId];
-    // TODO: check overflow for this, materials and meshes
+    struct GLTexture *tex = get_texture(renderer, textureId);
+    if(!tex)
+        return;
+    if(tex->state != GL_Texture_State_Init && tex->state != GL_Texture_State_Ready)
+    {
+        // TODO: log error
+        return;
+    }
 
-    GLuint pbo = (GLuint)tex->rendererHandle2;
+    GLuint pbo = (GLuint)tex->glPub;
     if(pbo == 0)
     {
         glGenBuffers(1, &pbo);
-        tex->rendererHandle2 = (uintptr_t)pbo;
+        tex->glPub = (uintptr_t)pbo;
     }
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
 
@@ -569,15 +765,20 @@ void opengl_handle_texture_query(struct OpenGLRenderer *renderer, struct Texture
     uint32_t requiredSize = 4*tq->width*tq->height;
     if(tex->bufferSize < requiredSize)
     {
+        CHECK_BUF_ALIGN(requiredSize);
         glBufferData(GL_PIXEL_UNPACK_BUFFER, requiredSize, NULL, GL_STATIC_DRAW);
         tex->bufferSize = requiredSize;
     }
+    // TODO: if the texture is being drawn then we might need sync
+    CHECK_BUF_ALIGN(requiredSize);
     void *dataPtr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, requiredSize, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
     tex->width = tq->width;
     tex->height = tq->height;
     tex->format = tq->format;
+    tex->filter = tq->filter;
+    tex->state = GL_Texture_State_Dirty;
 
     RenderMessage response = {};
     response.type = Render_Message_Texture_Query_Response;
@@ -585,6 +786,18 @@ void opengl_handle_texture_query(struct OpenGLRenderer *renderer, struct Texture
     response.texQR.userData = tq->userData;
     response.texQR.textureDataPtr = dataPtr;
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &response);
+}
+
+void opengl_texture_ready(struct OpenGLRenderer *renderer, struct GLTexture *tex)
+{
+    assert(tex->state == GL_Texture_State_Wait_Sync);
+    tex->state = GL_Texture_State_Ready;
+    glDeleteSync(tex->fence);
+    tex->fence = NULL;
+    RenderMessage msg = {};
+    msg.type = Render_Message_Texture_Ready;
+    msg.texR.textureId = tex->id;
+    ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
 void opengl_handle_texture_update(struct OpenGLRenderer *renderer, struct TextureUpdate *tu)
@@ -596,39 +809,59 @@ void opengl_handle_texture_update(struct OpenGLRenderer *renderer, struct Textur
         fprintf(stderr, "NOT A TEXTURE\n");
         return;
     }
-    struct Texture *tex = &renderer->renderer.textures[textureId];
-    // TODO: bound check
-    // TODO: state check
-    GLuint pbo = (GLuint)tex->rendererHandle2;
-    if(pbo == 0)
+    struct GLTexture *tex = get_texture(renderer, textureId);
+    if(!tex)
+        return;
+    if(tex->state != GL_Texture_State_Dirty)
     {
         // TODO: log error
-        fprintf(stderr, "NO PBO\n");
         return;
     }
+    GLuint pbo = (GLuint)tex->glPub;
+    assert(pbo != 0);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
     glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
 
-    GLuint gltex = (GLuint)tex->rendererHandle;
+    GLuint gltex = (GLuint)tex->glTex;
     if(gltex == 0)
     {
         glGenTextures(1, &gltex);
-        tex->rendererHandle = (uintptr_t)gltex;
+        tex->glTex = (uintptr_t)gltex;
     }
     glBindTexture(GL_TEXTURE_2D, gltex);
     assert(tex->format = Texture_Format_RGBA); // TODO: more formats
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex->width, tex->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    switch(tex->filter)
+    {
+        case Texture_Filter_None:
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            break;
+        case Texture_Filter_Bilinear:
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            break;
+        case Texture_Filter_Trilinear:
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            glGenerateMipmap(GL_TEXTURE_2D);
+            break;
+        default:
+            assert(false);
+            break;
+    }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glGenerateMipmap(GL_TEXTURE_2D);
+
+    tex->state = GL_Texture_State_Wait_Sync;
+    tex->fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    opengl_notify_sync(renderer, &tex->fence, (OnSyncAction_t)opengl_texture_ready, tex);
 
     //glBindTexture(GL_TEXTURE_2D, 0);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
-void opengl_process_messages(struct OpenGLRenderer *renderer)
+bool opengl_process_messages(struct OpenGLRenderer *renderer)
 {
     struct Renderer *r = &renderer->renderer;
     RenderMessage msg;
@@ -646,7 +879,7 @@ void opengl_process_messages(struct OpenGLRenderer *renderer)
                 break;
             case Render_Message_Material_Query:
                 printf("OpenGL received material query!\n");
-                opengl_handle_material_query(renderer, &msg.materialQuery);
+                opengl_handle_material_query(renderer, &msg.matQ, false);
                 break;
             case Render_Message_Texture_Query:
                 printf("OpenGL recived texture query!\n");
@@ -656,24 +889,33 @@ void opengl_process_messages(struct OpenGLRenderer *renderer)
                 printf("OpenGL received texture update!\n");
                 opengl_handle_texture_update(renderer, &msg.texU);
                 break;
+            case Render_Message_Stop:
+                // TODO: CLEAN UP
+                fprintf(stderr, "PLEASE CLEAN UP THE STATEE!!!\n");
+                // detach glcontext from this thread
+                renderer->platform->make_window_current(renderer->platform, NULL);
+                return false;
+            case Render_Message_Screen_Resize:
+                glViewport(0, 0, msg.screenR.width, msg.screenR.height);
+                break;
             default:
                 fprintf(stderr, "OpenGL renderer: unknown message type!\n");
                 break;
         }
     }
+    return true;
 }
 
 void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer *rbuf)
 {
-    // TODO: remove once you have separate thread for this
-    opengl_process_messages(renderer);
-
     PROF_BLOCK();
     // TODO: clear color ? skybox?
     glClearColor(0.6f, 0.2f, 0.3f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     struct RenderView *view = &rbuf->view;
+    if(view->space == NULL)
+        return;
     u32 meshCount = view->space->numEntries;
     
     // TODO: temp allocators
@@ -687,11 +929,11 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
         idofst = 0;
         mofst = 0;
         struct RenderMeshEntry *mentry = view->space->meshEntries[i];
-        struct Material *material = &renderer->renderer.materials[mentry->materialId];
-        struct Mesh *mesh = &renderer->renderer.meshes[mentry->meshId];
+        struct GLMaterial *material = &renderer->materials[mentry->materialId];
+        struct GLMesh *mesh = get_mesh_safe(renderer, mentry->meshId);
         // use fallback material if the one attached to mesh isn't valid
         if(!material->isValid)
-            material = &renderer->renderer.materials[0];
+            material = &renderer->materials[0];
 
         u32 instanceCount = mentry->numInstances;
         assert(instanceCount != 0);
@@ -732,52 +974,283 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
             idofst = mofst = instRunId = 0;
         }
     }
+
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    uint32_t vertBufSize = sizeof(view->vertices[0]) * view->numVertices;
+    uint32_t idxBufSize = sizeof(view->indices[0]) * view->numIndices;
+    CHECK_BUF_ALIGN(vertBufSize);
+    CHECK_BUF_ALIGN(idxBufSize);
+    if(vertBufSize > 0 && idxBufSize > 0)
+    {
+        assert(renderer->immVertBufSize >= vertBufSize);
+        assert(renderer->immIndexBufSize >= idxBufSize);
+        glBindVertexArray(renderer->immVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, renderer->immVertBuf);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vertBufSize, view->vertices);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->immIndexBuf);
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, idxBufSize, view->indices);
+        struct GLMaterial *mat = get_material(renderer, view->materialId);
+        glUseProgram(mat->glProgram);        
+        GLuint loc = glGetUniformLocation(mat->glProgram, "toClip");
+        glUniformMatrix4fv(loc, 1, GL_FALSE, (GLfloat*)&view->orthoMatrix);
+        loc = glGetUniformLocation(mat->glProgram, "_MainTex");
+        glUniform1i(loc, 0);
+        for(int i = 0; i < view->numUIBatches; i++)
+        {
+            struct UIBatch *ub = &view->uiBatches[i];
+            glEnable(GL_SCISSOR_TEST);
+            glScissor(ub->scissorX0, ub->scissorY0, ub->scissorX1, ub->scissorY1);
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, renderer->textures[ub->textureId].glTex);
+            GLvoid * offset = (GLvoid*)(uintptr_t)(ub->indexStart*sizeof(view->indices[0]));
+            glDrawElements(GL_TRIANGLES, ub->indexCount, GL_UNSIGNED_SHORT, offset);
+            assert((ub->indexCount % 3) == 0);
+            assert(ub->indexStart + ub->indexCount <= view->numIndices);
+        }
+    }
+    glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glDisable(GL_SCISSOR_TEST);
 }
 
-struct Renderer *create_opengl_renderer()
-{
-    // TODO: proper allocator (caller frees this right now)
-    struct OpenGLRenderer *ret = malloc(sizeof(struct OpenGLRenderer));
+void *opengl_update_proc(void *data);
 
+void opengl_init(struct OpenGLRenderer *renderer)
+{
     GLint maxUniBindings;
     glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &maxUniBindings);
     if(UNIFORM_BUFFER_COUNT > maxUniBindings)
     {
         fprintf(stderr, "OpenGL: max uniform buffer bindings supported %d, but need at least %d\n", maxUniBindings, UNIFORM_BUFFER_COUNT);
-        exit(-1);
+        //exit(-1);
     }
 
     GLint ibufsize;
     glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &ibufsize);
-    ret->uniBufSize = ibufsize;
+    renderer->uniBufSize = ibufsize;
 
-    glGenBuffers(INSTANCE_BUFFER_COUNT, ret->instanceDataBuffers);
+    glGenBuffers(INSTANCE_BUFFER_COUNT, renderer->instanceDataBuffers);
     for(int i = 0; i < INSTANCE_BUFFER_COUNT; i++)
     {
-        glBindBuffer(GL_UNIFORM_BUFFER, ret->instanceDataBuffers[i]);
-        glBufferData(GL_UNIFORM_BUFFER, ret->uniBufSize, 0, GL_DYNAMIC_DRAW);
-        glBindBufferBase(GL_UNIFORM_BUFFER, UNIFORM_BUFFER_INSTANCEDATA+i, ret->instanceDataBuffers[i]);
+        glBindBuffer(GL_UNIFORM_BUFFER, renderer->instanceDataBuffers[i]);
+        CHECK_BUF_ALIGN(renderer->uniBufSize);
+        glBufferData(GL_UNIFORM_BUFFER, renderer->uniBufSize, 0, GL_DYNAMIC_DRAW);
+        glBindBufferBase(GL_UNIFORM_BUFFER, UNIFORM_BUFFER_INSTANCEDATA+i, renderer->instanceDataBuffers[i]);
     }
-    ret->curInstanceBufferIdx = 0;
+    renderer->curInstanceBufferIdx = 0;
 
-    glGenBuffers(MATRIX_BUFFER_COUNT, ret->matrixBuffers);
+    glGenBuffers(MATRIX_BUFFER_COUNT, renderer->matrixBuffers);
     for(int i = 0; i < MATRIX_BUFFER_COUNT; i++)
     {
-        glBindBuffer(GL_UNIFORM_BUFFER, ret->matrixBuffers[i]);
-        glBufferData(GL_UNIFORM_BUFFER, ret->uniBufSize, 0, GL_DYNAMIC_DRAW);
-        glBindBufferBase(GL_UNIFORM_BUFFER, UNIFORM_BUFFER_MATRICES+i, ret->matrixBuffers[i]);
+        glBindBuffer(GL_UNIFORM_BUFFER, renderer->matrixBuffers[i]);
+        CHECK_BUF_ALIGN(renderer->uniBufSize);
+        glBufferData(GL_UNIFORM_BUFFER, renderer->uniBufSize, 0, GL_DYNAMIC_DRAW);
+        glBindBufferBase(GL_UNIFORM_BUFFER, UNIFORM_BUFFER_MATRICES+i, renderer->matrixBuffers[i]);
     }
-    ret->curMatrixBufferIdx = 0;
+    renderer->curMatrixBufferIdx = 0;
+
+    // TODO: enough?
+    glGenVertexArrays(1, &renderer->immVAO);
+    glBindVertexArray(renderer->immVAO);
+    renderer->immVertBufSize = 1024*1024;
+    renderer->immIndexBufSize = 512*1024;
+    glGenBuffers(1, &renderer->immVertBuf);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->immVertBuf);
+    CHECK_BUF_ALIGN(renderer->immVertBufSize);
+    glBufferData(GL_ARRAY_BUFFER, renderer->immVertBufSize, 0, GL_DYNAMIC_DRAW);
+    glGenBuffers(1, &renderer->immIndexBuf); 
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->immIndexBuf);
+    CHECK_BUF_ALIGN(renderer->immIndexBufSize);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, renderer->immIndexBufSize, 0, GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(struct UIVertex), (GLvoid*)offsetof(struct UIVertex, position));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct UIVertex), (GLvoid*)offsetof(struct UIVertex, texCoord));
+    // TODO: f32 colors?
+    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(struct UIVertex), (GLvoid*)offsetof(struct UIVertex, color));
+    glBindVertexArray(0);
 
     glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
+   // glDrawBuffer(GL_BACK);
+
+    renderer->meshes = NULL;
+    renderer->materials = NULL;
+    renderer->textures = NULL;
+
+    uint32_t white = 0xFFFFFFFF;
+    GLuint whiteTex;
+    glGenTextures(1, &whiteTex);
+    glBindTexture(GL_TEXTURE_2D, whiteTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &white);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    GLuint bufs[2];
+    GLuint vao;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+    glGenBuffers(2, bufs);
+    glBindBuffer(GL_ARRAY_BUFFER, bufs[0]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(glDefaultMesh), glDefaultMesh, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bufs[1]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(glDefaultMeshIdx), glDefaultMeshIdx, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 44, (GLvoid*)(uintptr_t)0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 44, (GLvoid*)(uintptr_t)16);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 44, (GLvoid*)(uintptr_t)28);
+    glBindVertexArray(0);
+
+    struct GLMesh mesh = {
+        .id = 0,
+        .state = GL_Mesh_State_Ready,
+        .numVertices = ARRAY_COUNT(glDefaultMesh),
+        .numIndices = ARRAY_COUNT(glDefaultMeshIdx),
+        .glVbo = bufs[0],
+        .glEbo = bufs[1],
+        .glVao = vao,
+        .attribTypes[0] = Vertex_Attribute_Type_Vec3,
+        .attribTypes[1] = Vertex_Attribute_Type_Vec4,
+        .attribOffsets[0] = 16,
+        .attribOffsets[1] = 28,
+        .vertexStride = 44,
+    };
+
+    struct GLTexture tex = {
+        .id = 0,
+        .state = GL_Texture_State_Ready,
+        .format = Texture_Format_RGBA,
+        .filter = Texture_Filter_None,
+        .width = 1,
+        .height = 1,
+        .glTex = whiteTex,
+        .glPub = 0,
+        .bufferSize = 0
+    };
+
+    buf_push(renderer->textures, tex);
+    buf_push(renderer->meshes, mesh);
+
+    { // init fallback material
+        RenderMessage msg = (RenderMessage){};
+        msg.type = Render_Message_Material_Query;
+        msg.matQ.userData = (void*)fallbackVert;
+        msg.matQ.materialId = 0;
+        msg.matQ.shaderTypes[0] = ShaderType_GLSL_Vert;
+        msg.matQ.shaderCodes[0] = fallbackVert;
+        msg.matQ.shaderLengths[0] = strlen(fallbackVert);
+        msg.matQ.shaderTypes[1] = ShaderType_GLSL_Frag;
+        msg.matQ.shaderCodes[1] = fallbackFrag;
+        msg.matQ.shaderLengths[1] = strlen(fallbackFrag);
+        opengl_handle_material_query(renderer, &msg.matQ, true);
+    }
+
+}
+
+void check_sync_points(struct OpenGLRenderer *renderer)
+{
+    for(int i = 0; i < GL_RENDERER_MAX_SYNC_POINTS; i++)
+    {
+        struct GLSyncPoint *syncp = &renderer->syncPoints[i];
+        if(syncp->active)
+        {
+            GLenum waitsync = glClientWaitSync(*syncp->sync, 0, 0);
+            assert(waitsync != GL_WAIT_FAILED);
+            if(waitsync == GL_ALREADY_SIGNALED || waitsync == GL_CONDITION_SATISFIED)
+            {
+                opengl_trigger_sync(renderer, i);
+            }
+        }
+    }
+}
+
+void *opengl_proc(void *data);
+
+// MAIN THREAD CALLS THIS
+struct Renderer *create_opengl_renderer(AikePlatform *platform, struct SwapBuffer *swapbuf)
+{
+    // TODO: proper allocator (caller frees this right now)
+    struct OpenGLRenderer *ret = malloc(sizeof(struct OpenGLRenderer));
+    ret->platform = platform;
+    ret->swapbuf = swapbuf;
+
+    platform->make_window_current(platform, &platform->mainWin);
+    opengl_init(ret);
+    ret->curView = take_view_buffer(ret->swapbuf);
+
+    struct Renderer *grenderer = (struct Renderer*)ret;
+    grenderer->threadProc = opengl_proc;
+
+    for(int i = 0 ; i< GL_RENDERER_MAX_SYNC_POINTS; i++)
+    {
+        ret->syncPointFreeList[i] = i;
+        ret->syncPoints[i] = (struct GLSyncPoint){};
+    }
+    ret->numFreeSyncPoints = GL_RENDERER_MAX_SYNC_POINTS;
 
     return (struct Renderer*)ret;
 }
 
-void destroy_opengl_renderer(struct OpenGLRenderer *glrend)
+// MAIN THREAD CALLS THIS
+void destroy_opengl_renderer(struct Renderer *rend)
 {
+    RenderMessage msg;
+    msg.type = Render_Message_Stop;
+    renderer_queue_message(rend, &msg);
+
+    struct OpenGLRenderer *glrend = (struct OpenGLRenderer*)rend;
+
+    void *result;
+    glrend->platform->join_thread(rend->renderThread, &result);
+    printf("render thread exited with %p\n", result);
+
+    // TODO: just move this to render thread...
+    glrend->platform->make_window_current(glrend->platform, &glrend->platform->mainWin);
     glDeleteBuffers(INSTANCE_BUFFER_COUNT, glrend->instanceDataBuffers);
     glDeleteBuffers(MATRIX_BUFFER_COUNT, glrend->matrixBuffers);
+    glDeleteBuffers(1, &glrend->immVertBuf);
+    glDeleteBuffers(1, &glrend->immVertBuf);
+    glDeleteVertexArrays(1, &glrend->immVAO);
 }
 
+void *opengl_proc(void *data)
+{
+    struct OpenGLRenderer *renderer = (struct OpenGLRenderer*)data;
+    renderer->platform->make_window_current(renderer->platform, &renderer->platform->mainWin);
+    bool running = true;
+    while(running)
+    {
+        running = opengl_process_messages(renderer);
+        check_sync_points(renderer);
+        uintptr_t oldView = (uintptr_t)renderer->curView;
+        renderer->curView = swap_view_if_newer(sbuf, renderer->curView);
+        // TODO: remove once you have motion vectors and stuff
+        if(oldView != (uintptr_t)renderer->curView)
+        {
+            opengl_render_view(renderer, renderer->curView);
+            renderer->platform->present_frame(renderer->platform, &renderer->platform->mainWin);
+            frameId++;
+        }
+        else
+        {
+            static int count;
+//            printf("view not changed, skipping... %d\n", count);
+            // if you're gonna do this use cond variable at least...
+            renderer->platform->sleep(1000);
+            count++;
+        }
+    }
+    return (void*)0xFACEFEED;
+}

@@ -20,38 +20,11 @@
 #define MATRIX_BUFFER_COUNT 1
 #define MAX_MATRIX_BUFFERS  1
 
-
-struct Mesh
-{
-    u16 numVertices;
-    u32 numIndices;
-
-    // TODO: this is ugly, use unions?
-    uintptr_t rendererHandle;
-    uintptr_t rendererHandle2;
-    uintptr_t rendererHandle3;
-
-    uint8_t attribTypes[MAX_ATTRIBUTE_BUFFERS];
-    uint32_t attribOffsets[MAX_ATTRIBUTE_BUFFERS];
-
-    uint32_t vertexStride;
-    uint32_t vertexBufferSize;
-    uint32_t indexBufferSize;
-
-    //TODO: temp
-    struct Texture *tex;
-};
-
-struct Texture
-{
-    u16 format;
-    u32 width;
-    u32 height;
-
-    uintptr_t rendererHandle;
-    uintptr_t rendererHandle2;
-    uint32_t bufferSize;
-};
+struct MeshQueryResult;
+struct MeshReady;
+struct Renderer;
+typedef void (*MQComplete_A)(struct Renderer* rend, struct MeshQueryResult *mqr, void *userData);
+typedef void (*MReady_A)(struct Renderer *rend, struct MeshReady *mr, void *userData);
 
 enum ShaderType_E
 {
@@ -83,8 +56,16 @@ enum TextureFormat
     Texture_Format_R8U,
 };
 
+enum TextureFilter
+{
+    Texture_Filter_None,
+    Texture_Filter_Bilinear,
+    Texture_Filter_Trilinear
+};
+
 enum RenderMessageType
 {
+    Render_Message_None,
     Render_Message_Mesh_Query,
     Render_Message_Mesh_Query_Result,
     Render_Message_Mesh_Update,
@@ -95,20 +76,9 @@ enum RenderMessageType
     Render_Message_Texture_Query_Response,
     Render_Message_Texture_Update,
     Render_Message_Texture_Ready,
-};
 
-struct Shader
-{
-    uintptr_t rendererHandle;
-    u32 type;
-};
-
-struct Material
-{
-    b32 isValid;
-    uintptr_t rendererHandle;
-    uint32_t perInstanceDataSize;
-    struct Shader shaders[MATERIAL_MAX_SHADERS];
+    Render_Message_Screen_Resize,
+    Render_Message_Stop
 };
 
 static const uint32_t s_vertexAttributeTypeSizes[] = 
@@ -132,6 +102,7 @@ static const uint32_t s_vertexAttributeTypePrims[] =
 struct MeshQuery
 {
     void *userData;
+    MQComplete_A onComplete;
     uint32_t meshId;
     uint32_t vertexCount;
     uint32_t indexCount;
@@ -144,6 +115,7 @@ struct MeshQueryResult
 {
     uint32_t meshId;
     void *userData;
+    MQComplete_A onComplete;
     void *vertBufPtr;
     void *idxBufPtr;
     void *dataBufPtr;
@@ -152,6 +124,15 @@ struct MeshQueryResult
 struct MeshUpdate
 {
     uint32_t meshId;
+    void *userData;
+    MReady_A onComplete;
+};
+
+struct MeshReady
+{
+    uint32_t meshId;
+    void *userData;
+    MReady_A onComplete;
 };
 
 struct MaterialQuery
@@ -163,7 +144,7 @@ struct MaterialQuery
     uint32_t shaderLengths[MATERIAL_MAX_SHADERS];
 };
 
-struct MaterialQueryDone
+struct MaterialReady
 {
     uint32_t materialId;
     void *userData;
@@ -175,6 +156,7 @@ struct TextureQuery
     uint32_t textureId;
     uint32_t width;
     uint32_t height;
+    uint32_t filter;
     enum TextureFormat format;
 };
 
@@ -191,6 +173,17 @@ struct TextureUpdate
     void *userData;
 };
 
+struct TextureReady
+{
+    uint32_t textureId;
+};
+
+struct ScreenResize
+{
+    uint32_t width;
+    uint32_t height;
+};
+
 typedef struct RenderMessage
 {
     uint32_t type;
@@ -199,11 +192,14 @@ typedef struct RenderMessage
         struct MeshQuery meshQuery;
         struct MeshQueryResult meshQueryResult;
         struct MeshUpdate meshUpdate;
-        struct MaterialQuery materialQuery;
-        struct MaterialQueryDone materialQueryDone;
+        struct MeshReady meshR;
+        struct MaterialQuery matQ;
+        struct MaterialReady matR;
         struct TextureQuery texQ;
         struct TextureQueryResponse texQR;
         struct TextureUpdate texU;
+        struct TextureReady texR;
+        struct ScreenResize screenR;
     };
 } RenderMessage;
 
@@ -215,37 +211,22 @@ struct RenderMessageChannel
     RING_QUEUE_TYPE(RenderMessage) fromRenderer;
 };
 
+typedef void* (*render_thread_proc_t)(void*);
+
 struct Renderer
 {
     uint32_t type;
-    struct Material fallbackMaterial;
-    struct Mesh *meshes;
-    struct Material *materials;
-    struct Texture *textures;
-
     struct RenderMessageChannel ch;
+
+    render_thread_proc_t threadProc;
+    AikeThread *renderThread;
 };
 
-struct OpenGLRenderer
-{
-    struct Renderer renderer;
-
-    // max size for unitform buffer
-    u32 uniBufSize;
-
-    // buffer that stores per instance data
-    // (except MVP matrix)
-    u32 instanceDataBuffers[INSTANCE_BUFFER_COUNT];
-    u32 curInstanceBufferIdx;
-
-    // buffer for MVP matrix
-    u32 matrixBuffers[MATRIX_BUFFER_COUNT];
-    u32 curMatrixBufferIdx;
-};
-
-struct Renderer *create_renderer(u32 rendererType);
-struct Renderer *create_opengl_renderer();
-void destroy_opengl_renderer(struct OpenGLRenderer *glrend);
+struct Renderer *create_renderer(u32 rendererType, AikePlatform *platform, struct SwapBuffer *sbuf);
 void destroy_renderer(struct Renderer *renderer);
-void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer *rbuf);
 
+struct Renderer *create_opengl_renderer(AikePlatform *platform, struct SwapBuffer *sbuf);
+void destroy_opengl_renderer(struct Renderer *glrend);
+
+// TODO: remove
+void *opengl_proc(void *data);
