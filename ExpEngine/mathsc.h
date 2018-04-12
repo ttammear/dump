@@ -78,6 +78,10 @@ struct Mat4_sse2
         {
             __m128 m[16];
         };
+        struct
+        {
+            float f[16][4];
+        };
     };
 };
 
@@ -106,11 +110,24 @@ static inline void mat4_load_sse2(struct Mat4_sse2 *dst, struct Mat4* m1, struct
 
 static inline void mat4_extract_sse2(struct Mat4 *dst, struct Mat4_sse2 *src, u32 idx)
 {
+    _Alignas(16) float data[4];
     for(int i = 0; i < 16; i++)
     {
-        _Alignas(16) float data[4];
         _mm_store_ps(data, src->m[i]);
         dst->m[i] = data[idx];
+    }
+}
+
+static inline void mat4_extract_all_sse2(struct Mat4 *restrict dst, struct Mat4_sse2 *restrict src)
+{
+    _Alignas(16) float data[4];
+    for(int i = 0; i < 16; i++)
+    {
+        _mm_store_ps(data, src->m[i]);
+        dst[0].m[i] = data[0];
+        dst[1].m[i] = data[1];
+        dst[2].m[i] = data[2];
+        dst[3].m[i] = data[3];
     }
 }
 
@@ -140,14 +157,59 @@ static inline struct Quat make_quat(r32 w, r32 x, r32 y, r32 z)
     return ret;
 }
 
+static inline void quat_identity(struct Quat *q)
+{
+    q->w = 1.0f;
+    q->x = 0.0f;
+    q->y = 0.0f;
+    q->z = 0.0f;
+}
+
 static inline void quat_angle_axis(struct Quat *q, r32 angleDeg, struct V3 axis)
 {
     r32 halfAngleRad = (DEG2RAD_F*angleDeg) / 2.0f;
     r32 sinHAR = sinf(halfAngleRad);
     q->w = cosf(halfAngleRad);
+    // TODO: axis should be normalized?
     q->x = axis.x * sinHAR;
     q->y = axis.y * sinHAR;
     q->z = axis.z * sinHAR;
+}
+
+static inline void quat_euler(struct Quat *q, struct V3 euler)
+{
+	float cy = cosf(euler.x * 0.5f);
+	float sy = sinf(euler.x * 0.5f);
+	float cr = cosf(euler.y * 0.5f);
+	float sr = sinf(euler.y * 0.5f);
+	float cp = cosf(euler.z * 0.5f);
+	float sp = sinf(euler.z * 0.5f);
+	q->w = cy * cr * cp + sy * sr * sp;
+	q->x = cy * sr * cp - sy * cr * sp;
+	q->y = cy * cr * sp + sy * sr * cp;
+	q->z = sy * cr * cp - cy * sr * sp;
+}
+
+static inline void quat_euler_deg(struct Quat *q, struct V3 euler)
+{
+	float cy = cosf(euler.x * 0.5f * DEG2RAD_F);
+	float sy = sinf(euler.x * 0.5f * DEG2RAD_F);
+	float cr = cosf(euler.y * 0.5f * DEG2RAD_F);
+	float sr = sinf(euler.y * 0.5f * DEG2RAD_F);
+	float cp = cosf(euler.z * 0.5f * DEG2RAD_F);
+	float sp = sinf(euler.z * 0.5f * DEG2RAD_F);
+	q->w = cy * cr * cp + sy * sr * sp;
+	q->x = cy * sr * cp - sy * cr * sp;
+	q->y = cy * cr * sp + sy * sr * cp;
+	q->z = sy * cr * cp - cy * sr * sp;
+}
+
+static inline struct V3 normalize_degrees(struct V3 degRot)
+{
+    degRot.x = degRot.x < 0.0f ? 360.0f + degRot.x : degRot.x;
+    degRot.y = degRot.y < 0.0f ? 360.0f + degRot.y : degRot.y;
+    degRot.z = degRot.z < 0.0f ? 360.0f + degRot.z : degRot.z;
+    return (struct V3) {fmodf(degRot.x, 360.0f), fmodf(degRot.y, 360.0f), fmodf(degRot.z, 360.0f)};
 }
 
 static inline void mat4_perspective(struct Mat4 *m, r32 fov, r32 aspect, r32 zNear, r32 zFar)
@@ -271,6 +333,7 @@ static inline void mat4_mul(struct Mat4 *m, struct Mat4 *l, struct Mat4 *r)
     res->w = v->x*m->m14+v->y*m->m24+v->z*m->m34+v->w*m->m44;
 }*/
 
+// translate rotate scale
 static inline void mat4_trs(struct Mat4 *res, struct V3 t, struct Quat r, struct V3 s)
 {
     res->m11 = (1.0f-2.0f*(r.y*r.y+r.z*r.z))*s.x;
@@ -284,6 +347,27 @@ static inline void mat4_trs(struct Mat4 *res, struct V3 t, struct Quat r, struct
     res->m31 = (r.x*r.z+r.y*r.w)*s.z*2.0f;
     res->m32 = (r.y*r.z-r.x*r.w)*s.z*2.0f;
     res->m33 = (1.0f-2.0f*(r.x*r.x+r.y*r.y))*s.z;
+    res->m34 = 0.0f;
+    res->m41 = t.x;
+    res->m42 = t.y;
+    res->m43 = t.z;
+    res->m44 = 1.0f;
+}
+
+// translate rotate
+static inline void mat4_tr(struct Mat4 *res, struct V3 t, struct Quat r)
+{
+    res->m11 = (1.0f-2.0f*(r.y*r.y+r.z*r.z));
+    res->m12 = (r.x*r.y+r.z*r.w)*2.0f;
+    res->m13 = (r.x*r.z-r.y*r.w)*2.0f;
+    res->m14 = 0.0f;
+    res->m21 = (r.x*r.y-r.z*r.w)*2.0f;
+    res->m22 = (1.0f-2.0f*(r.x*r.x+r.z*r.z));
+    res->m23 = (r.y*r.z+r.x*r.w)*2.0f;
+    res->m24 = 0.0f;
+    res->m31 = (r.x*r.z+r.y*r.w)*2.0f;
+    res->m32 = (r.y*r.z-r.x*r.w)*2.0f;
+    res->m33 = (1.0f-2.0f*(r.x*r.x+r.y*r.y));
     res->m34 = 0.0f;
     res->m41 = t.x;
     res->m42 = t.y;

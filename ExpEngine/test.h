@@ -27,6 +27,7 @@ struct RenderMeshInstance
 
     void *instanceDataPtr;
     u32 instanceDataSize;
+    u32 objectId;
 };
 
 struct RenderMeshEntry
@@ -73,7 +74,8 @@ struct RenderView
     uint32_t numUIBatches;
     struct UIBatch *uiBatches;
 
-    struct Mat4_sse2 *tmatrixBuf;
+    uint32_t matrixCount;
+    _Alignas(16) struct Mat4_sse2 *tmatrixBuf;
 
     struct Mat4_sse2 worldToClip;
 
@@ -90,7 +92,7 @@ struct RenderViewBuffer
     u32 size;
     u8 *bottomPtr;
 
-    struct RenderView view;
+    _Alignas(64) struct RenderView view;
     u32 swapIndex;
     u8 end[4];
 };
@@ -108,6 +110,7 @@ struct BuilderMeshInstance
     struct Mat4 modelM;
     u32 instanceDataIdx;
     u32 instanceDataSize;
+    u32 objectId;
 };
 
 struct RenderViewBuilder
@@ -133,9 +136,9 @@ struct RenderViewBuilder
 struct SwapBuffer
 {
     struct RenderViewBuffer *viewBuffers[3];
-    _Alignas(512) struct RenderViewBuffer *freeViewBuffer;
-    _Alignas(512) volatile u32 viewBuffersTaken;
-    _Alignas(512) volatile u32 numSwaps;
+    _Alignas(64) struct RenderViewBuffer *freeViewBuffer;
+    _Alignas(64) volatile u32 viewBuffersTaken;
+    _Alignas(64) volatile u32 numSwaps;
 };
 
 struct RenderViewBuffer* rview_buffer_init(void *memory, u32 size);
@@ -143,7 +146,7 @@ void* rview_buffer_destroy(struct RenderViewBuffer *rbuf);
 void rview_buffer_clear(struct RenderViewBuffer *rbuf);
 void rview_builder_reset(struct RenderViewBuilder *builder);
 void build_view(struct RenderViewBuilder *builder, struct RenderViewBuffer *buf);
-void add_mesh_instance(struct RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId, struct Mat4 *modelM, void *instanceData, u32 instanceDataSize);
+void add_mesh_instance(struct RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId, struct Mat4 *modelM, void *instanceData, u32 instanceDataSize, u32 objectId);
 
 void swap_buffer_init(struct SwapBuffer *vb);
 void swap_buffer_destroy(struct SwapBuffer *sb);

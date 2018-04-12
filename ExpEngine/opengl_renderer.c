@@ -12,8 +12,9 @@
 //
 #define UNIFORM_BUFFER_INSTANCEDATA    1
 #define UNIFORM_BUFFER_MATRICES (1+MAX_INSTANCE_BUFFERS)
+#define UNIFORM_BUFFER_OBJECTID (UNIFORM_BUFFER_MATRICES+MAX_MATRIX_BUFFERS)
 // update my value and keep me last for clarity!
-#define UNIFORM_BUFFER_COUNT (1+MAX_INSTANCE_BUFFERS+MAX_MATRIX_BUFFERS)
+#define UNIFORM_BUFFER_COUNT (UNIFORM_BUFFER_OBJECTID+1)
 
 static_assert(MAX_INSTANCE_BUFFERS >= INSTANCE_BUFFER_COUNT, "Instance buffer count can't be larger than MAX_INSTANCE_BUFFERS, consider increasing both.");
 static_assert(UNIFORM_BUFFER_COUNT <= 36, "OpenGL does not guarantee more than 36 uniform buffer bindings, thus some hardware might not support it");
@@ -30,36 +31,37 @@ static const char *fallbackVert =
 "}\n";
 static const char *fallbackFrag = 
 "#version 330 core\n"
+"out vec4 outColor;\n"
 "void main(void) {\n"
-    "gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);\n"
+    "outColor = vec4(1.0, 0.0, 1.0, 1.0);\n"
 "}\n";
 
-static float glDefaultMesh[] =
+static uint32_t glDefaultMesh[] = 
 {
-    -0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-     0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-     0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-    -0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-     0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-     0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-     0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-     0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-     0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-    -0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-     0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-    -0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-    -0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-    -0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-    -0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-     0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-     0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-    -0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-    -0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-     0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-     0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-    -0.5f, -0.5f,  0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f
+    0xbf000000, 0xbf000000, 0x3f000000, 0x3f800000, 0x00000000, 0x00000000, 0x00000000, 0xffffffff, 
+    0x3f000000, 0xbf000000, 0x3f000000, 0x3f800000, 0x3f800000, 0x00000000, 0x00000000, 0xffffffff, 
+    0x3f000000, 0x3f000000, 0x3f000000, 0x3f800000, 0x3f800000, 0x3f800000, 0x00000000, 0xffffffff, 
+    0xbf000000, 0x3f000000, 0x3f000000, 0x3f800000, 0x00000000, 0x3f800000, 0x00000000, 0xffffffff, 
+    0x3f000000, 0xbf000000, 0x3f000000, 0x3f800000, 0x00000000, 0x00000000, 0x00000000, 0xffffffff, 
+    0x3f000000, 0xbf000000, 0xbf000000, 0x3f800000, 0x3f800000, 0x00000000, 0x00000000, 0xffffffff, 
+    0x3f000000, 0x3f000000, 0xbf000000, 0x3f800000, 0x3f800000, 0x3f800000, 0x00000000, 0xffffffff, 
+    0x3f000000, 0x3f000000, 0x3f000000, 0x3f800000, 0x00000000, 0x3f800000, 0x00000000, 0xffffffff, 
+    0x3f000000, 0xbf000000, 0xbf000000, 0x3f800000, 0x00000000, 0x00000000, 0x00000000, 0xffffffff, 
+    0xbf000000, 0xbf000000, 0xbf000000, 0x3f800000, 0x3f800000, 0x00000000, 0x00000000, 0xffffffff, 
+    0xbf000000, 0x3f000000, 0xbf000000, 0x3f800000, 0x3f800000, 0x3f800000, 0x00000000, 0xffffffff, 
+    0x3f000000, 0x3f000000, 0xbf000000, 0x3f800000, 0x00000000, 0x3f800000, 0x00000000, 0xffffffff, 
+    0xbf000000, 0xbf000000, 0xbf000000, 0x3f800000, 0x00000000, 0x00000000, 0x00000000, 0xffffffff, 
+    0xbf000000, 0xbf000000, 0x3f000000, 0x3f800000, 0x3f800000, 0x00000000, 0x00000000, 0xffffffff, 
+    0xbf000000, 0x3f000000, 0x3f000000, 0x3f800000, 0x3f800000, 0x3f800000, 0x00000000, 0xffffffff, 
+    0xbf000000, 0x3f000000, 0xbf000000, 0x3f800000, 0x00000000, 0x3f800000, 0x00000000, 0xffffffff, 
+    0xbf000000, 0x3f000000, 0x3f000000, 0x3f800000, 0x00000000, 0x00000000, 0x00000000, 0xffffffff, 
+    0x3f000000, 0x3f000000, 0x3f000000, 0x3f800000, 0x3f800000, 0x00000000, 0x00000000, 0xffffffff, 
+    0x3f000000, 0x3f000000, 0xbf000000, 0x3f800000, 0x3f800000, 0x3f800000, 0x00000000, 0xffffffff, 
+    0xbf000000, 0x3f000000, 0xbf000000, 0x3f800000, 0x00000000, 0x3f800000, 0x00000000, 0xffffffff, 
+    0xbf000000, 0xbf000000, 0xbf000000, 0x3f800000, 0x00000000, 0x00000000, 0x00000000, 0xffffffff, 
+    0x3f000000, 0xbf000000, 0xbf000000, 0x3f800000, 0x3f800000, 0x00000000, 0x00000000, 0xffffffff, 
+    0x3f000000, 0xbf000000, 0x3f000000, 0x3f800000, 0x3f800000, 0x3f800000, 0x00000000, 0xffffffff, 
+    0xbf000000, 0xbf000000, 0x3f000000, 0x3f800000, 0x00000000, 0x3f800000, 0x00000000, 0xffffffff, 
 };
 
 static unsigned short glDefaultMeshIdx[] =
@@ -181,7 +183,7 @@ void opengl_notify_sync(struct OpenGLRenderer *renderer, GLsync *sync, OnSyncAct
     assert(renderer->numFreeSyncPoints > 0);
     uint32_t freeIdx = renderer->syncPointFreeList[--renderer->numFreeSyncPoints];
     struct GLSyncPoint *syncp = &renderer->syncPoints[freeIdx];
-    syncp->sync = sync;
+    syncp->sync = *sync;
     syncp->onSync = action;
     syncp->userData = userData;
     syncp->active = true;
@@ -226,7 +228,7 @@ void opengl_process_program(GLuint program, struct GLMaterial *material)
         GLenum type;
         GLchar buf[64];
         glGetActiveUniform(program, i, 64, &len, &size, &type, buf);
-        printf("%s %s blockId: %d Offset: %d Stride: %d Size: %d\n", buf, opengl_type_to_str(resultTypes[i]), resultBlocks[i], resultOffsets[i], resultStrides[i], resultSizes[i]);
+        //printf("%s %s blockId: %d Offset: %d Stride: %d Size: %d\n", buf, opengl_type_to_str(resultTypes[i]), resultBlocks[i], resultOffsets[i], resultStrides[i], resultSizes[i]);
     }
     printf("---- end ----\n\n");
 
@@ -251,29 +253,29 @@ void opengl_process_program(GLuint program, struct GLMaterial *material)
                     case GL_FLOAT:
                     case GL_INT:
                     case GL_UNSIGNED_INT:
-                        curOffset = ALIGN4(curOffset);
+                        curOffset = ALIGN_UP(curOffset, 4);
                         curOffset += 4;
                         break;
                     case GL_FLOAT_VEC2:
                     case GL_INT_VEC2:
                     case GL_UNSIGNED_INT_VEC2:
-                        curOffset = ALIGN8(curOffset);
+                        curOffset = ALIGN_UP(curOffset, 8);
                         curOffset += 8;
                         break;
                     case GL_FLOAT_VEC3:
                     case GL_INT_VEC3:
                     case GL_UNSIGNED_INT_VEC3:
-                        curOffset = ALIGN16(curOffset);
+                        curOffset = ALIGN_UP(curOffset, 16);
                         curOffset += 12;
                         break;
                     case GL_FLOAT_VEC4:
                     case GL_INT_VEC4:
                     case GL_UNSIGNED_INT_VEC4:
-                        curOffset = ALIGN16(curOffset);
+                        curOffset = ALIGN_UP(curOffset, 16);
                         curOffset += 16;
                         break;
                     case GL_FLOAT_MAT4:
-                        curOffset = ALIGN16(curOffset);
+                        curOffset = ALIGN_UP(curOffset, 16);
                         curOffset += 4*16;
                         break;
                     default: 
@@ -286,7 +288,7 @@ void opengl_process_program(GLuint program, struct GLMaterial *material)
                 instanceDataIndices[numIndicesFound++] = i;
             }
         }
-        material->perInstanceDataSize = ALIGN16(curOffset);
+        material->perInstanceDataSize = ALIGN_UP(curOffset, 16);
         printf("expected offset for next: %d\n", material->perInstanceDataSize);
     }
     else
@@ -299,9 +301,10 @@ void opengl_process_program(GLuint program, struct GLMaterial *material)
 static inline void opengl_change_instance_buffer(struct OpenGLRenderer *renderer)
 {
     renderer->curInstanceBufferIdx = ++renderer->curInstanceBufferIdx%INSTANCE_BUFFER_COUNT;
+    renderer->curMatrixBufferIdx = ++renderer->curMatrixBufferIdx%MATRIX_BUFFER_COUNT;
 }
 
-void opengl_flush_instances(struct OpenGLRenderer *renderer, struct GLMesh *mesh, struct GLMaterial *mat, u32 instanceCount, void *uniformData, u32 uniformDataSize, void *matData)
+void opengl_flush_instances(struct OpenGLRenderer *renderer, struct GLMesh *mesh, struct GLMaterial *mat, u32 instanceCount, void *uniformData, u32 uniformDataSize, void *matData, void *oidData)
 {
     PROF_BLOCK();
     u32 bufIdx = renderer->curInstanceBufferIdx;
@@ -324,13 +327,21 @@ void opengl_flush_instances(struct OpenGLRenderer *renderer, struct GLMesh *mesh
     if(blockIdx != GL_INVALID_INDEX)
         glUniformBlockBinding(program, blockIdx, UNIFORM_BUFFER_MATRICES+bufIdx);
 
+    if(renderer->renderObjectId)
+    {
+        glBindBuffer(GL_UNIFORM_BUFFER, renderer->objectIdInstanceBuf);
+        glBufferSubData(GL_UNIFORM_BUFFER, 0, instanceCount*sizeof(int32_t)*4, oidData);
+        blockIdx = glGetUniformBlockIndex(program, "objectIdBlock");
+        glUniformBlockBinding(program, blockIdx, UNIFORM_BUFFER_OBJECTID);
+    }
+
     // TODO
     //assert(false);
     
     //if(mesh->tex != NULL)
     {
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, renderer->textures[1].glTex);
+        glBindTexture(GL_TEXTURE_2D, renderer->textures[2].glTex);
     }
     glBindVertexArray(mesh->glVao);
 
@@ -343,7 +354,7 @@ void opengl_flush_instances(struct OpenGLRenderer *renderer, struct GLMesh *mesh
         glDrawElements(GL_TRIANGLES, mesh->numIndices, GL_UNSIGNED_SHORT, 0);
     }*/
 
-    opengl_change_instance_buffer(renderer);
+    //opengl_change_instance_buffer(renderer);
 }
 
 void calculate_vertex_buffer_size(struct MeshQuery *mq, uint32_t *size, uint32_t *stride, uint32_t offsetArr[])
@@ -447,12 +458,10 @@ void opengl_handle_mesh_query(struct OpenGLRenderer *renderer, struct MeshQuery 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     if(mesh->indexBufferSize < indexBufSize)
     {
-        CHECK_BUF_ALIGN(indexBufSize);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexBufSize, 0, GL_STATIC_DRAW);
         mesh->indexBufferSize = indexBufSize;
     }
     // TODO: if the mesh is being drawn we might need sync (defer this command)
-    CHECK_BUF_ALIGN(indexBufSize);
     void *indexPtr = glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER, 0, indexBufSize, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
     mesh->vertexStride = vertexStride;
@@ -784,6 +793,7 @@ void opengl_handle_texture_query(struct OpenGLRenderer *renderer, struct Texture
     response.type = Render_Message_Texture_Query_Response;
     response.texQR.textureId = textureId;
     response.texQR.userData = tq->userData;
+    response.texQR.onComplete = tq->onComplete;
     response.texQR.textureDataPtr = dataPtr;
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &response);
 }
@@ -797,6 +807,8 @@ void opengl_texture_ready(struct OpenGLRenderer *renderer, struct GLTexture *tex
     RenderMessage msg = {};
     msg.type = Render_Message_Texture_Ready;
     msg.texR.textureId = tex->id;
+    msg.texR.onComplete = tex->onComplete;
+    msg.texR.userData = tex->userData;
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
@@ -830,7 +842,7 @@ void opengl_handle_texture_update(struct OpenGLRenderer *renderer, struct Textur
     }
     glBindTexture(GL_TEXTURE_2D, gltex);
     assert(tex->format = Texture_Format_RGBA); // TODO: more formats
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex->width, tex->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, tex->width, tex->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
     switch(tex->filter)
     {
         case Texture_Filter_None:
@@ -857,12 +869,57 @@ void opengl_handle_texture_update(struct OpenGLRenderer *renderer, struct Textur
     tex->fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     opengl_notify_sync(renderer, &tex->fence, (OnSyncAction_t)opengl_texture_ready, tex);
 
+    tex->userData = tu->userData;
+    tex->onComplete = tu->onComplete;
+
     //glBindTexture(GL_TEXTURE_2D, 0);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
+void opengl_handle_object_id_samples(struct OpenGLRenderer *renderer, struct SampleObjectId *soid)
+{
+    PROF_BLOCK();
+    RenderMessage msg = {};
+
+    PROF_START_STR("Data to PBO");
+    assert(renderer->objectIdPbo != 0); // buffer not initialized
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, renderer->objectIdPbo);
+    glBindTexture(GL_TEXTURE_2D, renderer->objectIdFboTex);
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RED_INTEGER, GL_INT, 0); 
+    glBindTexture(GL_TEXTURE_2D, 0);
+    PROF_END();
+    if(!renderer->renderObjectId)
+    {
+        fprintf(stderr, "ObjectId samples requested, but feature not enabled!\n");
+        goto respond;
+    }
+    // TODO: wait fence then get
+    // TODO: hard coded constant
+    PROF_START_STR("Data to CPU");
+    for(int i = 0; i < soid->sampleCount; i++)
+    {
+        uint32_t w = renderer->fboWidth;
+        uint32_t h = renderer->fboHeight;
+        int32_t x = MIN(w-1, w*soid->normalizedSampleCoords[i].x);
+        x = MAX(x, 0);
+        int32_t y = MIN(h-1, h - h*soid->normalizedSampleCoords[i].y);
+        y = MAX(y, 0);
+        // TODO: maybe theres something more efficient for random access like this?
+        glGetBufferSubData(GL_PIXEL_PACK_BUFFER, y*w*4+x*4, 4, soid->buffer);
+    }
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    PROF_END();
+
+respond:
+    msg.type = Render_Message_Sample_Object_Ready;
+    msg.sampleOR.onComplete = soid->onComplete;
+    msg.sampleOR.userData = soid->userData;
+    ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
+}
+
 bool opengl_process_messages(struct OpenGLRenderer *renderer)
 {
+    PROF_BLOCK();
     struct Renderer *r = &renderer->renderer;
     RenderMessage msg;
     while(ring_queue_dequeue(RenderMessage, &r->ch.toRenderer, &msg))
@@ -889,6 +946,9 @@ bool opengl_process_messages(struct OpenGLRenderer *renderer)
                 printf("OpenGL received texture update!\n");
                 opengl_handle_texture_update(renderer, &msg.texU);
                 break;
+            case Render_Message_Sample_Object_Id:
+                opengl_handle_object_id_samples(renderer, &msg.sampleO);
+                break;
             case Render_Message_Stop:
                 // TODO: CLEAN UP
                 fprintf(stderr, "PLEASE CLEAN UP THE STATEE!!!\n");
@@ -896,7 +956,9 @@ bool opengl_process_messages(struct OpenGLRenderer *renderer)
                 renderer->platform->make_window_current(renderer->platform, NULL);
                 return false;
             case Render_Message_Screen_Resize:
-                glViewport(0, 0, msg.screenR.width, msg.screenR.height);
+                renderer->windowWidth = msg.screenR.width;
+                renderer->windowHeight = msg.screenR.height;
+                //glViewport(0, 0, msg.screenR.width, msg.screenR.height);
                 break;
             default:
                 fprintf(stderr, "OpenGL renderer: unknown message type!\n");
@@ -909,10 +971,6 @@ bool opengl_process_messages(struct OpenGLRenderer *renderer)
 void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer *rbuf)
 {
     PROF_BLOCK();
-    // TODO: clear color ? skybox?
-    glClearColor(0.6f, 0.2f, 0.3f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     struct RenderView *view = &rbuf->view;
     if(view->space == NULL)
         return;
@@ -921,8 +979,22 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
     // TODO: temp allocators
     u8 idbuf[renderer->uniBufSize];
     u8 mbuf[renderer->uniBufSize];
+    uint32_t oidBuf[renderer->uniBufSize/4];
+
     u32 idofst;
     u32 mofst;
+
+    PROF_START_STR("Extract matrices");
+    // extract matrices
+    _Alignas(16) struct Mat4 matBuf[view->matrixCount*TT_SIMD_32_WIDTH];
+    assert(((uintptr_t)&view->tmatrixBuf & 0xF) == 0);
+    assert(((uintptr_t)matBuf & 0xF) == 0);
+
+    for(int i = 0; i < view->matrixCount/TT_SIMD_32_WIDTH; i++)
+    {
+        mat4_extract_all_sse2(&matBuf[i*TT_SIMD_32_WIDTH], &view->tmatrixBuf[i]);
+    }
+    PROF_END();
 
     for(u32 i = 0; i < meshCount; i++)
     {
@@ -953,38 +1025,41 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
             if((idofst + idsize) > renderer->uniBufSize
                     || (mofst + sizeof(struct Mat4)) > renderer->uniBufSize)
             {
-                opengl_flush_instances(renderer, mesh, material, instRunId, idbuf, idofst, mbuf);
+                opengl_flush_instances(renderer, mesh, material, instRunId, idbuf, idofst, mbuf, oidBuf);
                 idofst = mofst = instRunId = 0;
             }
 
+            PROF_START_STR("Copy instance data");
             memcpy(&idbuf[idofst], idptr, idsize);
+            if(renderer->renderObjectId)
+                oidBuf[instRunId*4] = minstance->objectId;
             idofst += idsize;
             static_assert(sizeof(struct Mat4) == 4*4*4, "Mat4 assumed to be packed, otherwise it won't match OpenGL layout!");
-            //@OPTIMIZE: could extract 4 at a time?
-            u32 mmidx = minstance->matrixIndex;
-            mat4_extract_sse2((struct Mat4*)&mbuf[mofst], &view->tmatrixBuf[mmidx>>2], mmidx&0x3);
+            //@OPTIMIZE: could we somehow get rid of this copy?
+            memcpy(&mbuf[mofst], &matBuf[minstance->matrixIndex], sizeof(struct Mat4));
             mofst += sizeof(struct Mat4);
+            PROF_END();
         }
         // @OPTIMIZE: we currently reset buffer offset, but we could keep writing to
         // it until its full. the only thing we have to do is start writing from
         // where we were before
         if(idofst > 0 || mofst > 0)
         {
-            opengl_flush_instances(renderer, mesh, material, instRunId, idbuf, idofst, mbuf);
+            opengl_flush_instances(renderer, mesh, material, instRunId, idbuf, idofst, mbuf, oidBuf);
             idofst = mofst = instRunId = 0;
         }
     }
 
+    PROF_START_STR("Render Immediate triangles");
+    // for some reason borders are wound backwards in nuklear
     glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendEquation(GL_FUNC_ADD);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    uint32_t vertBufSize = sizeof(view->vertices[0]) * view->numVertices;
-    uint32_t idxBufSize = sizeof(view->indices[0]) * view->numIndices;
-    CHECK_BUF_ALIGN(vertBufSize);
-    CHECK_BUF_ALIGN(idxBufSize);
+    uint32_t vertBufSize = sizeof(*view->vertices) * view->numVertices;
+    uint32_t idxBufSize = sizeof(*view->indices) * view->numIndices;
     if(vertBufSize > 0 && idxBufSize > 0)
     {
         assert(renderer->immVertBufSize >= vertBufSize);
@@ -1018,12 +1093,72 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glDisable(GL_SCISSOR_TEST);
+    PROF_END();
+}
+
+void opengl_init_object_id_buffer(struct OpenGLRenderer *renderer)
+{
+    assert(renderer->objectIdPbo == 0);
+    glGenBuffers(1, &renderer->objectIdPbo);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, renderer->objectIdPbo);
+    glBufferData(GL_PIXEL_PACK_BUFFER, renderer->fboWidth*renderer->fboHeight*4, NULL, GL_DYNAMIC_READ);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+
+    assert(renderer->objectIdInstanceBuf == 0);
+    glGenBuffers(1, &renderer->objectIdInstanceBuf);
+    glBindBuffer(GL_UNIFORM_BUFFER, renderer->objectIdInstanceBuf);
+    glBufferData(GL_UNIFORM_BUFFER, renderer->uniBufSize, 0, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, UNIFORM_BUFFER_OBJECTID, renderer->objectIdInstanceBuf);
+
+    glGenTextures(1, &renderer->objectIdFboTex);
+    glBindTexture(GL_TEXTURE_2D, renderer->objectIdFboTex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, renderer->fboWidth, renderer->fboHeight, 0, GL_RED_INTEGER, GL_INT, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, renderer->fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, renderer->objectIdFboTex, 0);
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    assert(status == GL_FRAMEBUFFER_COMPLETE);
+    renderer->renderObjectId = true;
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void opengl_destroy_object_id_buffer(struct OpenGLRenderer *renderer)
+{
+    assert(renderer->objectIdPbo != 0);
+    assert(renderer->objectIdInstanceBuf != 0);
+    glDeleteBuffers(1, &renderer->objectIdPbo);
+    glDeleteBuffers(1, &renderer->objectIdInstanceBuf);
+    renderer->objectIdPbo = 0;
+    renderer->objectIdInstanceBuf = 0;
+    glBindFramebuffer(GL_FRAMEBUFFER, renderer->fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, 0, 0);
+    glDeleteTextures(1, &renderer->objectIdFboTex);
+    renderer->renderObjectId = false;
 }
 
 void *opengl_update_proc(void *data);
 
 void opengl_init(struct OpenGLRenderer *renderer)
 {
+    // Set expected state
+    //
+
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_DEPTH_TEST);
+    // TODO: does this require any extensions?
+    glEnable(GL_FRAMEBUFFER_SRGB);
+    // glDrawBuffer(GL_BACK);
+
+
+    // Get and check available resources
+    // Init default values
+    //
+
     GLint maxUniBindings;
     glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &maxUniBindings);
     if(UNIFORM_BUFFER_COUNT > maxUniBindings)
@@ -1031,6 +1166,44 @@ void opengl_init(struct OpenGLRenderer *renderer)
         fprintf(stderr, "OpenGL: max uniform buffer bindings supported %d, but need at least %d\n", maxUniBindings, UNIFORM_BUFFER_COUNT);
         //exit(-1);
     }
+    renderer->objectIdPbo = 0;
+    renderer->objectIdInstanceBuf = 0;
+    renderer->renderObjectId = false;
+
+    // Generate default framebuffer
+    //
+
+    // generate color texture
+    uint32_t width = renderer->platform->mainWin.width;
+    uint32_t height = renderer->platform->mainWin.height;
+    renderer->fboWidth = width;
+    renderer->fboHeight = height;
+    glGenTextures(1, &renderer->fboColorTex);
+    glBindTexture(GL_TEXTURE_2D, renderer->fboColorTex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // why do opengl docs tell to use GL_BGRA?
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    // generate fbo and attach color
+    glGenFramebuffers(1, &renderer->fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, renderer->fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderer->fboColorTex, 0);
+    // generate depth buffer and attach it
+    glGenRenderbuffers(1, &renderer->fboDepthBuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, renderer->fboDepthBuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderer->fboDepthBuffer);
+    const GLenum buffers[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+    glDrawBuffers(2, buffers);
+    // check status
+    GLenum status;
+    status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    assert(status == GL_FRAMEBUFFER_COMPLETE);
+
+    // Generate mesh instance data buffers
+    //
 
     GLint ibufsize;
     glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &ibufsize);
@@ -1056,6 +1229,9 @@ void opengl_init(struct OpenGLRenderer *renderer)
     }
     renderer->curMatrixBufferIdx = 0;
 
+    // Generate immediate mode buffers (UI)
+    //
+
     // TODO: enough?
     glGenVertexArrays(1, &renderer->immVAO);
     glBindVertexArray(renderer->immVAO);
@@ -1078,9 +1254,9 @@ void opengl_init(struct OpenGLRenderer *renderer)
     glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(struct UIVertex), (GLvoid*)offsetof(struct UIVertex, color));
     glBindVertexArray(0);
 
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_DEPTH_TEST);
-   // glDrawBuffer(GL_BACK);
+    // Generate default mesh, texture and material
+    // and allocate slots for resources
+    //
 
     renderer->meshes = NULL;
     renderer->materials = NULL;
@@ -1108,10 +1284,16 @@ void opengl_init(struct OpenGLRenderer *renderer)
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 44, (GLvoid*)(uintptr_t)0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 44, (GLvoid*)(uintptr_t)16);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 44, (GLvoid*)(uintptr_t)28);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 32, (GLvoid*)(uintptr_t)0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 32, (GLvoid*)(uintptr_t)16);
+    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, 32, (GLvoid*)(uintptr_t)28);
     glBindVertexArray(0);
+
+    // TODO: if any of these get reallocated we're screwed!!!!!!!!!!!!!!!!!!!!!!!!!!
+    // USE A FUCKING POOL
+    buf_reserve(renderer->meshes, 100);
+    buf_reserve(renderer->textures, 100);
+    buf_reserve(renderer->materials, 100);
 
     struct GLMesh mesh = {
         .id = 0,
@@ -1121,11 +1303,7 @@ void opengl_init(struct OpenGLRenderer *renderer)
         .glVbo = bufs[0],
         .glEbo = bufs[1],
         .glVao = vao,
-        .attribTypes[0] = Vertex_Attribute_Type_Vec3,
-        .attribTypes[1] = Vertex_Attribute_Type_Vec4,
-        .attribOffsets[0] = 16,
-        .attribOffsets[1] = 28,
-        .vertexStride = 44,
+        .vertexStride = 32,
     };
 
     struct GLTexture tex = {
@@ -1157,16 +1335,21 @@ void opengl_init(struct OpenGLRenderer *renderer)
         opengl_handle_material_query(renderer, &msg.matQ, true);
     }
 
+
+    // TODO: remove
+    opengl_init_object_id_buffer(renderer);
 }
 
 void check_sync_points(struct OpenGLRenderer *renderer)
-{
+{ 
     for(int i = 0; i < GL_RENDERER_MAX_SYNC_POINTS; i++)
     {
+        // TODO: it would probably be cheaper to keep a list than always iterate all
         struct GLSyncPoint *syncp = &renderer->syncPoints[i];
         if(syncp->active)
         {
-            GLenum waitsync = glClientWaitSync(*syncp->sync, 0, 0);
+            // TODO: i changed syncp->sync to a value type, but if the fence is update or whatever it might change or whatever
+            GLenum waitsync = glClientWaitSync(syncp->sync, 0, 0);
             assert(waitsync != GL_WAIT_FAILED);
             if(waitsync == GL_ALREADY_SIGNALED || waitsync == GL_CONDITION_SATISFIED)
             {
@@ -1179,16 +1362,14 @@ void check_sync_points(struct OpenGLRenderer *renderer)
 void *opengl_proc(void *data);
 
 // MAIN THREAD CALLS THIS
-struct Renderer *create_opengl_renderer(AikePlatform *platform, struct SwapBuffer *swapbuf)
+struct Renderer *create_opengl_renderer(AikePlatform *platform)
 {
     // TODO: proper allocator (caller frees this right now)
-    struct OpenGLRenderer *ret = malloc(sizeof(struct OpenGLRenderer));
+    struct OpenGLRenderer *ret = aligned_alloc(_Alignof(struct OpenGLRenderer), sizeof(struct OpenGLRenderer));
     ret->platform = platform;
-    ret->swapbuf = swapbuf;
 
     platform->make_window_current(platform, &platform->mainWin);
     opengl_init(ret);
-    ret->curView = take_view_buffer(ret->swapbuf);
 
     struct Renderer *grenderer = (struct Renderer*)ret;
     grenderer->threadProc = opengl_proc;
@@ -1223,34 +1404,81 @@ void destroy_opengl_renderer(struct Renderer *rend)
     glDeleteBuffers(1, &glrend->immVertBuf);
     glDeleteBuffers(1, &glrend->immVertBuf);
     glDeleteVertexArrays(1, &glrend->immVAO);
+
+    // default resources are not deleted because ideally they will be deleted
+    // like any other resource, which we currently do not do
+    
+    if(glrend->objectIdPbo != 0)
+        opengl_destroy_object_id_buffer(glrend);
+
+    // delete default fbo
+    glDeleteFramebuffers(1, &glrend->fbo);
+    glDeleteTextures(1, &glrend->fboColorTex);
+    glDeleteRenderbuffers(1, &glrend->fboDepthBuffer);
+
+    buf_free(glrend->meshes);
+    buf_free(glrend->textures);
+    buf_free(glrend->materials);
 }
 
 void *opengl_proc(void *data)
 {
+    DEBUG_INIT("OpenGL thread");
     struct OpenGLRenderer *renderer = (struct OpenGLRenderer*)data;
+    struct SwapBuffer *viewSwapBuffer = ((struct Renderer*)data)->swapBuffer;
+    renderer->curView = take_view_buffer(viewSwapBuffer);
+    assert(renderer->curView);
     renderer->platform->make_window_current(renderer->platform, &renderer->platform->mainWin);
     bool running = true;
     while(running)
     {
-        running = opengl_process_messages(renderer);
-        check_sync_points(renderer);
-        uintptr_t oldView = (uintptr_t)renderer->curView;
-        renderer->curView = swap_view_if_newer(sbuf, renderer->curView);
+        DEBUG_START_FRAME();
+
+        // wait for new view, no point to render exact same view again
         // TODO: remove once you have motion vectors and stuff
-        if(oldView != (uintptr_t)renderer->curView)
+        uintptr_t oldView = (uintptr_t)renderer->curView;
+        while(oldView == (uintptr_t)renderer->curView)
         {
-            opengl_render_view(renderer, renderer->curView);
-            renderer->platform->present_frame(renderer->platform, &renderer->platform->mainWin);
-            frameId++;
+            running = opengl_process_messages(renderer);
+            if(!running)
+                break;
+            check_sync_points(renderer);
+            renderer->curView = swap_view_if_newer(viewSwapBuffer, renderer->curView);
+            if(oldView == (uintptr_t)renderer->curView)
+                renderer->platform->sleep(1000);
         }
-        else
-        {
-            static int count;
-//            printf("view not changed, skipping... %d\n", count);
-            // if you're gonna do this use cond variable at least...
-            renderer->platform->sleep(1000);
-            count++;
-        }
+
+        PROF_START_STR("opengl frame");
+
+        PROF_START_STR("clear FBO");
+        glBindFramebuffer(GL_FRAMEBUFFER, renderer->fbo);
+        // TODO: clear color ? skybox?
+        glClearColor(0.325f, 0.029f, 0.07f, 1.0f);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        float cvalues[4] = {0.325f, 0.029f, 0.07f, 1.0f};
+        int32_t values[4] = {-1, -1, -1, -1};
+        glClearBufferfv(GL_COLOR, 0, cvalues);
+        glClearBufferiv(GL_COLOR, 1, values);
+        PROF_END();
+        opengl_render_view(renderer, renderer->curView);
+
+        PROF_START_STR("blit to backbuffer");
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, renderer->fbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        // NOTE: currently we never resize backbuffer, so it is whatever size the renderer
+        // was started with
+        glBlitFramebuffer(0, 0, renderer->fboWidth, renderer->fboHeight, 0, 0, renderer->windowWidth, renderer->windowHeight, GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+        PROF_END();
+
+        PROF_START_STR("present frame");
+        renderer->platform->present_frame(renderer->platform, &renderer->platform->mainWin);
+        PROF_END();
+        frameId++;
+
+        PROF_END();
+        DEBUG_END_FRAME();
+        //DEBUG_FRAME_REPORT();
     }
+    DEBUG_DESTROY();
     return (void*)0xFACEFEED;
 }

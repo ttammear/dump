@@ -10,14 +10,14 @@ void init_renderer(struct Renderer *renderer)
     ring_queue_init(RenderMessage, &renderer->ch.fromRenderer);
 }
 
-struct Renderer *create_renderer(u32 rendererType, AikePlatform *platform, struct SwapBuffer *sbuf)
+struct Renderer *create_renderer(u32 rendererType, AikePlatform *platform)
 {
     struct Renderer *ret = NULL;
 
     switch(rendererType)
     {
         case RENDERER_TYPE_OPENGL:
-            ret = create_opengl_renderer(platform, sbuf);
+            ret = create_opengl_renderer(platform);
             init_renderer(ret);
             break;
         case RENDERER_TYPE_HEADLESS:

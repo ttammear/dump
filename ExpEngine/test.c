@@ -58,6 +58,7 @@ void rview_builder_destroy(struct RenderViewBuilder *builder)
     buf_free(builder->instanceDataBuf);
     buf_free(builder->vertices);
     buf_free(builder->indices);
+    buf_free(builder->batches);
 }
 
 void rview_builder_reset(struct RenderViewBuilder *builder)
@@ -146,7 +147,7 @@ void builder_new_vertex_stream(struct RenderViewBuilder *builder)
     builder->indexBase = buf_len(builder->vertices);
 }
 
-void add_mesh_instance(struct RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId, struct Mat4 *modelM, void *instanceData, u32 instanceDataSize)
+void add_mesh_instance(struct RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId, struct Mat4 *modelM, void *instanceData, u32 instanceDataSize, u32 objectId)
 {
     int entryIdx = findEntry(builder, meshId, materialId);
     if(entryIdx < 0)
@@ -160,14 +161,15 @@ void add_mesh_instance(struct RenderViewBuilder *builder, uint32_t meshId, uint3
     u32 dbufIdx = 0;
     if(instanceData != NULL)
     {
-        dbufIdx = buf_push_count(builder->instanceDataBuf, ALIGN16(instanceDataSize));
+        dbufIdx = buf_push_count(builder->instanceDataBuf, ALIGN_UP(instanceDataSize, 16));
         memcpy(&builder->instanceDataBuf[dbufIdx], instanceData, instanceDataSize);
     }
     buf_push(builder->instanceBuf, (struct BuilderMeshInstance) {
                 .modelM = *modelM,
                 .mentryIdx = entryIdx,
                 .instanceDataIdx = dbufIdx,
-                .instanceDataSize = instanceDataSize
+                .instanceDataSize = instanceDataSize,
+                .objectId = objectId
         });
     builder->meshBuf[entryIdx].instanceCount++;
 }
@@ -208,6 +210,7 @@ void build_view(struct RenderViewBuilder *builder, struct RenderViewBuffer *buf)
     u32 matCount = ALIGN_UP(count, TT_SIMD_32_WIDTH);
     struct Mat4_sse2 *tmatBuf = rview_buffer_allocate_from(buf, sizeof(struct Mat4) * matCount);
     view->tmatrixBuf = tmatBuf;
+    view->matrixCount = matCount;
 
     for(u32 i = 0; i < count; i++)
     {
@@ -219,6 +222,7 @@ void build_view(struct RenderViewBuilder *builder, struct RenderViewBuffer *buf)
         assert(rinstance->instanceDataPtr != NULL);
         memcpy(rinstance->instanceDataPtr, &builder->instanceDataBuf[binstance->instanceDataIdx], binstance->instanceDataSize);
         rinstance->instanceDataSize = binstance->instanceDataSize;
+        rinstance->objectId = binstance->objectId;
         // TODO: uniforms
     }
 
@@ -249,10 +253,10 @@ void build_view(struct RenderViewBuilder *builder, struct RenderViewBuffer *buf)
         memcpy(vertBuf, builder->vertices, verticesSize);
         memcpy(idxBuf, builder->indices, indicesSize);
         view->vertices = (struct UIVertex*)vertBuf;
-        view->numVertices = buf_len(builder->vertices);
         view->indices = (uint16_t*)idxBuf;
-        view->numIndices = buf_len(builder->indices);
     }
+    view->numVertices = buf_len(builder->vertices);
+    view->numIndices = buf_len(builder->indices);
     view->materialId = builder->materialId;
     view->orthoMatrix = builder->orthoMatrix;
 
@@ -281,7 +285,7 @@ void swap_buffer_init(struct SwapBuffer *sb)
     {
         // TODO: not cool
         u32 size = 10 * 1024 * 1024;
-        sb->viewBuffers[i] = rview_buffer_init(malloc(size), size);
+        sb->viewBuffers[i] = rview_buffer_init(aligned_alloc(_Alignof(struct RenderViewBuffer), size), size);
     }
     sb->freeViewBuffer = sb->viewBuffers[0];
     sb->numSwaps = 0;

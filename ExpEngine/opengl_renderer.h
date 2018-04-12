@@ -51,6 +51,10 @@ struct GLTexture
     uint32_t id;
     uint32_t state;
 
+    // TODO: move somewhere else
+    void *userData;
+    TReady_A onComplete;
+
     u16 format;
     u16 filter;
     u32 width;
@@ -89,7 +93,7 @@ typedef void (*OnSyncAction_t)(struct OpenGLRenderer *renderer, void *data);
 struct GLSyncPoint
 {
     bool active;
-    GLsync *sync;
+    GLsync sync;
     OnSyncAction_t onSync;
     void *userData;
 };
@@ -117,6 +121,22 @@ struct OpenGLRenderer
     u32 immIndexBuf;
     u32 immVertBufSize;
     u32 immIndexBufSize;
+
+    u32 fboColorTex;
+    u32 fbo;
+    u32 fboDepthBuffer;
+    u32 fboWidth;
+    u32 fboHeight;
+
+    // only if the feature is enabled
+    bool renderObjectId;
+    u32 objectIdPbo;
+    u32 objectIdInstanceBuf;
+    u32 objectIdFboTex;
+
+    // TODO: remove once you have render targets
+    u32 windowWidth;
+    u32 windowHeight;
 
     uint32_t numFreeSyncPoints;
     uint32_t syncPointFreeList[GL_RENDERER_MAX_SYNC_POINTS];

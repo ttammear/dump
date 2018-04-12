@@ -12,13 +12,7 @@
 // TODO: tt_simd?
 #define TT_SIMD_32_WIDTH   4
 
-
-#include "debug.h"
-#ifdef _DEBUG
-#include "debug.c"
-#endif
-
-#define TT_HELPER_IMPL
+#define TT_HELPERS_IMPLEMENTATION
 #include "libs/tt_helpers.h"
 #include "libs/tt_types.h"
 #include "libs/tt_mt_ring_queue.h"
@@ -30,6 +24,9 @@
 #include "libs/stb_sprintf.h"
 //#define STB_IMAGE_IMPLEMENTATION
 #include "libs/stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "libs/stb_image_write.h"
+
 
 //#define NK_IMPLEMENTATION
 #define NK_INCLUDE_FONT_BAKING 
@@ -37,19 +34,40 @@
 #define NK_INCLUDE_DEFAULT_ALLOCATOR
 #define NK_INCLUDE_DEFAULT_FONT
 #define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
+#define NK_INCLUDE_STANDARD_VARARGS
 #include "libs/nuklear.h"
+
+#include "libs/klib/khash.h"
+KHASH_MAP_INIT_STR(str, void*)
+KHASH_MAP_INIT_INT64(64, void*)
+KHASH_MAP_INIT_INT(uint32, uint32_t)
 
 #include "aike_platform.h"
 
+#include "debug.h"
+#ifdef _DEBUG
+#include "debug.c"
+#endif
+
 #include "mathsc.h"
 #include "test.h"
+#include "memory.h"
+#include "tess.h"
 
 #include "renderer.h"
 
+#include "memory.c"
 #include "renderer.c"
 #include "test.c"
 
 #include "resourceformat.c"
+#include "render_system.c"
+#include "asset.c"
+#include "world.c"
+#include "input.c"
+#include "ui.c"
+#include "editor.c"
+
 #include "game.c"
 #include "fib.c"
 

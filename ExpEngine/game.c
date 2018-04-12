@@ -1,155 +1,3 @@
-static struct V3 pyramidVertices[] = 
-{
-    { -0.5f, -0.5f, -0.5f },
-    { -0.5f, -0.5f,  0.5f },
-    {  0.5f, -0.5f,  0.5f },
-    { -0.5f, -0.5f, -0.5f },
-    {  0.5f, -0.5f,  0.5f },
-    {  0.5f, -0.5f, -0.5f },
-
-    { -0.5f, -0.5f, -0.5f },
-    {  0.5f, -0.5f, -0.5f },
-    {  0.0f,  0.5f,  0.0f },
-
-    { -0.5f, -0.5f,  0.5f },
-    { -0.5f, -0.5f, -0.5f },
-    {  0.0f,  0.5f,  0.0f },
-
-    {  0.5f, -0.5f,  0.5f },
-    { -0.5f, -0.5f,  0.5f },
-    {  0.0f,  0.5f,  0.0f },
-
-    {  0.5f, -0.5f, -0.5f },
-    {  0.5f, -0.5f,  0.5f },
-    {  0.0f,  0.5f,  0.0f },
-};
-
-static unsigned short pyramidIndices[] = 
-{
-    0, 1, 2, 3, 4, 5, 6, 7, 8,
-    9,10,11,12,13,14,15,16,17
-};
-
-static struct V4 pyramidColors[] =
-{
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 1.0f, 0.0f, 0.0f, 1.0f},
-
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 0.0f, 1.0f, 0.0f, 1.0f},
-
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 0.0f, 0.0f, 1.0f, 1.0f},
-
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 1.0f, 1.0f, 1.0f, 1.0f},
-    { 1.0f, 0.3f, 0.0f, 1.0f},
-};
-
-static struct V4 cubeVertices[] =
-{
-    { -0.5f, -0.5f,  0.5f, 1.0f },
-    {  0.5f, -0.5f,  0.5f, 1.0f },
-    {  0.5f,  0.5f,  0.5f, 1.0f },
-    { -0.5f,  0.5f,  0.5f, 1.0f },
-    {  0.5f, -0.5f,  0.5f, 1.0f },
-    {  0.5f, -0.5f, -0.5f, 1.0f },
-    {  0.5f,  0.5f, -0.5f, 1.0f },
-    {  0.5f,  0.5f,  0.5f, 1.0f },
-    {  0.5f, -0.5f, -0.5f, 1.0f },
-    { -0.5f, -0.5f, -0.5f, 1.0f },
-    { -0.5f,  0.5f, -0.5f, 1.0f },
-    {  0.5f,  0.5f, -0.5f, 1.0f },
-    { -0.5f, -0.5f, -0.5f, 1.0f },
-    { -0.5f, -0.5f,  0.5f, 1.0f },
-    { -0.5f,  0.5f,  0.5f, 1.0f },
-    { -0.5f,  0.5f, -0.5f, 1.0f },
-    { -0.5f,  0.5f,  0.5f, 1.0f },
-    {  0.5f,  0.5f,  0.5f, 1.0f },
-    {  0.5f,  0.5f, -0.5f, 1.0f },
-    { -0.5f,  0.5f, -0.5f, 1.0f },
-    { -0.5f, -0.5f, -0.5f, 1.0f },
-    {  0.5f, -0.5f, -0.5f, 1.0f },
-    {  0.5f, -0.5f,  0.5f, 1.0f },
-    { -0.5f, -0.5f,  0.5f, 1.0f }
-};
-
-static struct V3 cubeTexCoords[] =
-{
-    { 0.0f, 0.0f, 0.0f}, 
-    { 1.0f, 0.0f, 0.0f},
-    { 1.0f, 1.0f, 0.0f},
-    { 0.0f, 1.0f, 0.0f},
-    { 0.0f, 0.0f, 0.0f},
-    { 1.0f, 0.0f, 0.0f},
-    { 1.0f, 1.0f, 0.0f},
-    { 0.0f, 1.0f, 0.0f},
-    { 0.0f, 0.0f, 0.0f},
-    { 1.0f, 0.0f, 0.0f},
-    { 1.0f, 1.0f, 0.0f},
-    { 0.0f, 1.0f, 0.0f},
-    { 0.0f, 0.0f, 0.0f},
-    { 1.0f, 0.0f, 0.0f},
-    { 1.0f, 1.0f, 0.0f},
-    { 0.0f, 1.0f, 0.0f},
-    { 0.0f, 0.0f, 0.0f},
-    { 1.0f, 0.0f, 0.0f},
-    { 1.0f, 1.0f, 0.0f},
-    { 0.0f, 1.0f, 0.0f},
-    { 0.0f, 0.0f, 0.0f},
-    { 1.0f, 0.0f, 0.0f},
-    { 1.0f, 1.0f, 0.0f},
-    { 0.0f, 1.0f, 0.0f}
-};
-
-static struct V4 cubeColors[] = 
-{
-    {1.0f, 0.0f, 0.0f, 1.0f },
-    {1.0f, 0.0f, 0.0f, 1.0f },
-    {1.0f, 0.0f, 0.0f, 1.0f },
-    {1.0f, 0.0f, 0.0f, 1.0f },
-    {0.0f, 1.0f, 0.0f, 1.0f },
-    {0.0f, 1.0f, 0.0f, 1.0f },
-    {0.0f, 1.0f, 0.0f, 1.0f },
-    {0.0f, 1.0f, 0.0f, 1.0f },
-    {0.0f, 0.0f, 1.0f, 1.0f },
-    {0.0f, 0.0f, 1.0f, 1.0f },
-    {0.0f, 0.0f, 1.0f, 1.0f },
-    {0.0f, 0.0f, 1.0f, 1.0f },
-    {1.0f, 1.0f, 0.0f, 1.0f },
-    {1.0f, 1.0f, 0.0f, 1.0f },
-    {1.0f, 1.0f, 0.0f, 1.0f },
-    {1.0f, 1.0f, 0.0f, 1.0f },
-    {0.0f, 1.0f, 1.0f, 1.0f },
-    {0.0f, 1.0f, 1.0f, 1.0f },
-    {0.0f, 1.0f, 1.0f, 1.0f },
-    {0.0f, 1.0f, 1.0f, 1.0f },
-    {1.0f, 0.0f, 1.0f, 1.0f },
-    {1.0f, 0.0f, 1.0f, 1.0f },
-    {1.0f, 0.0f, 1.0f, 1.0f },
-    {1.0f, 0.0f, 1.0f, 1.0f }
-};
-
-static unsigned short s_indices[] =
-{
-	2,  1,   0,  0,  3,  2,
-	6,  5,   4,  4,  7,  6,
-    10, 9,   8,  8, 11, 10,
-	14, 13, 12, 12, 15, 14,
-	18, 17, 16, 16, 19, 18,
-	22, 21, 20, 20, 23, 22
-};
-	 
 static const char *vertShaderSrc =  "#version 330 core\n"
 "attribute vec4 a_position;\n"
 "attribute vec2 a_user0;\n"
@@ -171,31 +19,45 @@ static const char *vertShaderSrc =  "#version 330 core\n"
 "{\n"
     "mat4 matrices[128];\n"
 "};\n"
+"layout (std140) uniform objectIdBlock\n"
+"{\n"
+    "int objectIds[128]; // waste of space sucks but shift and mask with ivec4 is too hard for old AMD drivers\n"
+"};\n"
 ""
 "varying vec2 v_texcoord;\n"
 "varying vec4 v_color;\n"
+"flat out int v_objectId;\n"
 "uniform int instId;\n"
 "void main(void) {\n"\
    "int id = gl_InstanceID;"
    "gl_Position = matrices[id] * a_position;\n"
    "v_texcoord = vec2(a_user0.x, 1.0 - a_user0.y);\n"
-   "v_color = /*vec4(idata[id].v1, idata[id].v2)**/a_user1;\n"
+   "v_color = pow(a_user1, vec4(2.2));\n"
+   "v_objectId = objectIds[id];\n"
 "}";
 			
 static const char *fragShaderSrc = "#version 330 core\n"
 "uniform sampler2D _MainTex;\n"
 "varying vec2 v_texcoord;\n"
 "varying vec4 v_color;\n"
+"flat in int v_objectId;\n"
+"out vec4 outColor;\n"
+"layout(location = 1) out int outObjectId;\n"
 "void main(void) {\n"
    "//gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n"
-   "gl_FragColor = texture2D(_MainTex, v_texcoord) * v_color;\n"
+   "outColor = texture2D(_MainTex, v_texcoord) * v_color;\n"
+   "outObjectId = v_objectId;\n"
    "//gl_FragColor = vec4(v_texcoord.x, v_texcoord.y, 0.0, 1.0);\n"
 "}";
 
 static const char *fragShaderSolidSrc = "#version 330 core\n"
 "varying vec4 v_color;\n"
+"flat in int v_objectId;\n"
+"out vec4 outColor;\n"
+"layout(location = 1) out int outObjectId;\n"
 "void main(void) {\n"
-   "gl_FragColor = v_color;\n"
+   "outColor = v_color;\n"
+   "outObjectId = v_objectId;\n"
 "}";
 
 static const char *uiVertSrc = 
@@ -209,7 +71,7 @@ static const char *uiVertSrc =
 "void main(void) {\n"
     "gl_Position = toClip * vec4(a_position, 0.0f, 1.0f);\n"
     "v_texcoord = vec2(a_user0.x, a_user0.y);\n"
-    "v_color = a_user1;\n"
+    "v_color = pow(a_user1, vec4(2.2));\n"
 "}";
 
 static const char *uiFragSrc =
@@ -217,44 +79,20 @@ static const char *uiFragSrc =
 "varying vec2 v_texcoord;\n"
 "varying vec4 v_color;\n"
 "uniform sampler2D _MainTex;\n"
+"out vec4 outColor;\n"
 "void main(void) {\n"
-    "//gl_FragColor = v_color;\n"
-    "gl_FragColor = v_color * texture2D(_MainTex, v_texcoord);\n"
+    "outColor = v_color * texture2D(_MainTex, v_texcoord);\n"
 "}";
-
-struct V4 cols[] = 
-{
-    {1.0f, 0.0f, 1.0f, 1.0f},
-    {0.0f, 1.0f, 1.0f, 1.0f},
-    {1.0f, 1.0f, 1.0f, 1.0f},
-    {1.0f, 0.0f, 0.7f, 1.0f},
-    {0.5f, 1.0f, 0.0f, 1.0f},
-    {0.4f, 0.4f, 0.4f, 1.0f},
-    {0.0f, 1.0f, 1.0f, 1.0f},
-    {0.0f, 0.0f, 0.0f, 1.0f},
-    {0.0f, 1.0f, 0.6f, 1.0f},
-    {1.0f, 0.3f, 0.4f, 1.0f},
-};
 
 struct GameData
 {
-    struct Renderer *renderer;
-    struct SwapBuffer *swapbuf;
+    struct RenderViewBuilder *viewBuilder;
     AikePlatform *platform;
 };
 
 static int s_x, s_y;
 static void *s_texdata;
-static float redVal = 0.5f;
-static float direction = 1.0f;
 static float rotval = 0.0f;
-struct Mat4 s_perspective;
-
-struct RenderViewBuilder *s_builder;
-struct RenderViewBuffer *readView = NULL;
-
-#define MY_MESH_PYRAMID 1
-#define MY_MESH_CUBE 2
 
 struct GameState
 {
@@ -269,182 +107,34 @@ struct GameState
     const void *image;
 
     bool ui_ready;
+
+    struct V3 camPos;
 };
 
 struct GameState gameState;
 
-void fill_pyramid_data(void *vdata, void *idata)
+void atlas_ready(struct Renderer *renderer, struct TextureQueryResponse *tqr, void *userData)
 {
-    printf("fill pyramid data\n");
-    uint32_t count = ARRAY_COUNT(pyramidVertices);
-    uint8_t *bytes = (uint8_t*)vdata;
-
-    uint32_t vertSize = 8*4;
-    float one = 1.0f;
-
-    for(int i = 0; i < count; i++)
-    {
-        memcpy(&bytes[vertSize*i], &pyramidVertices[i], 3*4);
-        memcpy(&bytes[vertSize*i+12], &one, 4);
-        memcpy(&bytes[vertSize*i+16], &pyramidColors[i], 4*4);
-    }
-    memcpy(idata, pyramidIndices, sizeof(pyramidIndices));
+    RenderMessage response = {};
+    memcpy(tqr->textureDataPtr, gameState.image, gameState.w*gameState.h*4);
+    nk_font_atlas_end(&gameState.atlas, nk_handle_id((int)tqr->textureId), &gameState.null);
+    nk_init_fixed(&gameState.nk_ctx, calloc(1, 1024*1024), 1024*1024, &gameState.font->handle);
+    gameState.ui_ready = true;
+    response.type = Render_Message_Texture_Update;
+    response.texU.textureId = tqr->textureId;
+    renderer_queue_message(renderer, &response);
 }
 
-void fill_cube_data(void *vdata, void *idata)
+void fill_cat_texture(struct Renderer *renderer, struct TextureQueryResponse *tqr, void *userData)
 {
-    printf("fill cube data\n");
-    uint32_t count = ARRAY_COUNT(cubeVertices);
-    uint8_t *bytes = (uint8_t*)vdata;
-
-    uint32_t vertSize = 11*4;
-    float one = 1.0f;
-
-    for(int i = 0; i < count; i++)
-    {
-        memcpy(&bytes[vertSize*i], &cubeVertices[i], 4*4);
-        memcpy(&bytes[vertSize*i+16], &cubeTexCoords[i], 4*3);
-        memcpy(&bytes[vertSize*i+28], &cubeColors[i], 4*4);
-    }
-    memcpy(idata, s_indices, sizeof(s_indices));
-}
-
-void fill_texture_data(void *tdata)
-{
-    printf("fill texture data\n");
     uint32_t texsize = s_x*s_y*4;
-    memcpy(tdata, s_texdata, texsize);
+    memcpy(tqr->textureDataPtr, s_texdata, texsize);
     stbi_image_free(s_texdata);
-}
 
-void process_render_messages(struct Renderer *renderer)
-{
-    RenderMessage msg;
-    RenderMessage response;
-    while(renderer_next_message(renderer, &msg))
-    {
-        switch(msg.type)
-        {
-            case Render_Message_Mesh_Query_Result:
-                if(msg.meshQueryResult.onComplete != NULL)
-                {
-                    msg.meshQueryResult.onComplete(renderer, &msg.meshQueryResult, msg.meshQueryResult.userData);
-                }
-                else if(msg.meshQueryResult.userData == (void*)MY_MESH_CUBE)
-                {
-                    fill_cube_data(msg.meshQueryResult.vertBufPtr, msg.meshQueryResult.idxBufPtr);
-                    response = (RenderMessage){};
-                    response.type = Render_Message_Mesh_Update;
-                    response.meshUpdate.meshId = msg.meshQueryResult.meshId;
-                    renderer_queue_message(renderer, &response);
-                }
-                break;
-            case Render_Message_Texture_Query_Response:
-                if(msg.texU.userData == &gameState)
-                {
-                    memcpy(msg.texQR.textureDataPtr, gameState.image, gameState.w*gameState.h*4);
-                    nk_font_atlas_end(&gameState.atlas, nk_handle_id((int)msg.texQR.textureId), &gameState.null);
-                    nk_init_fixed(&gameState.nk_ctx, calloc(1, 1024*1024), 1024*1024, &gameState.font->handle);
-                    gameState.ui_ready = true;
-                    response = (RenderMessage){};
-                    response.type = Render_Message_Texture_Update;
-                    response.texU.textureId = msg.texQR.textureId;
-                    renderer_queue_message(renderer, &response);
-                }
-                else
-                {
-                    fill_texture_data(msg.texQR.textureDataPtr);
-                    response = (RenderMessage){};
-                    response.type = Render_Message_Texture_Update;
-                    response.texU.textureId = msg.texQR.textureId;
-                    renderer_queue_message(renderer, &response);
-                }
-                break;
-            case Render_Message_Mesh_Ready:
-                if(msg.meshR.onComplete != NULL)
-                {
-                    msg.meshR.onComplete(renderer, &msg.meshR, msg.meshR.userData);
-                }
-                else
-                {
-                    printf("mesh ready %d\n", msg.meshR.meshId);
-                }
-                break;
-            case Render_Message_Texture_Ready:
-                printf("texture ready %d\n", msg.texR.textureId);
-                break;
-            case Render_Message_Material_Ready:
-                printf("material ready %d\n", msg.matR.materialId);
-                break;
-        }
-    }
-}
-
-void saveDummyMesh()
-{
-    void *buf = malloc(1024*1024);
-    struct TTRHeader *header = (struct TTRHeader*)buf;
-    header->signature = TTR_4CHAR("TTR ");
-    uint8_t *stream = (uint8_t*)buf + sizeof(struct TTRHeader);
-
-    struct TTRDescTbl *descTbl = STREAM_PUSH_FLEX(stream, struct TTRDescTbl, entries, 1);
-    descTbl->entryCount = 1;
-
-    uint32_t vertBufSize = 24*40;
-    struct TTRBuffer *vbuf = STREAM_PUSH_FLEX(stream, struct TTRBuffer, data, vertBufSize);
-    vbuf->size = vertBufSize;
-    uint8_t *vertStream = vbuf->data;
-    for(int i = 0; i < 24; i++)
-    {
-        struct V4* pos = STREAM_PUSH(vertStream, struct V4);
-        struct V2* texC = STREAM_PUSH(vertStream, struct V2);
-        struct V4* col = STREAM_PUSH(vertStream, struct V4);
-        *pos = cubeVertices[i];
-        *texC = *((struct V2*)&cubeTexCoords[i]);
-        *col = cubeColors[i];
-    }
-
-    uint32_t indexBufSize = ARRAY_COUNT(s_indices)*2;
-    struct TTRBuffer *ibuf = STREAM_PUSH_FLEX(stream, struct TTRBuffer, data, indexBufSize);
-    ibuf->size = indexBufSize;
-    uint16_t *indexStream = (uint16_t*)ibuf->data;
-    for(int i = 0; i < ARRAY_COUNT(s_indices); i++)
-        indexStream[i] = s_indices[i];
-
-    struct TTRMeshDesc *mdesc = STREAM_PUSH_FLEX(stream, struct TTRMeshDesc, attrs, 3);
-    mdesc->indexSize = 2;
-    mdesc->vertStride = 40;
-    mdesc->numAttrs = 3;
-    //mdesc->attrs[0] = Vertex_Attribute_Type_Vec4;
-    mdesc->attrs[0] = Vertex_Attribute_Type_Vec2;
-    mdesc->attrs[1] = Vertex_Attribute_Type_Vec4;
-
-
-    struct TTRMesh* mesh = STREAM_PUSH_FLEX(stream, struct TTRMesh, sections, 1);
-    TTR_SET_REF_TO_PTR(mesh->descRef, mdesc);
-    TTR_SET_REF_TO_PTR(mesh->vertBufRef, vbuf);
-    TTR_SET_REF_TO_PTR(mesh->indexBufRef, ibuf);
-    mesh->numVertices = 24;
-    mesh->numIndices = ARRAY_COUNT(s_indices);
-    mesh->numSections = 1;
-    mesh->sections[0].startIndex = 0;
-    mesh->sections[0].indexCount = ARRAY_COUNT(s_indices);
-//    printf("%p %p %p %p\n", buf, mesh, mesh, mesh3);
-
-    TTR_SET_REF_TO_PTR(header->descTblRef, descTbl);
-    TTR_SET_REF_TO_PTR(descTbl->entries[0].ref, mesh);
-    descTbl->entries[0].type = TTR_4CHAR("MESH");
-
-    FILE *file = fopen("Packages/First/first.ttr", "w+b");
-    if(file)
-    {
-        uint32_t size = stream - (uint8_t*)buf;
-        fwrite(buf, 1, size, file);
-        fclose(file);
-    }
-    else
-        fprintf(stderr, "Writing first.ttr failed!\n");
-    free(buf);
+    RenderMessage response = {};
+    response.type = Render_Message_Texture_Update;
+    response.texU.textureId = tqr->textureId;
+    renderer_queue_message(renderer, &response);
 }
 
 void loadDummyMesh(const char *path, struct Renderer *renderer)
@@ -475,40 +165,13 @@ void loadDummyMesh(const char *path, struct Renderer *renderer)
         fprintf(stderr, "Loading %s failed!\n", path);
 }
 
-void loadpyramid(struct Renderer* renderer, struct MeshQueryResult *res, void *userData)
-{
-    fill_pyramid_data(res->vertBufPtr, res->idxBufPtr);
-    RenderMessage response = (RenderMessage){};
-    response.type = Render_Message_Mesh_Update;
-    response.meshUpdate.meshId = res->meshId;
-    renderer_queue_message(renderer, &response);
-}
-
-void init_game(struct Renderer *renderer, struct GameData *gdata)
+void init_game(struct Renderer *renderer, struct GameData *gdata, struct TessState *tess)
 {
     int comp;
     s_texdata = stbi_load("./cat.png", &s_x, &s_y, &comp, 4);
     assert(s_texdata != NULL);
-
+    
     RenderMessage msg = {};
-    msg.type = Render_Message_Mesh_Query;
-    msg.meshQuery.userData = renderer;
-    msg.meshQuery.onComplete = loadpyramid;
-    msg.meshQuery.meshId = 0;
-    msg.meshQuery.vertexCount = ARRAY_COUNT(pyramidVertices);
-    msg.meshQuery.indexCount = ARRAY_COUNT(pyramidIndices);
-    msg.meshQuery.attributeTypes[1] = Vertex_Attribute_Type_Vec4;
-    renderer_queue_message(renderer, &msg);
-
-    msg = (RenderMessage){};
-    msg.type = Render_Message_Mesh_Query;
-    msg.meshQuery.userData = (void*)MY_MESH_CUBE;
-    msg.meshQuery.meshId = 0;
-    msg.meshQuery.vertexCount = ARRAY_COUNT(cubeVertices);
-    msg.meshQuery.indexCount = ARRAY_COUNT(s_indices);
-    msg.meshQuery.attributeTypes[0] = Vertex_Attribute_Type_Vec3;
-    msg.meshQuery.attributeTypes[1] = Vertex_Attribute_Type_Vec4;
-    renderer_queue_message(renderer, &msg);
 
     msg = (RenderMessage){};
     msg.type = Render_Message_Material_Query;
@@ -531,7 +194,7 @@ void init_game(struct Renderer *renderer, struct GameData *gdata)
     msg.matQ.shaderLengths[0] = strlen(vertShaderSrc);
     msg.matQ.shaderTypes[1] = ShaderType_GLSL_Frag;
     msg.matQ.shaderCodes[1] = fragShaderSolidSrc;
-    msg.matQ.shaderLengths[1] = strlen(fragShaderSrc);
+    msg.matQ.shaderLengths[1] = strlen(fragShaderSolidSrc);
     renderer_queue_message(renderer, &msg);
 
     msg = (RenderMessage){};
@@ -549,17 +212,13 @@ void init_game(struct Renderer *renderer, struct GameData *gdata)
     msg = (RenderMessage){};
     msg.type = Render_Message_Texture_Query;
     msg.texQ.userData = NULL;
+    msg.texQ.onComplete = fill_cat_texture;
     msg.texQ.textureId = 0;
     msg.texQ.width = s_x;
     msg.texQ.height = s_y;
     msg.texQ.format = Texture_Format_RGBA;
     msg.texQ.filter = Texture_Filter_Trilinear;
     renderer_queue_message(renderer, &msg);
-
-    s_builder = malloc(sizeof(struct RenderViewBuilder));
-    rview_builder_init(s_builder);
-
-    readView = take_view_buffer(gdata->swapbuf);
 
     // GUI
     //const char *font_path = "FreeMono.ttf";
@@ -575,6 +234,7 @@ void init_game(struct Renderer *renderer, struct GameData *gdata)
     msg = (RenderMessage){};
     msg.type = Render_Message_Texture_Query;
     msg.texQ.userData = &gameState;
+    msg.texQ.onComplete = atlas_ready;
     msg.texQ.width = gameState.w;
     msg.texQ.height = gameState.h;
     msg.texQ.format = Texture_Format_RGBA;
@@ -589,28 +249,105 @@ void init_game(struct Renderer *renderer, struct GameData *gdata)
 
 void deinit_game()
 {
-    rview_builder_destroy(s_builder);
-    free(s_builder);
+}
+
+struct CreateObjectsWindowState
+{
+    char fileName[64];
+    char packageNames[5][64];
+    char assetNames[5][64];
+};
+
+void write_object(struct CreateObjectsWindowState *cws)
+{
+    int count = 0;
+    for(int i = 0; i < 5; i++)
+    {
+        if(cws->packageNames[i][0] != 0 && cws->assetNames[i][0] != 0)
+            count++;
+    }
+
+    void *buf = malloc(1024*1024);
+    struct TTRHeader *header = (struct TTRHeader*)buf;
+    header->signature = TTR_4CHAR("TTR ");
+    uint8_t *stream = (uint8_t*)buf + sizeof(struct TTRHeader);
+
+    struct TTRDescTbl *dtbl = STREAM_PUSH_FLEX(stream, struct TTRDescTbl, entries, count);
+    dtbl->entryCount = count;
+
+    struct TTRImportTbl *itbl = STREAM_PUSH_FLEX(stream, struct TTRImportTbl, entries, count);
+    itbl->entryCount = count;
+
+    for(int i = 0; i < count; i++)
+    {
+        struct TTRObject *obj = STREAM_PUSH(stream, struct TTRObject);
+        obj->meshARef.tblIndex = i | TTR_AREF_EXTERN_MASK;
+        dtbl->entries[i].type = TTR_4CHAR("OBJ ");
+        TTR_SET_REF_TO_PTR(dtbl->entries[i].ref, obj);
+        char strBuf[64];
+        strcpy(strBuf, "object");
+        switch(i)
+        {
+            case 0: strcat(strBuf, "0"); break;
+            case 1: strcat(strBuf, "1"); break;
+            case 2: strcat(strBuf, "2"); break;
+            case 3: strcat(strBuf, "3"); break;
+            case 4: strcat(strBuf, "4"); break;
+        };
+        strncpy(dtbl->entries[i].assetName, strBuf, TTR_MAX_NAME_LEN);
+
+        itbl->entries[i].type = TTR_4CHAR("MESH");
+        strncpy(itbl->entries[i].assetName, cws->assetNames[i], TTR_MAX_NAME_LEN);
+        strncpy(itbl->entries[i].packageName, cws->packageNames[i], TTR_MAX_NAME_LEN);
+    }
+
+    header->majorVersion = 0;
+    header->minorVersion = 1;
+    TTR_SET_REF_TO_PTR(header->descTblRef, dtbl);
+    TTR_SET_REF_TO_PTR(header->importTblRef, itbl);
+
+    char filePath[AIKE_MAX_PATH];
+    strcpy(filePath, "Packages/First/");
+    strcat(filePath, cws->fileName);
+    FILE *file = fopen(filePath, "w+b");
+    if(file)
+    {
+        uint32_t size = stream - (uint8_t*)buf;
+        fwrite(buf, 1, size, file);
+        fclose(file);
+    }
+    else
+        fprintf(stderr, "Writing object file failed!\n");
+
+    free(buf);
+}
+
+void profile_entry_recursive(struct nk_context *ctx, struct ProfileEntry *entry, int depth)
+{
+    while(entry != NULL)
+    {
+        uint64_t cycles = entry->sum;
+        double milliseconds = (double)cycles / 2800000.0;
+        /*for(int i = 0; i < depth; i++)
+            printf(" "); */
+        char buf[1024];
+        stbsp_sprintf(buf, "%s %fms", entry->locationStr, milliseconds);
+        if(nk_tree_push_id(ctx, NK_TREE_TAB, buf, NK_MINIMIZED, (uint32_t)entry->locationStr))
+        {
+            nk_layout_row_dynamic(ctx, 20, 1);
+            nk_labelf(ctx, NK_TEXT_LEFT, "%lucy %fms", cycles, milliseconds);
+            profile_entry_recursive(ctx, entry->firstChild, depth+1);
+            nk_tree_pop(ctx);
+        }
+        entry = entry->nextSibling;
+    }
 }
 
 void update_game(struct GameData *gdata)
 {
-    process_render_messages(gdata->renderer);
-
-    redVal += 0.01f * direction;
-    if(redVal > 1.0f)
-    {
-        direction = -1.0f;
-        redVal = 1.0f;
-    }
-    else if(redVal < 0.0f)
-    {
-        direction = 1.0f;
-        redVal = 0.0f;
-    }
+    PROF_START();
     rotval += 0.01f;
 
-    rview_builder_reset(s_builder);
 #pragma push(pack, 1)
     struct TestInstanceData
     {
@@ -629,6 +366,8 @@ void update_game(struct GameData *gdata)
 
     static uint32_t pyMat = 0;
 
+    PROF_START_STR("Add mesh instances");
+
     for(int i = 0; i < 100; i++)
     for(int j = 0; j < 100; j++)
     {
@@ -637,49 +376,20 @@ void update_game(struct GameData *gdata)
         quat_angle_axis(&rot, rotval*70.0f * ((float)j / 10.0f), make_v3(0.0f, 1.0f, 0.0f));
         quat_angle_axis(&rot2, -rotval*140.0f * ((float)i / 10.0f), make_v3(0.0f, 1.0f, 0.0f));
         bool cube = j%2==0;
-        data.v1 = cols[rand() % ARRAY_COUNT(cols)];
-        mat4_trs(&model, make_v3((float)i*2 - 100.0f, /*-5.0f*redVal*/ - 2.0f, 10.0f + (float)j*2 - 7.0f), cube?rot:rot2, one);
-        add_mesh_instance(s_builder, cube?2:pyramid, cube?1:pyMat, &model, &data, sizeof(data));
+        //data.v1 = cols[rand() % ARRAY_COUNT(cols)];
+        mat4_trs(&model, make_v3((float)i*2 - 100.0f, -5.0f, 10.0f + (float)j*2 - 17.0f), cube?rot:rot2, one);
+        add_mesh_instance(gdata->viewBuilder, cube?pyramid:0, cube?pyMat:1, &model, &data, sizeof(data), -1);
     }
 
-    struct UIVertex v1 = {{0.0f, 0.0f, 0.1f, 1.0f}, {}, 0xFFFF0000};
-    struct UIVertex v2 = {{100.0f, 100.0f, 0.1f, 1.0f}, {}, 0xFFFF0000};
-    struct UIVertex v3 = {{100.0f, 0.0f, 0.1f, 1.0f}, {}, 0xFFFF0000};
-    struct UIVertex v4 = {{  0.0f, 100.0f, 0.1f, 1.0f}, {}, 0xFFFF0000};
+    PROF_END();
 
-    struct UIVertex v5 = {{0.0f, 0.0f, 0.1f, 1.0f}, {}, 0xAA0000FF};
-    struct UIVertex v6 = {{200.0f, 200.0f, 0.1f, 1.0f}, {}, 0xAA0000FF};
-    struct UIVertex v7 = {{200.0f, 0.0f, 0.1f, 1.0f}, {}, 0xAA0000FF};
+    //float width = gdata->platform->mainWin.width;
+    //float height = gdata->platform->mainWin.height;
+    // NOTE: currently backbuffer isn't resized with window
+    float width = 1024;
+    float height = 768;
 
-    float width = gdata->platform->mainWin.width;
-    float height = gdata->platform->mainWin.height;
-
-    /*builder_begin_batch(s_builder, 0, 0, 0, width, height);
-    add_vertex(s_builder, &v1);
-    add_vertex(s_builder, &v2);
-    add_vertex(s_builder, &v3);
-    add_vertex(s_builder, &v4);
-    add_index(s_builder, 0);
-    add_index(s_builder, 1);
-    add_index(s_builder, 2);
-    add_index(s_builder, 0);
-    add_index(s_builder, 3);
-    add_index(s_builder, 1);
-    builder_end_batch(s_builder);
-
-    builder_new_vertex_stream(s_builder);
-
-    builder_begin_batch(s_builder, 0, 0, 0, width, height);
-    add_vertex(s_builder, &v5);
-    add_vertex(s_builder, &v6);
-    add_vertex(s_builder, &v7);
-    add_index(s_builder, 0);
-    add_index(s_builder, 1);
-    add_index(s_builder, 2);
-    builder_end_batch(s_builder);*/
-
-    s_builder->viewProjection = s_perspective;
-    s_builder->materialId = 3;
+    gdata->viewBuilder->materialId = 3;
 
     struct Mat4 orthoM = {};
     orthoM.m11 =  2.0f / width;
@@ -688,9 +398,11 @@ void update_game(struct GameData *gdata)
     orthoM.m44 =  1.0f;
     orthoM.m41 = -1.0f;
     orthoM.m42 =  1.0f;
-    s_builder->orthoMatrix = orthoM;
+    gdata->viewBuilder->orthoMatrix = orthoM;
 
     // ------------------------------------------------
+
+    PROF_START_STR("Nuklear GUI");
 
     struct nk_context *ctx = &gameState.nk_ctx;
 
@@ -703,6 +415,24 @@ void update_game(struct GameData *gdata)
     nk_input_button(ctx, NK_BUTTON_LEFT, mx, my, akeys[AIKE_BTN_LEFT] != 0);
     nk_input_button(ctx, NK_BUTTON_MIDDLE, mx, my, akeys[AIKE_BTN_MIDDLE] != 0);
     nk_input_button(ctx, NK_BUTTON_RIGHT, mx, my, akeys[AIKE_BTN_RIGHT] != 0);
+
+    nk_input_key(ctx, NK_KEY_BACKSPACE, akeys[AIKE_KEY_BACKSPACE] != 0);
+    nk_input_key(ctx, NK_KEY_TAB, akeys[AIKE_KEY_TAB] != 0);
+
+    if(akeys[AIKE_KEY_W])
+        gameState.camPos.z += 0.1f;
+    if(akeys[AIKE_KEY_S])
+        gameState.camPos.z -= 0.1f;
+    if(akeys[AIKE_KEY_A])
+        gameState.camPos.x -= 0.1f;
+    if(akeys[AIKE_KEY_D])
+        gameState.camPos.x += 0.1f;
+
+    uint32_t next = 0;
+    while((next = gdata->platform->next_character(gdata->platform)))
+    {
+        nk_input_char(ctx, (char)next);
+    }
     nk_input_end(ctx);
 
     enum {EASY, HARD};
@@ -710,20 +440,15 @@ void update_game(struct GameData *gdata)
     static float value = 0.6f;
     static int i =  20;
 
-
+    static struct CreateObjectsWindowState cwState;
 
     if(gameState.ui_ready)
     {
         if (nk_begin(ctx, "Show", nk_rect(50, 50, 220, 400),
             NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE)) {
-            /* fixed widget pixel width */
-            nk_layout_row_static(ctx, 30, 100, 1);
-            if (nk_button_label(ctx, "Write dummy")) {
-                saveDummyMesh();
-            }
+
             nk_layout_row_static(ctx, 30, 100, 1);
             if (nk_button_label(ctx, "Load dummy")) {
-                loadDummyMesh("Packages/First/first.ttr",gdata->renderer); 
             }
 
             /* fixed widget window ratio width */
@@ -739,14 +464,11 @@ void update_game(struct GameData *gdata)
                 nk_slider_float(ctx, 0, &value, 1.0f, 0.1f);
             nk_layout_row_end(ctx);
 
-            nk_layout_row_begin(ctx, NK_STATIC, 30, 2);
-                nk_layout_row_push(ctx, 50);
-                nk_label(ctx, "Mesh:", NK_TEXT_LEFT);
-                nk_layout_row_push(ctx, 110);
-                pyramid = nk_slide_int(ctx, 0, pyramid, 3, 1);
-            nk_layout_row_end(ctx);
+            nk_layout_row_dynamic(ctx, 30, 1);
+            nk_property_int(ctx, "#Mesh:", 0, (int*)&pyramid, 20, 1, 0.1f);
 
             nk_layout_row_begin(ctx, NK_STATIC, 30, 2);
+                nk_layout_row_push(ctx, 60);
                 nk_label(ctx, "Material:", NK_TEXT_LEFT);
                 nk_layout_row_push(ctx, 110);
                 pyMat = nk_slide_int(ctx, 0, pyMat, 2, 1);
@@ -756,19 +478,69 @@ void update_game(struct GameData *gdata)
             nk_property_int(ctx, "#Material:", 0, (int*)&pyMat, 2, 1, 0.1f);
         }
         nk_end(ctx);
+
+        if(nk_begin(ctx, "Create object", nk_rect(400, 50, 350, 500),
+                    NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE))
+        {
+            nk_layout_row_dynamic(ctx, 30, 1);
+            if(nk_button_label(ctx, "Generate"))
+            {
+                printf("Generate\n");
+                write_object(&cwState);
+            }
+            nk_layout_row_begin(ctx, NK_STATIC, 30, 2);
+                nk_layout_row_push(ctx, 70);
+                nk_label(ctx, "Filename:", NK_TEXT_LEFT);
+                nk_layout_row_push(ctx, 150);
+                nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD, cwState.fileName, ARRAY_COUNT(cwState.fileName), 0);
+            nk_layout_row_end(ctx);
+            for(int j = 0; j < 5; j++)
+            {
+                nk_layout_row_dynamic(ctx, 25, 1);
+                nk_label(ctx, "Entry:", NK_TEXT_LEFT);
+                nk_layout_row_dynamic(ctx, 25, 2);
+                nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD, cwState.packageNames[j], ARRAY_COUNT(cwState.packageNames[j]), 0);
+                nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD, cwState.assetNames[j], ARRAY_COUNT(cwState.assetNames[j]), 0);
+            }
+        }
+        nk_end(ctx);
+
+        if(nk_begin(ctx, "Profile", nk_rect(400, 350, 300, 400),
+                    NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE|NK_WINDOW_SCALABLE))
+        {
+            for(int j = 0; j < ARRAY_COUNT(g_profStates); j++)
+            {
+                if(g_profStates[j] != NULL)
+                {
+                    uintptr_t rootUptr = atomic_load(&g_profStates[j]->prev);
+                    struct ProfileEntry *root = (struct ProfileEntry*)rootUptr;
+                    if(nk_tree_push_id(ctx, NK_TREE_TAB, g_profStates[j]->name, NK_MINIMIZED, j))
+                    {
+                        nk_layout_row_dynamic(ctx, 25, 2);
+                        if (!atomic_load(&g_profStates[j]->pause) && nk_button_label(ctx, "Pause")) 
+                        {
+                            atomic_store(&g_profStates[j]->pause, true);
+                        }
+                        else if (atomic_load(&g_profStates[j]->pause) && nk_button_label(ctx, "Resume")) 
+                        {
+                            atomic_store(&g_profStates[j]->pause, false);
+                        }
+                        if(root)
+                            profile_entry_recursive(ctx, root->firstChild, 0);
+                        nk_tree_pop(ctx);
+                    }
+                }
+            }
+        }
+        nk_end(ctx);
     }
 
     // draw commands
-    builder_new_vertex_stream(s_builder);
+    builder_new_vertex_stream(gdata->viewBuilder);
 
-//    struct UIVertex vertBuf[10000];
-//    uint16_t indexBuf[6000];
+    uint32_t maxVerts = 20000;
+    uint32_t maxIndices = 12000;
 
-    uint32_t maxVerts = 10000;
-    uint32_t maxIndices = 6000;
-
-    //struct UIVertex *vertBuf = malloc(sizeof(struct UIVertex) * maxVerts);
-    //uint16_t *indexBuf = malloc(sizeof(uint16_t) * maxIndices);
     struct UIVertex vertBuf[maxVerts];
     uint16_t indexBuf[maxIndices];
 
@@ -788,7 +560,7 @@ void update_game(struct GameData *gdata)
         memset(&config, 0, sizeof(config));
         config.vertex_layout = vertex_layout;
         config.vertex_size = sizeof(struct UIVertex);
-        config.vertex_alignment = NK_ALIGNOF(struct UIVertex);
+        config.vertex_alignment = _Alignof(struct UIVertex);
         config.null = gameState.null;
         config.circle_segment_count = 22;
         config.curve_segment_count = 22;
@@ -803,7 +575,7 @@ void update_game(struct GameData *gdata)
         nk_buffer_init_fixed(&ebuf, indexBuf, sizeof(indexBuf[0])*maxIndices);
         nk_convert(ctx, &gameState.cmds, &vbuf, &ebuf, &config);}
 
-        add_vertices(s_builder, vertBuf, maxVerts);
+        add_vertices(gdata->viewBuilder, vertBuf, maxVerts);
 
         float sx = 1.0f;
         float sy = 1.0f;
@@ -816,40 +588,19 @@ void update_game(struct GameData *gdata)
             int scX1 = (cmd->clip_rect.w * sx);
             int scY1 = (cmd->clip_rect.h * sy);
 
-            builder_begin_batch(s_builder, cmd->texture.id, scX0, scY0, scX1, scY1);
-            for(int j = 0; j < cmd->elem_count; j++)
+            builder_begin_batch(gdata->viewBuilder, cmd->texture.id, scX0, scY0, scX1, scY1);
+            for(int j = 0; j < cmd->elem_count; j+=3)
             {
-                add_index(s_builder, indexBuf[j+curIdxBase]);
+                add_index(gdata->viewBuilder, indexBuf[j+curIdxBase]);
+                add_index(gdata->viewBuilder, indexBuf[j+2+curIdxBase]);
+                add_index(gdata->viewBuilder, indexBuf[j+1+curIdxBase]);
             }
-            builder_end_batch(s_builder);
+            builder_end_batch(gdata->viewBuilder);
             curIdxBase += cmd->elem_count;
         }
     }
 
     nk_clear(ctx);
-
-    // 0000000000000000000000000000000000000000000000000
-
-    build_view(s_builder, readView);
-
-    readView = swap_view_for_newer(gdata->swapbuf, readView);
+    PROF_END();
+    PROF_END();
 }
-
-/*void* game_loop(void *data)
-{
-    struct GameData *gdata = (struct GameData *)data;
-
-    init_game(gdata->renderer, gdata);
-
-    while(true)
-    {
-        update_game(gdata);
-    }
-
-    deinit_game();
-
-    free(gdata);
-    return NULL;
-}*/
-
-

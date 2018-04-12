@@ -1,3 +1,10 @@
+#pragma push(pack, 1)
+
+#define TTR_MAX_NAME_LEN 64
+
+#define TTR_AREF_EXTERN_MASK 0x80000000
+#define TTR_IS_EXTERN_AREF(x) (((x.tblIndex) & TTR_AREF_EXTERN_MASK) != 0) 
+
 struct TTRAssetRef
 {
     uint32_t tblIndex; // highest order bit - 0=descTbl 1=importTbl
@@ -19,15 +26,15 @@ struct TTRHeader
 struct TTRDescTblEntry
 {
     uint32_t type;
-    int8_t assetName[64];
     TTRRef ref;
+    char assetName[TTR_MAX_NAME_LEN];
 };
 
 struct TTRImportTblEntry
 {
     uint32_t type;
-    int8_t packageName[64];
-    int8_t assetName[64];
+    char packageName[TTR_MAX_NAME_LEN];
+    char assetName[TTR_MAX_NAME_LEN];
 };
 
 struct TTRDescTbl
@@ -72,6 +79,16 @@ struct TTRMesh
     uint32_t numSections;
     struct TTRMeshSection sections[];
 };
+
+struct TTRObject
+{
+    struct TTRAssetRef meshARef;
+    // TODO: material?
+    // TODO: collider?
+    // something else?
+};
+
+#pragma pop(pack)
 
 #define TTR_4CHAR(x) ((x[0]) | (x[1]<<8) | (x[2]<<16) | (x[3]<<24))
 #define TTR_REF_TO_PTR(type, ref) ((type*)(((uint8_t*)(&(ref))) + ((int32_t)(ref))))
@@ -171,7 +188,6 @@ void ttr_load_first_mesh(struct LoadMeshData *data, uint32_t stage)
         case 2:
         printf("Mesh load complete! %d\n", data->meshId);
         free(data);
-        pyramid = data->meshId;
         break;
     }
 }

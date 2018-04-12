@@ -5,8 +5,8 @@
 
 #define MAX_ATTRIBUTE_BUFFERS 8
 
-#define tt_render_warning(x)
-#define tt_render_fatal(x)
+#define tt_render_warning(x) (fprintf(stderr, x))
+#define tt_render_fatal(x) (fprintf(stderr, x), exit(-1))
 
 #define MATERIAL_MAX_SHADERS 8
 
@@ -17,14 +17,20 @@
 #define INSTANCE_BUFFER_COUNT 3
 #define MAX_INSTANCE_BUFFERS 3
 
-#define MATRIX_BUFFER_COUNT 1
-#define MAX_MATRIX_BUFFERS  1
+#define MATRIX_BUFFER_COUNT 3
+#define MAX_MATRIX_BUFFERS  3
 
 struct MeshQueryResult;
 struct MeshReady;
 struct Renderer;
+struct TextureQueryResponse;
+struct TextureReady;
+struct ObjectIDSamplesReady;
 typedef void (*MQComplete_A)(struct Renderer* rend, struct MeshQueryResult *mqr, void *userData);
 typedef void (*MReady_A)(struct Renderer *rend, struct MeshReady *mr, void *userData);
+typedef void (*TQComplete_A)(struct Renderer* rend, struct TextureQueryResponse *tqr, void *userData);
+typedef void (*TReady_A)(struct Renderer *rend, struct TextureReady *tr, void *userData);
+typedef void (*OSReady_A)(struct Renderer *rend, struct ObjectIDSamplesReady *tdr, void *userData);
 
 enum ShaderType_E
 {
@@ -76,6 +82,9 @@ enum RenderMessageType
     Render_Message_Texture_Query_Response,
     Render_Message_Texture_Update,
     Render_Message_Texture_Ready,
+
+    Render_Message_Sample_Object_Id,
+    Render_Message_Sample_Object_Ready,
 
     Render_Message_Screen_Resize,
     Render_Message_Stop
@@ -153,6 +162,7 @@ struct MaterialReady
 struct TextureQuery
 {
     void *userData;
+    TQComplete_A onComplete;
     uint32_t textureId;
     uint32_t width;
     uint32_t height;
@@ -164,6 +174,7 @@ struct TextureQueryResponse
 {
     uint32_t textureId;
     void *userData;
+    TQComplete_A onComplete;
     void *textureDataPtr;
 };
 
@@ -171,17 +182,41 @@ struct TextureUpdate
 {
     uint32_t textureId;
     void *userData;
+    TReady_A onComplete;
 };
 
 struct TextureReady
 {
     uint32_t textureId;
+    void *userData;
+    TReady_A onComplete;
 };
 
 struct ScreenResize
 {
     uint32_t width;
     uint32_t height;
+};
+
+struct SampleObjectId
+{
+    // texture coordinates for samples 0..1
+    struct V2 *normalizedSampleCoords;
+    uint32_t sampleCount;
+
+    // buffer where n=sampleCount sample values will be writtern
+    uint32_t *buffer;
+
+    void *userData;
+    OSReady_A onComplete;
+
+    uint32_t fromTextureId;
+};
+
+struct ObjectIDSamplesReady
+{
+    void *userData;
+    OSReady_A onComplete;
 };
 
 typedef struct RenderMessage
@@ -200,6 +235,8 @@ typedef struct RenderMessage
         struct TextureUpdate texU;
         struct TextureReady texR;
         struct ScreenResize screenR;
+        struct SampleObjectId sampleO;
+        struct ObjectIDSamplesReady sampleOR;
     };
 } RenderMessage;
 
@@ -220,12 +257,14 @@ struct Renderer
 
     render_thread_proc_t threadProc;
     AikeThread *renderThread;
+
+    struct SwapBuffer *swapBuffer;
 };
 
-struct Renderer *create_renderer(u32 rendererType, AikePlatform *platform, struct SwapBuffer *sbuf);
+struct Renderer *create_renderer(u32 rendererType, AikePlatform *platform);
 void destroy_renderer(struct Renderer *renderer);
 
-struct Renderer *create_opengl_renderer(AikePlatform *platform, struct SwapBuffer *sbuf);
+struct Renderer *create_opengl_renderer(AikePlatform *platform);
 void destroy_opengl_renderer(struct Renderer *glrend);
 
 // TODO: remove
