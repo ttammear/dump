@@ -147,7 +147,7 @@ void tess_ui_end(struct TessUISystem *ui)
         nk_draw_foreach(cmd, ctx, &ui->nk_cmds) {
             if (!cmd->elem_count) continue;
             int scX0 = (cmd->clip_rect.x * sx);
-            int scY0 = ((height - (GLint)(cmd->clip_rect.y + cmd->clip_rect.h)) * sy);
+            int scY0 = ((height - (int32_t)(cmd->clip_rect.y + cmd->clip_rect.h)) * sy);
             int scX1 = (cmd->clip_rect.w * sx);
             int scY1 = (cmd->clip_rect.h * sy);
 
@@ -165,3 +165,59 @@ void tess_ui_end(struct TessUISystem *ui)
 
     nk_clear(ctx);
 }
+
+// PROFILER
+
+void profile_entry_recursive(struct nk_context *ctx, struct ProfileEntry *entry, int depth)
+{
+    while(entry != NULL)
+    {
+        uint64_t cycles = entry->sum;
+        double milliseconds = (double)cycles / 2800000.0;
+        /*for(int i = 0; i < depth; i++)
+            printf(" "); */
+        char buf[1024];
+        stbsp_sprintf(buf, "%s %fms", entry->locationStr, milliseconds);
+        if(nk_tree_push_id(ctx, NK_TREE_TAB, buf, NK_MINIMIZED, (uint32_t)entry->locationStr))
+        {
+            nk_layout_row_dynamic(ctx, 20, 1);
+            nk_labelf(ctx, NK_TEXT_LEFT, "%llucy %fms", (unsigned long long)cycles, milliseconds);
+            profile_entry_recursive(ctx, entry->firstChild, depth+1);
+            nk_tree_pop(ctx);
+        }
+        entry = entry->nextSibling;
+    }
+}
+
+void render_profiler(struct nk_context *ctx)
+{
+    if(nk_begin(ctx, "Profile", nk_rect(400, 350, 300, 400),
+                NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE|NK_WINDOW_SCALABLE))
+    {
+        for(int j = 0; j < ARRAY_COUNT(g_profStates); j++)
+        {
+            if(g_profStates[j] != NULL)
+            {
+                uintptr_t rootUptr = atomic_load(&g_profStates[j]->prev);
+                struct ProfileEntry *root = (struct ProfileEntry*)rootUptr;
+                if(nk_tree_push_id(ctx, NK_TREE_TAB, g_profStates[j]->name, NK_MINIMIZED, j))
+                {
+                    nk_layout_row_dynamic(ctx, 25, 2);
+                    if (!atomic_load(&g_profStates[j]->pause) && nk_button_label(ctx, "Pause")) 
+                    {
+                        atomic_store(&g_profStates[j]->pause, true);
+                    }
+                    else if (atomic_load(&g_profStates[j]->pause) && nk_button_label(ctx, "Resume")) 
+                    {
+                        atomic_store(&g_profStates[j]->pause, false);
+                    }
+                    if(root)
+                        profile_entry_recursive(ctx, root->firstChild, 0);
+                    nk_tree_pop(ctx);
+                }
+            }
+        }
+    }
+    nk_end(ctx);
+}
+

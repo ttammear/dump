@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef _DEBUG
-
 struct ProfileEntry
 {
     uint64_t start;
@@ -42,6 +40,9 @@ extern aike_thread_local struct ProfilerState *t_profState;
 
 extern atomic_uint g_profCount;
 extern struct ProfilerState *g_profStates[10];
+
+
+#ifdef _DEBUG
 
 #define PROF__GET_ENTRY_GUID() (&t_profState->entries[t_profState->curFrame][__COUNTER__ % PROFILER_MAX_ENTRIES_PER_FRAME])
 
@@ -121,12 +122,13 @@ static inline void prof__end(void *dummy)
 #define PROF_START()
 #define PROF_START_STR(x)
 #define PROF_BLOCK()
+#define PROF_BLOCK_STR(x)
 
 #define DEBUG_START_FRAME()
 #define DEBUG_END_FRAME()
 #define DEBUG_DESTROY()
 #define DEBUG_FRAME_REPORT()
-#define DEBUG_INIT()
+#define DEBUG_INIT(x)
 
 
 #endif

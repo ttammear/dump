@@ -165,7 +165,7 @@ void loadDummyMesh(const char *path, struct Renderer *renderer)
         fprintf(stderr, "Loading %s failed!\n", path);
 }
 
-void init_game(struct Renderer *renderer, struct GameData *gdata, struct TessState *tess)
+void init_game(struct Renderer *renderer, struct GameData *gdata, struct TessClient *tess)
 {
     int comp;
     s_texdata = stbi_load("./cat.png", &s_x, &s_y, &comp, 4);
@@ -322,26 +322,6 @@ void write_object(struct CreateObjectsWindowState *cws)
     free(buf);
 }
 
-void profile_entry_recursive(struct nk_context *ctx, struct ProfileEntry *entry, int depth)
-{
-    while(entry != NULL)
-    {
-        uint64_t cycles = entry->sum;
-        double milliseconds = (double)cycles / 2800000.0;
-        /*for(int i = 0; i < depth; i++)
-            printf(" "); */
-        char buf[1024];
-        stbsp_sprintf(buf, "%s %fms", entry->locationStr, milliseconds);
-        if(nk_tree_push_id(ctx, NK_TREE_TAB, buf, NK_MINIMIZED, (uint32_t)entry->locationStr))
-        {
-            nk_layout_row_dynamic(ctx, 20, 1);
-            nk_labelf(ctx, NK_TEXT_LEFT, "%lucy %fms", cycles, milliseconds);
-            profile_entry_recursive(ctx, entry->firstChild, depth+1);
-            nk_tree_pop(ctx);
-        }
-        entry = entry->nextSibling;
-    }
-}
 
 void update_game(struct GameData *gdata)
 {
@@ -368,11 +348,12 @@ void update_game(struct GameData *gdata)
 
     PROF_START_STR("Add mesh instances");
 
+
+    struct Quat rot;
+    struct Quat rot2;
     for(int i = 0; i < 100; i++)
     for(int j = 0; j < 100; j++)
     {
-        struct Quat rot;
-        struct Quat rot2;
         quat_angle_axis(&rot, rotval*70.0f * ((float)j / 10.0f), make_v3(0.0f, 1.0f, 0.0f));
         quat_angle_axis(&rot2, -rotval*140.0f * ((float)i / 10.0f), make_v3(0.0f, 1.0f, 0.0f));
         bool cube = j%2==0;
@@ -505,34 +486,7 @@ void update_game(struct GameData *gdata)
         }
         nk_end(ctx);
 
-        if(nk_begin(ctx, "Profile", nk_rect(400, 350, 300, 400),
-                    NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE|NK_WINDOW_SCALABLE))
-        {
-            for(int j = 0; j < ARRAY_COUNT(g_profStates); j++)
-            {
-                if(g_profStates[j] != NULL)
-                {
-                    uintptr_t rootUptr = atomic_load(&g_profStates[j]->prev);
-                    struct ProfileEntry *root = (struct ProfileEntry*)rootUptr;
-                    if(nk_tree_push_id(ctx, NK_TREE_TAB, g_profStates[j]->name, NK_MINIMIZED, j))
-                    {
-                        nk_layout_row_dynamic(ctx, 25, 2);
-                        if (!atomic_load(&g_profStates[j]->pause) && nk_button_label(ctx, "Pause")) 
-                        {
-                            atomic_store(&g_profStates[j]->pause, true);
-                        }
-                        else if (atomic_load(&g_profStates[j]->pause) && nk_button_label(ctx, "Resume")) 
-                        {
-                            atomic_store(&g_profStates[j]->pause, false);
-                        }
-                        if(root)
-                            profile_entry_recursive(ctx, root->firstChild, 0);
-                        nk_tree_pop(ctx);
-                    }
-                }
-            }
-        }
-        nk_end(ctx);
+        render_profiler(ctx);
     }
 
     // draw commands
@@ -584,7 +538,7 @@ void update_game(struct GameData *gdata)
         nk_draw_foreach(cmd, ctx, &gameState.cmds) {
             if (!cmd->elem_count) continue;
             int scX0 = (cmd->clip_rect.x * sx);
-            int scY0 = ((height - (GLint)(cmd->clip_rect.y + cmd->clip_rect.h)) * sy);
+            int scY0 = ((height - (int32_t)(cmd->clip_rect.y + cmd->clip_rect.h)) * sy);
             int scX1 = (cmd->clip_rect.w * sx);
             int scY1 = (cmd->clip_rect.h * sy);
 

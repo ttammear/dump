@@ -1,5 +1,3 @@
-#include <GL/gl.h> // TODO: this should be part of platform
-
 // Vertex attribute location bindings
 //
 #define POSITION_ATTRIBUTE_LOCATION     0
@@ -102,10 +100,12 @@ const char *opengl_type_to_str(GLint type)
     case GL_FLOAT_VEC2: 	return "vec2";
     case GL_FLOAT_VEC3: 	return "vec3";
     case GL_FLOAT_VEC4: 	return "vec4";
+    /*
     case GL_DOUBLE: 	return "double";
     case GL_DOUBLE_VEC2: 	return "dvec2";
     case GL_DOUBLE_VEC3: 	return "dvec3";
     case GL_DOUBLE_VEC4: 	return "dvec4";
+    */
     case GL_INT: 	return "int";
     case GL_INT_VEC2: 	return "ivec2";
     case GL_INT_VEC3: 	return "ivec3";
@@ -127,6 +127,7 @@ const char *opengl_type_to_str(GLint type)
     case GL_FLOAT_MAT3x4: 	return "mat3x4";
     case GL_FLOAT_MAT4x2: 	return "mat4x2";
     case GL_FLOAT_MAT4x3: 	return "mat4x3";
+    /*
     case GL_DOUBLE_MAT2: 	return "dmat2";
     case GL_DOUBLE_MAT3: 	return "dmat3";
     case GL_DOUBLE_MAT4: 	return "dmat4";
@@ -136,7 +137,8 @@ const char *opengl_type_to_str(GLint type)
     case GL_DOUBLE_MAT3x4: 	return "dmat3x4";
     case GL_DOUBLE_MAT4x2: 	return "dmat4x2";
     case GL_DOUBLE_MAT4x3: 	return "dmat4x3";
-    case GL_SAMPLER_1D: 	return "sampler1D";
+    */
+    /*case GL_SAMPLER_1D: 	return "sampler1D";
     case GL_SAMPLER_2D: 	return "sampler2D";
     case GL_SAMPLER_3D: 	return "sampler3D";
     case GL_SAMPLER_CUBE: 	return "samplerCube";
@@ -146,8 +148,8 @@ const char *opengl_type_to_str(GLint type)
     case GL_SAMPLER_2D_ARRAY: 	return "sampler2DArray";
     case GL_SAMPLER_1D_ARRAY_SHADOW: 	return "sampler1DArrayShadow";
     case GL_SAMPLER_2D_ARRAY_SHADOW: 	return "sampler2DArrayShadow";
-    case GL_SAMPLER_2D_MULTISAMPLE: 	return "sampler2DMS";
-    case GL_SAMPLER_2D_MULTISAMPLE_ARRAY: 	return "sampler2DMSArray";
+    //case GL_SAMPLER_2D_MULTISAMPLE: 	return "sampler2DMS";
+    //case GL_SAMPLER_2D_MULTISAMPLE_ARRAY: 	return "sampler2DMSArray";
 
     case GL_SAMPLER_CUBE_SHADOW: 	return "samplerCubeShadow";
     case GL_SAMPLER_BUFFER: 	return "samplerBuffer";
@@ -159,8 +161,8 @@ const char *opengl_type_to_str(GLint type)
     case GL_INT_SAMPLER_CUBE: 	return "isamplerCube";
     case GL_INT_SAMPLER_1D_ARRAY: 	return "isampler1DArray";
     case GL_INT_SAMPLER_2D_ARRAY: 	return "isampler2DArray";
-    case GL_INT_SAMPLER_2D_MULTISAMPLE: 	return "isampler2DMS";
-    case GL_INT_SAMPLER_2D_MULTISAMPLE_ARRAY: 	return "isampler2DMSArray";
+    //case GL_INT_SAMPLER_2D_MULTISAMPLE: 	return "isampler2DMS";
+    //case GL_INT_SAMPLER_2D_MULTISAMPLE_ARRAY: 	return "isampler2DMSArray";
     case GL_INT_SAMPLER_BUFFER: 	return "isamplerBuffer";
     case GL_INT_SAMPLER_2D_RECT: 	return "isampler2DRect";
     case GL_UNSIGNED_INT_SAMPLER_1D: 	return "usampler1D";
@@ -173,6 +175,7 @@ const char *opengl_type_to_str(GLint type)
     case GL_UNSIGNED_INT_SAMPLER_2D_MULTISAMPLE_ARRAY: 	return "usampler2DMSArray";
     case GL_UNSIGNED_INT_SAMPLER_BUFFER: 	return "usamplerBuffer";
     case GL_UNSIGNED_INT_SAMPLER_2D_RECT: 	return "usampler2DRect";
+    */
     default: return "unknown";
     }
 }
@@ -332,7 +335,8 @@ void opengl_flush_instances(struct OpenGLRenderer *renderer, struct GLMesh *mesh
         glBindBuffer(GL_UNIFORM_BUFFER, renderer->objectIdInstanceBuf);
         glBufferSubData(GL_UNIFORM_BUFFER, 0, instanceCount*sizeof(int32_t)*4, oidData);
         blockIdx = glGetUniformBlockIndex(program, "objectIdBlock");
-        glUniformBlockBinding(program, blockIdx, UNIFORM_BUFFER_OBJECTID);
+        if(blockIdx != GL_INVALID_INDEX)
+            glUniformBlockBinding(program, blockIdx, UNIFORM_BUFFER_OBJECTID);
     }
 
     // TODO
@@ -885,7 +889,11 @@ void opengl_handle_object_id_samples(struct OpenGLRenderer *renderer, struct Sam
     assert(renderer->objectIdPbo != 0); // buffer not initialized
     glBindBuffer(GL_PIXEL_PACK_BUFFER, renderer->objectIdPbo);
     glBindTexture(GL_TEXTURE_2D, renderer->objectIdFboTex);
+#ifndef AIKE_GLES
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RED_INTEGER, GL_INT, 0); 
+#else
+#warning no glGetTexImage on GLES
+#endif
     glBindTexture(GL_TEXTURE_2D, 0);
     PROF_END();
     if(!renderer->renderObjectId)
@@ -905,7 +913,11 @@ void opengl_handle_object_id_samples(struct OpenGLRenderer *renderer, struct Sam
         int32_t y = MIN(h-1, h - h*soid->normalizedSampleCoords[i].y);
         y = MAX(y, 0);
         // TODO: maybe theres something more efficient for random access like this?
+#ifndef AIKE_GLES
         glGetBufferSubData(GL_PIXEL_PACK_BUFFER, y*w*4+x*4, 4, soid->buffer);
+#else
+#warning no glGetBufferSubData on GLES
+#endif
     }
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
     PROF_END();
@@ -1151,7 +1163,11 @@ void opengl_init(struct OpenGLRenderer *renderer)
     glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
     // TODO: does this require any extensions?
+#ifndef AIKE_GLES
     glEnable(GL_FRAMEBUFFER_SRGB);
+#else
+#warning no GL_FRAMEBUFFER_SRGB on GLES
+#endif
     // glDrawBuffer(GL_BACK);
 
 

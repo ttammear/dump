@@ -61,6 +61,8 @@ void mat4_simd_mul(struct Mat4_simd *result, struct Mat4_simd *l, struct Mat4 *r
 
 }*/
 
+#ifdef AIKE_X86
+
 struct Mat4_sse2
 {
     union {
@@ -130,6 +132,44 @@ static inline void mat4_extract_all_sse2(struct Mat4 *restrict dst, struct Mat4_
         dst[3].m[i] = data[3];
     }
 }
+
+#else
+
+struct Mat4_sse2
+{
+    union {
+        struct {
+            struct Mat4 mat[4];
+        };
+        struct
+        {
+            float f[16][4];
+        };
+    };
+};
+
+void mat4_mul_sse2(struct Mat4_sse2 *m, struct Mat4_sse2 *l, struct Mat4_sse2 *r)
+{
+    assert(false);
+}
+
+static inline void mat4_load_sse2(struct Mat4_sse2 *dst, struct Mat4* m1, struct Mat4 *m2, struct Mat4 *m3, struct Mat4 *m4)
+{
+    assert(false);
+}
+
+static inline void mat4_extract_sse2(struct Mat4 *dst, struct Mat4_sse2 *src, u32 idx)
+{
+    assert(false);
+}
+
+static inline void mat4_extract_all_sse2(struct Mat4 *restrict dst, struct Mat4_sse2 *restrict src)
+{
+    assert(false);
+}
+
+
+#endif
 
 static inline struct V2 make_v2(r32 x, r32 y)
 {

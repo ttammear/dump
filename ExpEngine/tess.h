@@ -1,3 +1,17 @@
+#define TESS_LOADED_FILE_POOL_SIZE 100
+#define TESS_MESH_POOL_SIZE 100
+#define TESS_OBJECT_POOL_SIZE 100
+#define TESS_LOADING_ASSET_POOL_SIZE 100
+#define TESS_DEP_NODE_POOL_SIZE 1000
+#define TESS_ASSET_LOOKUP_ENTRY_POOL_SIZE 1000
+#define TESS_ASSET_LOOKUP_CACHE_POOL_SIZE 100
+
+#define POOL_FROM_ARENA(pool, arena, size) (pool_init_with_memory((pool), arena_push_size((arena), pool_calc_size((pool), (size))), (size)))
+
+#define TESS_MAX_OBJECTS 10
+#define TESS_MAX_ENTITIES 100
+
+
 enum TessFilePipeline
 {
     Tess_File_Pipeline_None,
@@ -149,9 +163,6 @@ struct TessStrings
 
 // --------------- GAME WORLD --------
 
-#define TESS_MAX_OBJECTS 10
-#define TESS_MAX_ENTITIES 100
-
 struct TessObject
 {
     uint32_t id;
@@ -242,7 +253,39 @@ struct TessUISystem
     struct AikePlatform *platform;
 };
 
+// --------------- MENU -------------------
+
+struct TessMainMenu
+{
+    struct nk_context *nk_ctx;
+    uint32_t mode;
+
+    char ipStrBuf[256];
+    char portStrBuf[7];
+    int portStrLen;
+
+    const char *statusStr;
+
+    struct TessUISystem *uiSystem;
+    struct TessInputSystem *inputSystem;
+    struct TessClient *client;
+};
+
 // --------------- EDITOR ------------------
+
+#define TESS_EDITOR_SERVER_MAX_COMMAND_SIZE 65536
+#define TESS_EDITOR_SERVER_MAX_CLIENTS 16
+
+struct TessEditorCommandBuf // network command buffer
+{
+    // those 3 are needed onle because i wanted to share some code.. (editor_flush_command, editor_append_cmd_data)
+    void *usrPtr;
+    void *usrClientPtr;
+    bool isServer;
+    uint32_t currentCommandBytes;
+    uint32_t currentCommandSize;
+    uint8_t currentCommand[TESS_EDITOR_SERVER_MAX_COMMAND_SIZE];
+};
 
 struct TessEditorEntity
 {
@@ -259,6 +302,9 @@ struct TessEditorEntity
 struct TessEditor
 {
     b32 init;
+    b32 connected;
+
+    AikeTCPConnection *tcpCon;
 
     struct V2 normalizedCursorPos;
 
@@ -281,20 +327,24 @@ struct TessEditor
     // TODO: this doens't belong here once you have input system
     struct AikePlatform *platform;
     struct TessInputSystem *inputSystem;
-    struct TessState *tess;
+    struct TessClient *client;
     struct TessGameSystem *world;
+
+    struct TessEditorCommandBuf cmdBuf;
+
+    struct TessFixedArena arena;
 };
 
 // --------------- STATE --------------
 
-enum TessMode
+enum TessClientMode
 {
-    Tess_Mode_Menu,
-    Tess_Mode_Editor,
-    Tess_Mode_CrazyTown,
+    Tess_Client_Mode_Menu,
+    Tess_Client_Mode_Editor,
+    Tess_Client_Mode_CrazyTown,
 };
 
-struct TessState
+struct TessClient
 {
     struct TessFileSystem fileSystem;
     struct TessAssetSystem assetSystem;
@@ -303,6 +353,7 @@ struct TessState
     struct TessUISystem uiSystem;
     struct TessInputSystem inputSystem;
 
+    struct TessMainMenu mainMenu;
     struct TessEditor editor;
 
     struct TessStrings strings;
@@ -310,6 +361,58 @@ struct TessState
     struct TessFixedArena arena;
 
     uint32_t mode;
+
+    AikePlatform *platform;
+};
+
+// Server
+
+struct TessEditorServerEntity
+{
+    uint32_t objectId;
+    uint16_t version;
+    struct V3 position;
+    struct V3 eulerRotation;
+    struct V3 scale;
+};
+
+struct TessEditorServerClient
+{
+    struct AikeTCPConnection *connection;
+
+    uint16_t entityVersions[TESS_MAX_ENTITIES];
+    uint16_t objectTableVersion;
+
+    // TODO: this is more than 65k bytes, should be stored separately
+    struct TessEditorCommandBuf cmdBuf;
+};
+
+struct TessEditorServer
+{
+    AikeTCPServer *tcpServer;
+
+    struct TessStrings *tstrings;
+    AikePlatform *platform;
+
+    uint16_t objectTableVersion;
+    TStr *objectTable[TESS_MAX_OBJECTS];
+    struct TessEditorServerEntity entities[TESS_MAX_ENTITIES];
+    struct TessEditorServerEntity **activeEntities;
+    struct TessEditorServerClient **activeClients;
+    struct TessEditorServerClient *clientPool;
+};
+
+struct TessServer
+{
+    struct TessFileSystem fileSystem;
+    struct TessAssetSystem assetSystem;
+    struct TessGameSystem gameSystem;
+
+    struct TessEditorServer editorServer;
+
+    struct TessStrings strings;
+
+    struct TessFixedArena arena;
 
     AikePlatform *platform;
 };
@@ -333,3 +436,10 @@ void tess_ui_begin(struct TessUISystem *ui);
 void tess_ui_end(struct TessUISystem *ui);
 
 void editor_update(struct TessEditor *editor);
+bool editor_connect(struct TessEditor *editor, const char *ipStr, uint16_t port);
+void editor_init(struct TessEditor *editor);
+void editor_destroy(struct TessEditor *editor);
+void tess_render_entities(struct TessGameSystem *gs);
+
+void tess_main_menu_init(struct TessMainMenu *menu);
+void tess_main_menu_update(struct TessMainMenu *menu);

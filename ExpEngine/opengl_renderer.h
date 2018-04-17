@@ -1,3 +1,11 @@
+#ifdef AIKE_X86
+#include <GL/gl.h> // TODO: this should be part of platform
+#else
+#include <GLES/gl.h>
+#include <GLES2/gl2.h>
+#define AIKE_GLES
+#endif
+
 enum GLMeshState
 {
     GL_Mesh_State_Init = 0,

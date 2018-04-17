@@ -2,7 +2,8 @@ struct GameData gdata;
 
 struct TessRoot
 {
-    struct TessState state;
+    struct TessClient client;
+    struct TessServer server;
     AikeMemoryBlock *rootBlock;
     bool loaded; // TODO: remove this hack
 };
@@ -18,11 +19,11 @@ void aike_update_window(AikePlatform *platform, AikeWindow *win)
         // when we do, the main window will just be a render target
         // and when the width/height is changed it will be marked dirty
         // and all the cameras rendering to it will recalculate aspectRatio
-        root->state.gameSystem.defaultCamera.aspectRatio = platform->mainWin.width/platform->mainWin.height;
-        tess_update_camera_perspective(&root->state.gameSystem.defaultCamera);
+        root->client.gameSystem.defaultCamera.aspectRatio = platform->mainWin.width/platform->mainWin.height;
+        tess_update_camera_perspective(&root->client.gameSystem.defaultCamera);
     
 
-        render_system_screen_resize(&root->state.renderSystem, win->width, win->height);
+        render_system_screen_resize(&root->client.renderSystem, win->width, win->height);
     }
 }
 
@@ -47,29 +48,32 @@ void aike_init(AikePlatform *platform)
     root->rootBlock = rootBlock;
     root->loaded = false;
     platform->userData = root;
-    tess_init(&root->state, platform, renderer);
 
-    root->state.gameSystem.defaultCamera.aspectRatio = platform->mainWin.width/platform->mainWin.height;
-    root->state.gameSystem.defaultCamera.FOV = 90;
-    root->state.gameSystem.defaultCamera.nearPlane = 0.1f;
-    root->state.gameSystem.defaultCamera.farPlane = 1000.0f;
-    tess_update_camera_perspective(&root->state.gameSystem.defaultCamera);
+    tess_client_init(&root->client, platform, renderer);
 
-    gdata.viewBuilder = root->state.renderSystem.viewBuilder;
+    tess_server_init(&root->server, platform);
+
+    root->client.gameSystem.defaultCamera.aspectRatio = platform->mainWin.width/platform->mainWin.height;
+    root->client.gameSystem.defaultCamera.FOV = 90;
+    root->client.gameSystem.defaultCamera.nearPlane = 0.1f;
+    root->client.gameSystem.defaultCamera.farPlane = 1000.0f;
+    tess_update_camera_perspective(&root->client.gameSystem.defaultCamera);
+
+    gdata.viewBuilder = root->client.renderSystem.viewBuilder;
     gdata.platform = platform;
 
     platform->make_window_current(platform, NULL);
-    renderer->swapBuffer = root->state.renderSystem.viewSwapBuffer;
+    renderer->swapBuffer = root->client.renderSystem.viewSwapBuffer;
     renderer->renderThread = platform->create_thread(renderer, renderer->threadProc);
 
-    init_game(renderer, &gdata, &root->state);
+    init_game(renderer, &gdata, &root->client);
 
-    TStr *firstInterned = tess_intern_string(&root->state.strings, "First");
+    TStr *firstInterned = tess_intern_string(&root->client.strings, "First");
 
-    tess_gen_lookup_cache_for_package(&root->state.assetSystem, firstInterned);
+    tess_gen_lookup_cache_for_package(&root->client.assetSystem, firstInterned);
     
-    TStr *obj0I = tess_intern_string(&root->state.strings, "First/object0");
-    tess_register_object(&root->state.gameSystem, 1, obj0I);
+    TStr *obj0I = tess_intern_string(&root->client.strings, "First/object0");
+    tess_register_object(&root->client.gameSystem, 1, obj0I);
 }
 
 void aike_deinit(AikePlatform *platform)
@@ -78,11 +82,12 @@ void aike_deinit(AikePlatform *platform)
 
     deinit_game();
 
-    destroy_renderer(root->state.renderSystem.renderer);
+    destroy_renderer(root->client.renderSystem.renderer);
 
     platform->destroy_async_io(platform);
 
-    tess_destroy(&root->state);
+    tess_server_destroy(&root->server);
+    tess_client_destroy(&root->client);
     platform->free_memory(platform, root->rootBlock);
     platform->userData = NULL;
 
@@ -94,51 +99,48 @@ void aike_update(AikePlatform *platform)
     DEBUG_START_FRAME();
 
     struct TessRoot *root = (struct TessRoot*)platform->userData;
-    tess_process_io_events(&root->state.fileSystem);
-    tess_check_complete(&root->state.assetSystem);
+    tess_process_io_events(&root->client.fileSystem);
+    tess_check_complete(&root->client.assetSystem);
 
-    process_render_messages(&root->state.renderSystem);
+    process_render_messages(&root->client.renderSystem);
 
-    if(!root->loaded && tess_are_all_loads_complete(&root->state.assetSystem))
+    if(!root->loaded && tess_are_all_loads_complete(&root->client.assetSystem))
     {
-        tess_temp_assign_all(&root->state.gameSystem);
+        tess_temp_assign_all(&root->client.gameSystem);
         root->loaded = true;
 
         struct Mat4 objectToWorld;
         struct Quat q;
         quat_angle_axis(&q, 180.0f, make_v3(0.0f, 1.0f, 0.0f));
         mat4_trs(&objectToWorld, make_v3(0.0f, 0.0f, 10.0f), q, make_v3(1.0f, 1.0f, 1.0f));
-        //tess_create_entity(&root->state.gameSystem, 1, &objectToWorld);
+        //tess_create_entity(&root->client.gameSystem, 1, &objectToWorld);
 
-        root->state.mode = Tess_Mode_Editor;
+        root->client.mode = Tess_Client_Mode_Menu;
     }
     if(root->loaded)
     {
         PROF_BLOCK_STR("Generate frame");
-        tess_input_begin(&root->state.inputSystem);
-        render_system_begin_update(&root->state.renderSystem);
-        tess_ui_begin(&root->state.uiSystem);
+        tess_client_begin_frame(&root->client);
 
-        switch(root->state.mode)
+        tess_update_editor_server(&root->server.editorServer);
+
+        switch(root->client.mode)
         {
-            case Tess_Mode_Menu:
+            case Tess_Client_Mode_Menu:
+                tess_main_menu_update(&root->client.mainMenu);
                 break;
-            case Tess_Mode_Editor:
-                editor_update(&root->state.editor);
+            case Tess_Client_Mode_Editor:
+                editor_update(&root->client.editor);
                 break;
-            case Tess_Mode_CrazyTown:
+            case Tess_Client_Mode_CrazyTown:
                 update_game(&gdata);
                 break;
             default:
                 fprintf(stderr, "Invalid mode!\n");
                 break;
         };
-        tess_render_entities(&root->state.gameSystem);
 
-        tess_ui_end(&root->state.uiSystem);
-        render_system_end_update(&root->state.renderSystem);
-        tess_input_end(&root->state.inputSystem);
+        tess_client_end_frame(&root->client);
     }
     DEBUG_END_FRAME();
-    //DEBUG_FRAME_REPORT();
 }

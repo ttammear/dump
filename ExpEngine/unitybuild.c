@@ -7,7 +7,9 @@
 #include <string.h>
 #include <stddef.h>
 
+#ifdef AIKE_X86
 #include <xmmintrin.h>
+#endif
 
 // TODO: tt_simd?
 #define TT_SIMD_32_WIDTH   4
@@ -62,6 +64,14 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 
 #include "resourceformat.c"
 #include "render_system.c"
+#include "tess.c"
+#include "client.c"
+
+#include "menu.c"
+
+#include "editor_server_client_shared.c"
+#include "server.c"
+
 #include "asset.c"
 #include "world.c"
 #include "input.c"
