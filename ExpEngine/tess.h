@@ -290,6 +290,7 @@ struct TessEditorCommandBuf // network command buffer
 struct TessEditorEntity
 {
     uint32_t id;
+    uint32_t serverId;
     uint32_t entityId;
 
     struct V3 position;
@@ -369,6 +370,7 @@ struct TessClient
 
 struct TessEditorServerEntity
 {
+    uint32_t id;
     uint32_t objectId;
     uint16_t version;
     struct V3 position;
@@ -380,6 +382,7 @@ struct TessEditorServerClient
 {
     struct AikeTCPConnection *connection;
 
+    uint8_t entityFlags[TESS_MAX_ENTITIES];
     uint16_t entityVersions[TESS_MAX_ENTITIES];
     uint16_t objectTableVersion;
 
@@ -396,10 +399,10 @@ struct TessEditorServer
 
     uint16_t objectTableVersion;
     TStr *objectTable[TESS_MAX_OBJECTS];
-    struct TessEditorServerEntity entities[TESS_MAX_ENTITIES];
     struct TessEditorServerEntity **activeEntities;
     struct TessEditorServerClient **activeClients;
     struct TessEditorServerClient *clientPool;
+    struct TessEditorServerEntity *entityPool;
 };
 
 struct TessServer

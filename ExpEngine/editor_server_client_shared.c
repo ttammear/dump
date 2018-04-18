@@ -25,6 +25,36 @@ struct EditorCommandDebugMessage
     uint16_t msgLen;
     char msg[];
 };
+
+struct CreateEntityEntry
+{
+    uint32_t id;
+    uint32_t objectId;
+    struct V3 position;
+    struct V3 eulerRotation;
+    struct V3 scale;
+};
+
+struct ServerCreateEntityEntry
+{
+    uint32_t objectId;
+    struct V3 position;
+    struct V3 eulerRotation;
+    struct V3 scale;
+};
+
+struct EditorCommandCreateEntities
+{
+    uint16_t numEntities;
+    struct CreateEntityEntry entries[];
+};
+
+struct EditorCommandServerCreateEntities
+{
+    uint16_t numEntities;
+    struct ServerCreateEntityEntry entries[];
+};
+
 #pragma pop(pack)
 
 enum EditorServerCommandType
@@ -33,7 +63,8 @@ enum EditorServerCommandType
     Editor_Server_Command_Set_Register,
     Editor_Server_Command_Request_Object_Definitions,
     Editor_Server_Command_Define_Objects,
-    Editor_Server_Command_Create_Entities,
+    Editor_Server_Command_Create_Entities, // server->client
+    Editor_Server_Command_Server_Create_Entities, // client->server
     Editor_Server_Command_Move_Entity,
     Editor_Server_Command_Destroy_Entities,
     Editor_Server_Command_Debug_Message,
@@ -47,6 +78,42 @@ struct ByteStream
 };
 
 #define member_size(type, member) sizeof(((type *)0)->member)
+
+/* macros to create a command of structure
+ * CommandHeader
+ * Data (use stream_write_xxx here and call ARRAY_COMMAND_HEADER_END)
+ * uint16_t entryCount
+ *   entry1 (use stream_write_xxx here and call ARRAY_COMMAND_CHECK
+ *   entry2 (same as ^^^^^)
+ *   ...
+ * use ARRAY_COMMAND_CHECK with flush=true
+*/
+
+#define ARRAY_COMMAND_START(stream) \
+    uint32_t entryCountLoc, curLoc;\
+    uint8_t buf[TESS_EDITOR_SERVER_MAX_COMMAND_SIZE];\
+    struct ByteStream (stream);\
+    init_byte_stream(&(stream), buf, sizeof(buf));\
+    stream_write_command_header(&(stream), 0, 0);
+
+#define ARRAY_COMMAND_HEADER_END(stream)\
+    entryCountLoc = stream_get_offset(&(stream));\
+    stream_advance(&(stream), 2);\
+    curLoc = stream_get_offset(&(stream));
+
+#define ARRAY_COMMAND_WRITE_HEADER(stream, cmd, numEntries)\
+    stream_go_to_offset(&(stream), 0);\
+    stream_write_command_header(&(stream), curLoc, cmd);\
+    stream_go_to_offset(&(stream), entryCountLoc);\
+    stream_write_uint16(&(stream), (numEntries));\
+    stream_go_to_offset(&(stream), curLoc);\
+
+#define ARRAY_COMMAND_INC(stream) \
+    curLoc = stream_get_offset(&(stream));
+
+#define ARRAY_COMMAND_RESET(stream)\
+    stream_go_to_offset(&(stream), entryCountLoc + 2);\
+    curLoc = stream_get_offset(&stream);
 
 void editor_server_process_client_command(struct TessEditorServer *server, struct TessEditorServerClient *client, uint32_t cmd, uint8_t *data, uint32_t dataSize);
 void editor_client_process_command(struct TessEditor *editor, uint16_t cmd, uint8_t *data, uint32_t size);
@@ -79,6 +146,18 @@ static inline bool stream_advance(struct ByteStream *stream, uint32_t count)
     if(stream->cur + count > stream->end)
         return false;
     stream->cur += count;
+    return true;
+}
+
+static inline bool stream_write_v3(struct ByteStream *stream, struct V3 vec)
+{
+    if(stream->cur + 12 > stream->end)
+        return false;
+    // TODO: not sure if this is safe on all platforms
+    uint8_t *vdata = (uint8_t*)&vec;
+    for(int i = 0; i < 12; i++)
+        stream->cur[i] = vdata[i];
+    stream->cur += 12;
     return true;
 }
 
@@ -120,6 +199,19 @@ static inline bool stream_write_str(struct ByteStream *stream, const char *str, 
     for(int i = 0; i < len; i++)
         stream->cur[i] = str[i];
     stream->cur += len;
+    return true;
+}
+
+static inline bool stream_read_v3(struct ByteStream *stream, struct V3 *value)
+{
+    static_assert(sizeof(struct V3) == 12, "V3 assumed to have size 12!");
+    if(stream->cur + 12 > stream->end)
+        return false;
+    // TODO: is this safe on all platforms?
+    uint8_t *valB = (uint8_t*)value;
+    for(int i = 0; i < 12; i++)
+        valB[i] = stream->cur[i];
+    stream->cur += 12;
     return true;
 }
 

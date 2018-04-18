@@ -1,6 +1,12 @@
 void objectid_callback(struct Renderer *renderer, struct ObjectIDSamplesReady *tdr, void *userData);
 void editor_disconnect(struct TessEditor *editor);
 void editor_connected(struct TessEditor *editor);
+void editor_client_send_command(struct TessEditor *editor, uint8_t *data, uint32_t size);
+static inline void editor_client_send_stream(struct TessEditor *editor, struct ByteStream *stream)
+{
+    editor_client_send_command(editor, stream->start, stream_get_offset(stream));
+}
+
 
 void query_objectid(struct TessEditor *editor)
 {
@@ -81,7 +87,21 @@ void editor_disconnect(struct TessEditor *editor)
     editor->connected = false;
 }
 
-void editor_create_object(struct TessEditor *editor, uint32_t objectId)
+void editor_send_create_entity_command(struct TessEditor *editor, uint32_t objectId)
+{
+    ARRAY_COMMAND_START(stream);
+    ARRAY_COMMAND_HEADER_END(stream);
+    bool written = true;
+    written &= stream_write_uint32(&stream, objectId);
+    written &= stream_write_v3(&stream, make_v3(0.0f, 0.0f, 0.0f)); // pos
+    written &= stream_write_v3(&stream, make_v3(0.0f, 0.0f, 0.0f)); // rot
+    written &= stream_write_v3(&stream, make_v3(1.0f, 1.0f, 1.0f)); // scale
+    ARRAY_COMMAND_INC(stream);
+    ARRAY_COMMAND_WRITE_HEADER(stream, Editor_Server_Command_Server_Create_Entities, 1);
+    editor_client_send_stream(editor, &stream);
+} 
+
+struct TessEditorEntity* editor_create_object(struct TessEditor *editor, uint32_t objectId)
 {
     struct Mat4 identity;
     mat4_identity(&identity);
@@ -100,6 +120,7 @@ void editor_create_object(struct TessEditor *editor, uint32_t objectId)
     assert(dummy > 0); // key already present in table
     kh_val(editor->entityMap, k) = edEnt->id;
     buf_push(editor->edEntities, edEnt);
+    return edEnt;
 }
 
 void editor_send_debug_message(struct TessEditor *editor, char *msg);
@@ -115,9 +136,7 @@ void editor_draw_ui(struct TessEditor *editor)
         nk_layout_row_dynamic(ctx, 30, 1);
         if(nk_button_label(ctx, "Create object"))
         {
-            editor_create_object(editor, 1);
-            if(editor->connected)
-                editor_send_debug_message(editor, "Client created object!");
+            editor_send_create_entity_command(editor, 1);
         }
         if(nk_button_label(ctx, "Exit"))
         {
@@ -178,7 +197,6 @@ void editor_client_send_command(struct TessEditor *editor, uint8_t *data, uint32
     assert(size > 0 && size <= TESS_EDITOR_SERVER_MAX_COMMAND_SIZE);
     editor->platform->tcp_send(editor->platform, editor->tcpCon, data, size);
 }
-
 void editor_client_send_empty_command(struct TessEditor *editor, uint16_t cmd)
 {
     uint8_t buf[64];
@@ -314,6 +332,34 @@ void editor_client_process_command(struct TessEditor *editor, uint16_t cmd, uint
                 buf[len] = 0;
                 printf("Editor client debug msg: %s\n", buf);
             }break;
+        case Editor_Server_Command_Create_Entities:
+            {
+                uint16_t entryCount;
+                uint32_t serverId;
+                uint32_t objectId;
+                struct V3 pos, rot, scale;
+                if(!stream_read_uint16(&stream, &entryCount)) return;
+                for(int i = 0; i < entryCount; i++)
+                {
+                    if(!stream_read_uint32(&stream, &serverId)) return;
+                    if(!stream_read_uint32(&stream, &objectId)) return;
+                    if(!stream_read_v3(&stream, &pos)) return;
+                    if(!stream_read_v3(&stream, &rot)) return;
+                    if(!stream_read_v3(&stream, &scale)) return;
+                    struct TessEditorEntity *edEnt;
+                    edEnt = editor_create_object(editor, 1);
+                    if(edEnt == NULL)
+                    {
+                        fprintf(stderr, "Editor could not create entity: editorEntity pool full!\n");
+                        return;
+                    }
+                    edEnt->serverId = serverId;
+                    edEnt->position = pos;
+                    edEnt->eulerRotation = rot;
+                    edEnt->scale = scale;
+                    edEnt->dirty = true;
+                }
+            } break;
         default:
             printf("Editor client: unknown command! %d\n", cmd);
             break;
