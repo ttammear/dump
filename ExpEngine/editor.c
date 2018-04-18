@@ -38,6 +38,7 @@ void editor_init(struct TessEditor *editor)
     editor->nk_ctx = &editor->uiSystem->nk_ctx;
 
     editor->entityMap = kh_init(uint32);
+    editor->serverEntityMap = kh_init(uint32);
     editor->edEntities = NULL;
     editor->tcpCon = NULL;
 
@@ -50,6 +51,7 @@ void editor_destroy(struct TessEditor *editor)
         editor_disconnect(editor);
 
     kh_destroy(uint32, editor->entityMap);
+    kh_destroy(uint32, editor->serverEntityMap);
     buf_free(editor->edEntities);
 
     fixed_arena_free(editor->platform, &editor->arena);
@@ -113,7 +115,8 @@ struct TessEditorEntity* editor_create_object(struct TessEditor *editor, uint32_
     edEnt->scale = make_v3(1.0f, 1.0f, 1.0f);
     edEnt->eulerRotation = make_v3(0.0f, 0.0f, 0.0f);
     edEnt->id = edEnt - editor->edEntityPool;
-    edEnt->dirty = false;
+    edEnt->localDirty = false;
+    edEnt->remoteDirty = false;
     
     int dummy;
     khiter_t k = kh_put(uint32, editor->entityMap, entityId, &dummy);
@@ -121,6 +124,13 @@ struct TessEditorEntity* editor_create_object(struct TessEditor *editor, uint32_
     kh_val(editor->entityMap, k) = edEnt->id;
     buf_push(editor->edEntities, edEnt);
     return edEnt;
+}
+
+struct TessEditorEntity* editor_get_entity(struct TessEditor *editor, uint32_t entityId)
+{
+    if(entityId >= pool_cap(editor->edEntityPool))
+        return NULL;
+    return editor->edEntityPool + entityId;
 }
 
 void editor_send_debug_message(struct TessEditor *editor, char *msg);
@@ -154,7 +164,8 @@ void editor_draw_ui(struct TessEditor *editor)
     {
         if(editor->objectSelected)
         {
-            struct TessEditorEntity *edEnt = editor->edEntityPool + editor->selectedObjectId;
+            struct TessEditorEntity *edEnt = editor_get_entity(editor, editor->selectedObjectId);
+            assert(edEnt != NULL);
             struct TessEntity *ent = tess_get_entity(editor->world, edEnt->entityId);
             struct TessObject *obj = tess_get_object(editor->world, ent->objectId);
             nk_layout_row_begin(ctx, NK_STATIC, 30, 2);
@@ -174,7 +185,8 @@ void editor_draw_ui(struct TessEditor *editor)
             nk_property_float(ctx, "#Y", -99999.0f, &edEnt->eulerRotation.y, 999999.0f, 0.1f, 1.0f);
             nk_property_float(ctx, "#Z", -99999.0f, &edEnt->eulerRotation.z, 999999.0f, 0.1f, 1.0f);
             edEnt->eulerRotation = normalize_degrees(edEnt->eulerRotation);
-            edEnt->dirty = true;
+            edEnt->localDirty = true;
+            edEnt->remoteDirty = true;
         }
         else
         {
@@ -268,10 +280,48 @@ void editor_update(struct TessEditor *editor)
     }
 
     int count = buf_len(editor->edEntities);
+
+    { // send changed transforms to server
+        ARRAY_COMMAND_START(stream);
+        ARRAY_COMMAND_HEADER_END(stream);
+        uint32_t entCount = 0;
+        for(int i = 0; i < count; i++)
+        {
+            struct TessEditorEntity *edEnt = editor->edEntities[i];
+            if(edEnt->remoteDirty)
+            {
+                bool written = true;
+                written &= stream_write_uint32(&stream, edEnt->serverId);
+                written &= stream_write_v3(&stream, edEnt->position); // pos
+                written &= stream_write_v3(&stream, edEnt->eulerRotation); // rot
+                written &= stream_write_v3(&stream, edEnt->scale); // scale
+                if(!written)
+                {
+                    ARRAY_COMMAND_WRITE_HEADER(stream, Editor_Server_Command_Transform_Entities, entCount);
+                    editor_client_send_stream(editor, &stream);
+                    ARRAY_COMMAND_RESET(stream);
+                    entCount = 0;
+                    i--; // force retry current
+                }
+                else
+                {
+                    edEnt->remoteDirty = false;
+                    ARRAY_COMMAND_INC(stream);
+                    entCount++;
+                }
+            }
+        }
+        if(entCount > 0)
+        {
+            ARRAY_COMMAND_WRITE_HEADER(stream, Editor_Server_Command_Transform_Entities, entCount);
+            editor_client_send_stream(editor, &stream);
+        }
+    }
+
     for(int i = 0; i < count; i++)
     {
         struct TessEditorEntity *edEnt = editor->edEntities[i];
-        if(edEnt->dirty)
+        if(edEnt->localDirty)
         {
             struct TessEntity *ent = tess_get_entity(editor->world, edEnt->entityId);
             struct Mat4 objectToWorld;
@@ -279,6 +329,7 @@ void editor_update(struct TessEditor *editor)
             quat_euler_deg(&rotation, edEnt->eulerRotation);
             mat4_trs(&objectToWorld, edEnt->position, rotation, edEnt->scale);
             ent->objectToWorld = objectToWorld;
+            edEnt->localDirty = false;
         }
     }
 
@@ -353,11 +404,42 @@ void editor_client_process_command(struct TessEditor *editor, uint16_t cmd, uint
                         fprintf(stderr, "Editor could not create entity: editorEntity pool full!\n");
                         return;
                     }
+
                     edEnt->serverId = serverId;
+                    int dummy;
+                    khiter_t k = kh_put(uint32, editor->serverEntityMap, serverId, &dummy);
+                    assert(dummy > 0); // key should not be already present in table
+                    kh_val(editor->serverEntityMap, k) = edEnt->id;
+
                     edEnt->position = pos;
                     edEnt->eulerRotation = rot;
                     edEnt->scale = scale;
-                    edEnt->dirty = true;
+                    edEnt->localDirty = true;
+                }
+            } break;
+        case Editor_Server_Command_Transform_Entities:
+            {
+                uint16_t entryCount;
+                uint32_t serverId;
+                struct V3 pos, rot, scale;
+                if(!stream_read_uint16(&stream, &entryCount)) return;
+                {
+                    if(!stream_read_uint32(&stream, &serverId)) return;
+                    if(!stream_read_v3(&stream, &pos)) return;
+                    if(!stream_read_v3(&stream, &rot)) return;
+                    if(!stream_read_v3(&stream, &scale)) return;
+                    struct TessEditorEntity *edEnt;
+                    khiter_t k = kh_get(uint32, editor->serverEntityMap, serverId);
+                    if(k == kh_end(editor->serverEntityMap))
+                        return;
+                    uint32_t edEntityId = kh_val(editor->serverEntityMap, k);
+                    edEnt = editor_get_entity(editor, edEntityId);
+                    if(edEnt == NULL)
+                        return;
+                    edEnt->position = pos;
+                    edEnt->eulerRotation = rot;
+                    edEnt->scale = scale;
+                    edEnt->localDirty = true;
                 }
             } break;
         default:

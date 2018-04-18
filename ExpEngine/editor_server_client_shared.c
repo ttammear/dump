@@ -43,6 +43,14 @@ struct ServerCreateEntityEntry
     struct V3 scale;
 };
 
+struct ServerTransformEntityEntry
+{
+    uint32_t serverId; // server entity id
+    struct V3 position;
+    struct V3 eulerRotation;
+    struct V3 scale;
+};
+
 struct EditorCommandCreateEntities
 {
     uint16_t numEntities;
@@ -66,6 +74,7 @@ enum EditorServerCommandType
     Editor_Server_Command_Create_Entities, // server->client
     Editor_Server_Command_Server_Create_Entities, // client->server
     Editor_Server_Command_Move_Entity,
+    Editor_Server_Command_Transform_Entities,
     Editor_Server_Command_Destroy_Entities,
     Editor_Server_Command_Debug_Message,
 };

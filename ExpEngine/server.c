@@ -114,6 +114,13 @@ void tess_editor_server_create_entity(struct TessEditorServer *server, uint32_t 
     printf("Editor server: created new entity\n");
 }
 
+struct TessEditorServerEntity* tess_editor_server_get_entity(struct TessEditorServer *server, uint32_t entityId)
+{
+    if(entityId >= pool_cap(server->entityPool))
+        return NULL;
+    return server->entityPool + entityId;
+}
+
 void tess_editor_server_send_command(struct TessEditorServer *server, struct TessEditorServerClient *client, uint8_t *data, uint32_t size)
 {
     assert(size > 0 && size < TESS_EDITOR_SERVER_MAX_COMMAND_SIZE);
@@ -237,9 +244,52 @@ void client_send_uncreated_entities(struct TessEditorServer *server, struct Tess
     }
 }
 
+void client_sync_entities(struct TessEditorServer *server, struct TessEditorServerClient *client)
+{
+    ARRAY_COMMAND_START(stream);
+    ARRAY_COMMAND_HEADER_END(stream);
+    uint32_t count = buf_len(server->activeEntities);
+    uint32_t numEnts = 0;
+    for(uint32_t i = 0; i < count; i++)
+    {
+        struct TessEditorServerEntity *entity = server->activeEntities[i];
+        uint32_t entityId = entity->id;
+        bool created = BIT_IS_SET(client->entityFlags[entityId], Client_Entity_Flag_Created);
+        if(created && client->entityVersions[entityId] != entity->version)
+        {
+            bool written = true;
+            printf("sync %p %d to %d\n", client, entityId, entity->version);
+            written &= stream_write_uint32(&stream, entityId);
+            written &= stream_write_v3(&stream, entity->position);
+            written &= stream_write_v3(&stream, entity->eulerRotation);
+            written &= stream_write_v3(&stream, entity->scale);
+            if(!written)
+            {
+                ARRAY_COMMAND_WRITE_HEADER(stream, Editor_Server_Command_Transform_Entities, numEnts);
+                tess_editor_server_send_stream(server, client, &stream);
+                ARRAY_COMMAND_RESET(stream);
+                numEnts = 0;
+                i--;
+            }
+            else
+            {
+                client->entityVersions[entityId] = entity->version;
+                ARRAY_COMMAND_INC(stream);
+                numEnts++;
+            }
+        }
+    }
+    if(numEnts != 0)
+    {
+        ARRAY_COMMAND_WRITE_HEADER(stream, Editor_Server_Command_Transform_Entities, numEnts);
+        tess_editor_server_send_stream(server, client, &stream);
+    }
+}
+
 void client_update(struct TessEditorServer *server, struct TessEditorServerClient *client)
 {
     client_send_uncreated_entities(server, client);
+    client_sync_entities(server, client);
 }
 
 void editor_server_process_client_command(struct TessEditorServer *server, struct TessEditorServerClient *client, uint32_t cmd, uint8_t *data, uint32_t dataSize)
@@ -285,6 +335,33 @@ void editor_server_process_client_command(struct TessEditorServer *server, struc
                 if(!res) return;
                 buf[len] = 0;
                 printf("Editor server debug msg: %s\n", buf);
+            }break;
+        case Editor_Server_Command_Transform_Entities:
+            {
+                struct V3 pos, rot, scale;
+                uint32_t entityId;
+                uint16_t numEntries = 0;
+                bool dataRead = true;
+                dataRead &= stream_read_uint16(&stream, &numEntries);
+                if(!dataRead) return;
+                for(int i = 0; i < numEntries; i++)
+                {
+                    dataRead &= stream_read_uint32(&stream, &entityId);
+                    dataRead &= stream_read_v3(&stream, &pos);
+                    dataRead &= stream_read_v3(&stream, &rot);
+                    dataRead &= stream_read_v3(&stream, &scale);
+                    if(!dataRead) return;
+                    struct TessEditorServerEntity *edEnt;
+                    edEnt = tess_editor_server_get_entity(server, entityId);
+                    if(NULL == edEnt)
+                        return;         
+                    edEnt->position = pos;
+                    edEnt->eulerRotation = rot;
+                    edEnt->scale = scale;
+                    edEnt->version++;
+                    // the client that sent us the change should be up to date
+                    client->entityVersions[entityId] = edEnt->version;
+                }
             }break;
         default:
             printf("Editor server: unknown command! %d\n", cmd);

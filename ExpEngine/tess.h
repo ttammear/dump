@@ -297,7 +297,8 @@ struct TessEditorEntity
     struct V3 scale;
     struct V3 eulerRotation;
 
-    uint32_t dirty;
+    uint32_t localDirty;
+    uint32_t remoteDirty;
 };
 
 struct TessEditor
@@ -318,6 +319,7 @@ struct TessEditor
     int32_t selectedObjectId;
 
     khash_t(uint32) *entityMap; // entityId -> editorEntityId
+    khash_t(uint32) *serverEntityMap; // serverId -> editorEntityId
     struct TessEditorEntity *edEntityPool;
     struct TessEditorEntity **edEntities;
 
