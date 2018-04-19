@@ -1,6 +1,6 @@
-void tess_client_init(struct TessClient *tess, AikePlatform *platform, struct Renderer *renderer)
+void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *renderer)
 {
-    memset(tess, 0, sizeof(struct TessClient));
+    memset(tess, 0, sizeof(TessClient));
     tess->platform = platform;
 
     fixed_arena_init(platform, &tess->arena, 512 * 1024); 
@@ -29,7 +29,7 @@ void tess_client_init(struct TessClient *tess, AikePlatform *platform, struct Re
     //
     for(int i = 0; i < ARRAY_COUNT(tess->gameSystem.objectTable); i++)
     {
-        tess->gameSystem.objectTable[i] = (struct TessObject){0};
+        tess->gameSystem.objectTable[i] = (TessObject){0};
         tess->gameSystem.objectTable[i].id = i;
     }
     tess->gameSystem.assetSystem = &tess->assetSystem;
@@ -71,7 +71,7 @@ void tess_client_init(struct TessClient *tess, AikePlatform *platform, struct Re
     editor_init(&tess->editor);
 }
 
-void tess_client_destroy(struct TessClient *tess)
+void tess_client_destroy(TessClient *tess)
 {
     // Destroy file system
     
@@ -97,7 +97,7 @@ void tess_client_destroy(struct TessClient *tess)
     editor_destroy(&tess->editor);
 }
 
-void tess_client_begin_frame(struct TessClient *client)
+void tess_client_begin_frame(TessClient *client)
 {
     tess_input_begin(&client->inputSystem);
     render_system_begin_update(&client->renderSystem);
@@ -106,14 +106,14 @@ void tess_client_begin_frame(struct TessClient *client)
     tess_render_entities(&client->gameSystem);
 }
 
-void tess_client_end_frame(struct TessClient *client)
+void tess_client_end_frame(TessClient *client)
 {
     tess_ui_end(&client->uiSystem);
     render_system_end_update(&client->renderSystem);
     tess_input_end(&client->inputSystem);
 }
 
-void tess_client_exit(struct TessClient *client)
+void tess_client_exit(TessClient *client)
 {
     client->platform->exit(client->platform);
 }

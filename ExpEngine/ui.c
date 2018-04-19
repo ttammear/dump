@@ -196,20 +196,22 @@ void render_profiler(struct nk_context *ctx)
     {
         for(int j = 0; j < ARRAY_COUNT(g_profStates); j++)
         {
-            if(g_profStates[j] != NULL)
+            uintptr_t pptr = atomic_load(&g_profStates[j]);
+            if(pptr != (uintptr_t)NULL)
             {
-                uintptr_t rootUptr = atomic_load(&g_profStates[j]->prev);
+                struct ProfilerState *profState = (struct ProfilerState*)pptr;
+                uintptr_t rootUptr = atomic_load(&profState->prev);
                 struct ProfileEntry *root = (struct ProfileEntry*)rootUptr;
-                if(nk_tree_push_id(ctx, NK_TREE_TAB, g_profStates[j]->name, NK_MINIMIZED, j))
+                if(nk_tree_push_id(ctx, NK_TREE_TAB, profState->name, NK_MINIMIZED, j))
                 {
                     nk_layout_row_dynamic(ctx, 25, 2);
-                    if (!atomic_load(&g_profStates[j]->pause) && nk_button_label(ctx, "Pause")) 
+                    if (!atomic_load(&profState->pause) && nk_button_label(ctx, "Pause")) 
                     {
-                        atomic_store(&g_profStates[j]->pause, true);
+                        atomic_store(&profState->pause, true);
                     }
-                    else if (atomic_load(&g_profStates[j]->pause) && nk_button_label(ctx, "Resume")) 
+                    else if (atomic_load(&profState->pause) && nk_button_label(ctx, "Resume")) 
                     {
-                        atomic_store(&g_profStates[j]->pause, false);
+                        atomic_store(&profState->pause, false);
                     }
                     if(root)
                         profile_entry_recursive(ctx, root->firstChild, 0);

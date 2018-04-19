@@ -5,33 +5,33 @@
 
 #define DEG2RAD_F 0.0174532925f
 
-struct V2
+typedef struct V2
 {
     r32 x,y;
-};
+} V2;
 
-struct V3
+typedef struct V3
 {
     r32 x, y, z;
-};
+} V3;
 
-struct V4
+typedef struct V4
 {
     r32 x, y, z, w;
-};
+} V4;
 
-struct Quat
+typedef struct Quat
 {
     r32 w, x, y, z;
-};
+} Quat;
 
-struct Mat4
+typedef struct Mat4
 {
     union {
         struct
         {
             r32 m[16];
-        };
+        } ;
 
         struct
         {
@@ -46,15 +46,15 @@ struct Mat4
             r32 m41, m42, m43, m44;
         };
     };
-};
+}Mat4;
 
-/*struct Mat4_simd
+/*typedef struct Mat4_simd
 {
     TT_SIMD_T m11, m12, m13, m14;
     TT_SIMD_T m21, m22, m23, m24;
     TT_SIMD_T m31, m32, m33, m34;
     TT_SIMD_T m41, m42, m43, m44;
-};
+} Mat4_simd;
 
 void mat4_simd_mul(struct Mat4_simd *result, struct Mat4_simd *l, struct Mat4 *r)
 {
@@ -63,7 +63,7 @@ void mat4_simd_mul(struct Mat4_simd *result, struct Mat4_simd *l, struct Mat4 *r
 
 #ifdef AIKE_X86
 
-struct Mat4_sse2
+typedef struct Mat4_sse2
 {
     union {
         struct {
@@ -71,7 +71,7 @@ struct Mat4_sse2
             __m128 m21, m22, m23, m24;
             __m128 m31, m32, m33, m34;
             __m128 m41, m42, m43, m44;
-        };
+        } ;
         struct
         {
             __m128 mm[4][4];
@@ -85,7 +85,7 @@ struct Mat4_sse2
             float f[16][4];
         };
     };
-};
+}Mat4_sse2;
 
 void mat4_mul_sse2(struct Mat4_sse2 *m, struct Mat4_sse2 *l, struct Mat4_sse2 *r)
 {
@@ -135,12 +135,12 @@ static inline void mat4_extract_all_sse2(struct Mat4 *restrict dst, struct Mat4_
 
 #else
 
-struct Mat4_sse2
+typedef struct Mat4_sse2
 {
     union {
         struct {
             struct Mat4 mat[4];
-        };
+        } Mat4_sse2;
         struct
         {
             float f[16][4];

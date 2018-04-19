@@ -1,16 +1,16 @@
 
-void render_system_init(struct TessRenderSystem *rs)
+void render_system_init(TessRenderSystem *rs)
 {
-    rs->viewSwapBuffer = aligned_alloc(_Alignof(struct SwapBuffer), sizeof(struct SwapBuffer));
+    rs->viewSwapBuffer = aligned_alloc(_Alignof(SwapBuffer), sizeof(SwapBuffer));
     swap_buffer_init(rs->viewSwapBuffer);
 
     rs->gameRenderView = take_view_buffer(rs->viewSwapBuffer);
 
-    rs->viewBuilder = malloc(sizeof(struct RenderViewBuilder));
+    rs->viewBuilder = malloc(sizeof(RenderViewBuilder));
     rview_builder_init(rs->viewBuilder);
 }
 
-void render_system_destroy(struct TessRenderSystem *rs)
+void render_system_destroy(TessRenderSystem *rs)
 {
     rview_builder_destroy(rs->viewBuilder);
     free(rs->viewBuilder);
@@ -19,9 +19,9 @@ void render_system_destroy(struct TessRenderSystem *rs)
     free(rs->viewSwapBuffer);
 }
 
-void process_render_messages(struct TessRenderSystem *rs)
+void process_render_messages(TessRenderSystem *rs)
 {
-    struct Renderer *renderer = rs->renderer;
+    Renderer *renderer = rs->renderer;
     RenderMessage msg;
     while(renderer_next_message(renderer, &msg))
     {
@@ -52,13 +52,15 @@ void process_render_messages(struct TessRenderSystem *rs)
                 break;
             case Render_Message_Sample_Object_Ready:
                 if(msg.sampleOR.onComplete != NULL)
-                    msg.sampleOR.onComplete(renderer, &msg.sampleOR, msg.sampleOR.userData);
+                {
+                    ((OSReady_A)(*msg.sampleOR.onComplete))(renderer, &msg.sampleOR, msg.sampleOR.userData);
+                }
                 break;
         }
     }
 }
 
-void render_system_screen_resize(struct TessRenderSystem *rs, float width, float height)
+void render_system_screen_resize(TessRenderSystem *rs, float width, float height)
 {
     RenderMessage msg = {};
     msg.type = Render_Message_Screen_Resize;
@@ -67,20 +69,20 @@ void render_system_screen_resize(struct TessRenderSystem *rs, float width, float
     renderer_queue_message(rs->renderer, &msg);
 }
 
-void render_system_begin_update(struct TessRenderSystem *rs)
+void render_system_begin_update(TessRenderSystem *rs)
 {
     PROF_BLOCK();
     rview_builder_reset(rs->viewBuilder);
 }
 
-void render_system_render_mesh(struct TessRenderSystem *rs, uint32_t meshId, uint32_t objectId, struct Mat4 *objectToWorld)
+void render_system_render_mesh(TessRenderSystem *rs, uint32_t meshId, uint32_t objectId, Mat4 *objectToWorld)
 {
     uint32_t materialId = 2;
     uint32_t data = 0;
     add_mesh_instance(rs->viewBuilder, meshId, materialId, objectToWorld, &data, 0, objectId);
 }
 
-void render_system_end_update(struct TessRenderSystem *rs)
+void render_system_end_update(TessRenderSystem *rs)
 {
     PROF_BLOCK();
     rs->viewBuilder->viewProjection = rs->worldToClip;

@@ -1,18 +1,32 @@
 
 aike_thread_local struct ProfilerState *t_profState;
-struct ProfilerState *g_profStates[10];
-atomic_uint g_profCount;
+atomic_uintptr_t g_profStates[10];
 
 void debug_init(const char *name)
 {
     struct ProfilerState *newProfState = aligned_alloc(_Alignof(struct ProfilerState), sizeof(struct ProfilerState));
     memset(newProfState, 0, sizeof(struct ProfilerState));
     assert(newProfState != NULL);
-    newProfState->name = name;
 
-    uint32_t entry = atomic_fetch_add(&g_profCount, 1);
-    assert(entry >= 0 && entry < ARRAY_COUNT(g_profStates));
-    g_profStates[entry] = newProfState;
+    strncpy(newProfState->name, name, ARRAY_COUNT(newProfState->name)-1);
+    newProfState->name[ARRAY_COUNT(newProfState->name)-1] = 0;
+
+    _Bool success = false;
+    while(!success)
+    {
+        uint32_t freeIdx = -1;
+        for(int i = 0; i < ARRAY_COUNT(g_profStates); i++)
+        {
+            if(atomic_load(&g_profStates[i]) == (uintptr_t)NULL)
+            {
+                freeIdx = i;
+                break;
+            }
+        }
+        assert(freeIdx != -1); // out of profile entries!
+        uintptr_t nullPtr = (uintptr_t)NULL;
+        success = atomic_compare_exchange_strong(&g_profStates[freeIdx], &nullPtr, (uintptr_t)newProfState);
+    }
 
     t_profState = newProfState;
 }
@@ -40,10 +54,8 @@ void debug_destroy()
 {
     for(int i = 0; i < ARRAY_COUNT(g_profStates); i++)
     {
-        // TODO: this should be atomic, but theres almost no chance that
-        // we need to care, and its for debug anyway...
-        if(g_profStates[i] == t_profState)
-            g_profStates[i] = NULL;
+        if(atomic_load(&g_profStates[i]) == (uintptr_t)t_profState)
+            atomic_exchange(&g_profStates[i], (uintptr_t)NULL);
     }
     // technically someone could still be reading it, but again, we dont care
     free(t_profState);

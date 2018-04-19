@@ -87,7 +87,8 @@ void tess_destroy_editor_server(struct TessEditorServer *eserver)
     }
     buf_free(eserver->activeClients);
     
-    eserver->platform->tcp_close_server(eserver->platform, eserver->tcpServer);
+    if(NULL != eserver->tcpServer)
+        eserver->platform->tcp_close_server(eserver->platform, eserver->tcpServer);
 }
 
 void tess_editor_server_create_entity(struct TessEditorServer *server, uint32_t objectId, struct V3 position)

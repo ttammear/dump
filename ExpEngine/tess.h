@@ -25,31 +25,31 @@ typedef struct TStr // interned string
     char cstr[];
 } TStr;
 
-struct TessFile
+typedef struct TessFile
 {
     AikeIORequest req;
     uint32_t pipeline;
     void *userData;
     char filePath[AIKE_MAX_PATH];
-};
+} TessFile;
 
-struct LoadTTRJob
+typedef struct LoadTTRJob
 {
     struct TessFile file;
     const char *fileName;
 
-};
+} LoadTTRJob;
 
 typedef void (*FilePipelineProc)(void *subsystem, struct TessFile *file);
 
-struct TessFileSystem
+typedef struct TessFileSystem
 {
     AikePlatform *platform;
     struct TessFile *loadedFilePool;
 
     FilePipelineProc pipeline_vtbl[Tess_File_Pipeline_Count];
     void *pipeline_ptrs[Tess_File_Pipeline_Count];
-};
+} TessFileSystem;
 
 // --------- ASSET SYSTEM ----------
 
@@ -79,37 +79,37 @@ enum TessObjectFlags
     Tess_Object_Flag_Loaded     = 1<<1,
 };
 
-struct TessAsset
+typedef struct TessAsset
 {
     TStr *assetId;
     uint32_t type;
-};
+} TessAsset;
 
-struct TessMeshAsset
+typedef struct TessMeshAsset
 {
-    struct TessAsset asset;
+    TessAsset asset;
     uint32_t meshId;
-};
+} TessMeshAsset;
 
-struct TessObjectAsset
+typedef struct TessObjectAsset
 {
-    struct TessAsset asset;
-    struct TessMeshAsset *mesh;
+    TessAsset asset;
+    TessMeshAsset *mesh;
     // TODO: material?
-};
+} TessObjectAsset;
 
-struct TessMeshDepData
+typedef struct TessMeshDepData
 {
     struct TessAssetSystem *as;
     struct TTRMesh *tmesh;
-};
+} TessMeshDepData;
 
-struct TessObjectDepData
+typedef struct TessObjectDepData
 {
     TStr *meshAssetId;
-};
+} TessObjectDepData;
 
-struct TessLoadingAsset
+typedef struct TessLoadingAsset
 {
     struct TessFile *file;
     uint32_t status;
@@ -118,25 +118,25 @@ struct TessLoadingAsset
     uint32_t type;
     union
     {
-        struct TessMeshDepData meshData;
-        struct TessObjectDepData objectData;
-    };
-};
+        TessMeshDepData meshData;
+        TessObjectDepData objectData;
+    } ;
+}TessLoadingAsset;
 
-struct AssetLookupEntry
+typedef struct AssetLookupEntry
 {
     TStr *packageName;
     TStr *fileName;
     TStr *assetName;
     uint32_t assetType;
-};
+} AssetLookupEntry;
 
-struct AssetLookupCache
+typedef struct AssetLookupCache
 {
     struct AssetLookupEntry **entries;
-};
+} AssetLookupCache;
 
-struct TessAssetSystem
+typedef struct TessAssetSystem
 {
     struct TessFileSystem *fileSystem;
     struct TessAsset **loadedAssets;
@@ -153,45 +153,45 @@ struct TessAssetSystem
 
     struct TessStrings *tstrings;
     struct Renderer *renderer;
-};
+} TessAssetSystem;
 
-struct TessStrings
+typedef struct TessStrings
 {
-    struct TessFixedArena stringArena;
+    TessFixedArena stringArena;
     TStr **internedStrings;
-};
+} TessStrings;
 
 // --------------- GAME WORLD --------
 
-struct TessObject
+typedef struct TessObject
 {
     uint32_t id;
     uint32_t flags;
     TStr *assetId; // TessObjectAsset
     struct TessObjectAsset *asset;
-};
+} TessObject;
 
-struct TessEntity
+typedef struct TessEntity
 {
     uint32_t id;
     uint32_t objectId;
     struct Mat4 objectToWorld;
-};
+} TessEntity;
 
-struct TessCamera
+typedef struct TessCamera
 {
-    struct V3 position;
-    struct Quat rotation;
+    V3 position;
+    Quat rotation;
 
     float aspectRatio;
     float FOV;
     float nearPlane;
     float farPlane;
 
-    struct Mat4 viewToClip;
-};
+    Mat4 viewToClip;
+} TessCamera;
 
-struct TessGameSystem
+typedef struct TessGameSystem
 {
     struct TessObject objectTable[TESS_MAX_OBJECTS];
     struct TessEntity *entityPool;
@@ -202,17 +202,17 @@ struct TessGameSystem
     struct TessCamera defaultCamera;
 
     struct TessRenderSystem *renderSystem;
-};
+} TessGameSystem;
 
 // --------------- INPUT -------------------
 
-struct TessInputSystem
+typedef struct TessInputSystem
 {
     uint16_t keyStates[AIKE_KEY_COUNT];
     uint16_t keyStatesPrev[AIKE_KEY_COUNT];
 
     AikePlatform *platform;
-};
+} TessInputSystem;
 
 #define mouse_left_down(x) ((x)->keyStates[AIKE_BTN_LEFT] && !(x)->keyStatesPrev[AIKE_BTN_LEFT])
 #define mouse1_right_down(x) ((x)->keyStates[AIKE_BTN_RIGHT] && !(x)->keyStatesPrev[AIKE_BTN_RIGHT])
@@ -223,18 +223,18 @@ struct TessInputSystem
 
 // --------------- RENDERING -------------------
 
-struct TessRenderSystem
+typedef struct TessRenderSystem
 {
     struct SwapBuffer *viewSwapBuffer;
     struct RenderViewBuilder *viewBuilder;
     struct RenderViewBuffer *gameRenderView;
     struct Renderer *renderer;
-    struct Mat4 worldToClip;
-};
+    Mat4 worldToClip;
+} TessRenderSystem;
 
 // --------------- UI ---------------------
 
-struct TessUISystem
+typedef struct TessUISystem
 {
     struct nk_context nk_ctx;
     struct nk_font_atlas nk_atlas;
@@ -251,11 +251,11 @@ struct TessUISystem
 
     struct TessRenderSystem *renderSystem;
     struct AikePlatform *platform;
-};
+} TessUISystem;
 
 // --------------- MENU -------------------
 
-struct TessMainMenu
+typedef struct TessMainMenu
 {
     struct nk_context *nk_ctx;
     uint32_t mode;
@@ -269,14 +269,14 @@ struct TessMainMenu
     struct TessUISystem *uiSystem;
     struct TessInputSystem *inputSystem;
     struct TessClient *client;
-};
+} TessMainMenu;
 
 // --------------- EDITOR ------------------
 
 #define TESS_EDITOR_SERVER_MAX_COMMAND_SIZE 65536
 #define TESS_EDITOR_SERVER_MAX_CLIENTS 16
 
-struct TessEditorCommandBuf // network command buffer
+typedef struct TessEditorCommandBuf // network command buffer
 {
     // those 3 are needed onle because i wanted to share some code.. (editor_flush_command, editor_append_cmd_data)
     void *usrPtr;
@@ -285,30 +285,30 @@ struct TessEditorCommandBuf // network command buffer
     uint32_t currentCommandBytes;
     uint32_t currentCommandSize;
     uint8_t currentCommand[TESS_EDITOR_SERVER_MAX_COMMAND_SIZE];
-};
+} TessEditorCommandBuf;
 
-struct TessEditorEntity
+typedef struct TessEditorEntity
 {
     uint32_t id;
     uint32_t serverId;
     uint32_t entityId;
 
-    struct V3 position;
-    struct V3 scale;
-    struct V3 eulerRotation;
+    V3 position;
+    V3 scale;
+    V3 eulerRotation;
 
     uint32_t localDirty;
     uint32_t remoteDirty;
-};
+} TessEditorEntity;
 
-struct TessEditor
+typedef struct TessEditor
 {
     b32 init;
     b32 connected;
 
     AikeTCPConnection *tcpCon;
 
-    struct V2 normalizedCursorPos;
+    V2 normalizedCursorPos;
 
     // renderer writes the currently pointed objectid here
     int32_t cursorObjectIdBuf;
@@ -333,10 +333,10 @@ struct TessEditor
     struct TessClient *client;
     struct TessGameSystem *world;
 
-    struct TessEditorCommandBuf cmdBuf;
+    TessEditorCommandBuf cmdBuf;
 
-    struct TessFixedArena arena;
-};
+    TessFixedArena arena;
+} TessEditor;
 
 // --------------- STATE --------------
 
@@ -347,52 +347,52 @@ enum TessClientMode
     Tess_Client_Mode_CrazyTown,
 };
 
-struct TessClient
+typedef struct TessClient
 {
-    struct TessFileSystem fileSystem;
-    struct TessAssetSystem assetSystem;
-    struct TessGameSystem gameSystem;
-    struct TessRenderSystem renderSystem;
-    struct TessUISystem uiSystem;
-    struct TessInputSystem inputSystem;
+    TessFileSystem fileSystem;
+    TessAssetSystem assetSystem;
+    TessGameSystem gameSystem;
+    TessRenderSystem renderSystem;
+    TessUISystem uiSystem;
+    TessInputSystem inputSystem;
 
-    struct TessMainMenu mainMenu;
-    struct TessEditor editor;
+    TessMainMenu mainMenu;
+    TessEditor editor;
 
-    struct TessStrings strings;
+    TessStrings strings;
 
-    struct TessFixedArena arena;
+    TessFixedArena arena;
 
     uint32_t mode;
 
     AikePlatform *platform;
-};
+} TessClient;
 
 // Server
 
-struct TessEditorServerEntity
+typedef struct TessEditorServerEntity
 {
     uint32_t id;
     uint32_t objectId;
     uint16_t version;
-    struct V3 position;
-    struct V3 eulerRotation;
-    struct V3 scale;
-};
+    V3 position;
+    V3 eulerRotation;
+    V3 scale;
+} TessEditorServerEntity;
 
-struct TessEditorServerClient
+typedef struct TessEditorServerClient
 {
-    struct AikeTCPConnection *connection;
+    AikeTCPConnection *connection;
 
     uint8_t entityFlags[TESS_MAX_ENTITIES];
     uint16_t entityVersions[TESS_MAX_ENTITIES];
     uint16_t objectTableVersion;
 
     // TODO: this is more than 65k bytes, should be stored separately
-    struct TessEditorCommandBuf cmdBuf;
-};
+    TessEditorCommandBuf cmdBuf;
+} TessEditorServerClient;
 
-struct TessEditorServer
+typedef struct TessEditorServer
 {
     AikeTCPServer *tcpServer;
 
@@ -405,22 +405,22 @@ struct TessEditorServer
     struct TessEditorServerClient **activeClients;
     struct TessEditorServerClient *clientPool;
     struct TessEditorServerEntity *entityPool;
-};
+} TessEditorServer;
 
-struct TessServer
+typedef struct TessServer
 {
-    struct TessFileSystem fileSystem;
-    struct TessAssetSystem assetSystem;
-    struct TessGameSystem gameSystem;
+    TessFileSystem fileSystem;
+    TessAssetSystem assetSystem;
+    TessGameSystem gameSystem;
 
-    struct TessEditorServer editorServer;
+    TessEditorServer editorServer;
 
-    struct TessStrings strings;
+    TessStrings strings;
 
-    struct TessFixedArena arena;
+    TessFixedArena arena;
 
     AikePlatform *platform;
-};
+} TessServer;
 
 void tess_process_ttr_file(struct TessAssetSystem *as, struct TessFile *tfile);
 TStr* tess_intern_string_s(struct TessStrings *tstrings, const char *string, uint32_t maxlen);
@@ -448,3 +448,5 @@ void tess_render_entities(struct TessGameSystem *gs);
 
 void tess_main_menu_init(struct TessMainMenu *menu);
 void tess_main_menu_update(struct TessMainMenu *menu);
+
+extern struct TessVtable *g_tessVtbl;

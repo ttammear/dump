@@ -1,18 +1,22 @@
-struct GameData gdata;
 
-struct TessRoot
+typedef struct TessRoot
 {
     struct TessClient client;
-    struct TessServer server;
+    TessServer server;
     AikeMemoryBlock *rootBlock;
     bool loaded; // TODO: remove this hack
-};
+    // TODO: temp
+    GameData gdata;
+    //aike_thread_local struct ProfilerState *t_profState;
+    uintptr_t g_profStates[10];
+    struct ProfilerState *main_profState;
+} TessRoot;
 
 void aike_update_window(AikePlatform *platform, AikeWindow *win)
 {
     printf("resize %f %f\n", win->width, win->height);
 
-    struct TessRoot *root = (struct TessRoot*)platform->userData;
+    TessRoot *root = (TessRoot*)platform->userData;
     if(root != NULL)
     {
         // TODO: this is here because we dont have render targets yet
@@ -31,6 +35,8 @@ void aike_init(AikePlatform *platform)
 {
     DEBUG_INIT("Main thread");
 
+    tess_reload_vtable();
+
     platform->init_async_io(platform);
 
     platform->create_opengl_context(&platform->mainWin);
@@ -41,10 +47,10 @@ void aike_init(AikePlatform *platform)
         assert(false);
     }
 
-    struct Renderer *renderer = create_renderer(RENDERER_TYPE_OPENGL, platform);
+    Renderer *renderer = create_renderer(RENDERER_TYPE_OPENGL, platform);
 
-    AikeMemoryBlock *rootBlock = platform->allocate_memory(platform, sizeof(struct TessRoot), 0);
-    struct TessRoot *root = (struct TessRoot*)rootBlock->memory;
+    AikeMemoryBlock *rootBlock = platform->allocate_memory(platform, sizeof(TessRoot), 0);
+    TessRoot *root = (TessRoot*)rootBlock->memory;
     root->rootBlock = rootBlock;
     root->loaded = false;
     platform->userData = root;
@@ -59,14 +65,17 @@ void aike_init(AikePlatform *platform)
     root->client.gameSystem.defaultCamera.farPlane = 1000.0f;
     tess_update_camera_perspective(&root->client.gameSystem.defaultCamera);
 
-    gdata.viewBuilder = root->client.renderSystem.viewBuilder;
-    gdata.platform = platform;
+    root->gdata.viewBuilder = root->client.renderSystem.viewBuilder;
+    root->gdata.platform = platform;
 
     platform->make_window_current(platform, NULL);
     renderer->swapBuffer = root->client.renderSystem.viewSwapBuffer;
-    renderer->renderThread = platform->create_thread(renderer, renderer->threadProc);
+    start_renderer(renderer);
 
-    init_game(renderer, &gdata, &root->client);
+    stop_renderer(renderer);
+    start_renderer(renderer);
+
+    init_game(renderer, &root->gdata, &root->client);
 
     TStr *firstInterned = tess_intern_string(&root->client.strings, "First");
 
@@ -78,10 +87,11 @@ void aike_init(AikePlatform *platform)
 
 void aike_deinit(AikePlatform *platform)
 {
-    struct TessRoot *root = (struct TessRoot*)platform->userData;
+    TessRoot *root = (TessRoot*)platform->userData;
 
     deinit_game();
 
+    stop_renderer(root->client.renderSystem.renderer);
     destroy_renderer(root->client.renderSystem.renderer);
 
     platform->destroy_async_io(platform);
@@ -98,7 +108,7 @@ void aike_update(AikePlatform *platform)
 {
     DEBUG_START_FRAME();
 
-    struct TessRoot *root = (struct TessRoot*)platform->userData;
+    TessRoot *root = (TessRoot*)platform->userData;
     tess_process_io_events(&root->client.fileSystem);
     tess_check_complete(&root->client.assetSystem);
 
@@ -109,8 +119,8 @@ void aike_update(AikePlatform *platform)
         tess_temp_assign_all(&root->client.gameSystem);
         root->loaded = true;
 
-        struct Mat4 objectToWorld;
-        struct Quat q;
+        Mat4 objectToWorld;
+        Quat q;
         quat_angle_axis(&q, 180.0f, make_v3(0.0f, 1.0f, 0.0f));
         mat4_trs(&objectToWorld, make_v3(0.0f, 0.0f, 10.0f), q, make_v3(1.0f, 1.0f, 1.0f));
         //tess_create_entity(&root->client.gameSystem, 1, &objectToWorld);
@@ -133,7 +143,7 @@ void aike_update(AikePlatform *platform)
                 editor_update(&root->client.editor);
                 break;
             case Tess_Client_Mode_CrazyTown:
-                update_game(&gdata);
+                update_game(&root->gdata);
                 break;
             default:
                 fprintf(stderr, "Invalid mode!\n");
@@ -143,4 +153,25 @@ void aike_update(AikePlatform *platform)
         tess_client_end_frame(&root->client);
     }
     DEBUG_END_FRAME();
+}
+
+void aike_begin_hot_reload(AikePlatform *platform)
+{
+    TessRoot *root = (TessRoot*)platform->userData;
+    stop_renderer(root->client.renderSystem.renderer);
+
+    for(int i = 0; i < ARRAY_COUNT(g_profStates); i++)
+        root->g_profStates[i] = g_profStates[i];
+    root->main_profState = t_profState;
+}
+
+void aike_end_hot_reload(AikePlatform *platform)
+{
+    TessRoot *root = (TessRoot*)platform->userData;
+    start_renderer(root->client.renderSystem.renderer);
+
+    for(int i = 0; i < ARRAY_COUNT(g_profStates); i++)
+        g_profStates[i] = root->g_profStates[i];
+    t_profState = root->main_profState;
+    tess_reload_vtable();
 }

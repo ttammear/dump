@@ -29,7 +29,7 @@ struct ProfilerState
      struct ProfileEntry *root;
      atomic_uintptr_t prev;
 
-     const char *name;
+     char name[128];
      atomic_bool pause;
 
      uint32_t curSEntry;
@@ -38,8 +38,7 @@ struct ProfilerState
 
 extern aike_thread_local struct ProfilerState *t_profState;
 
-extern atomic_uint g_profCount;
-extern struct ProfilerState *g_profStates[10];
+extern atomic_uintptr_t g_profStates[10];
 
 
 #ifdef _DEBUG

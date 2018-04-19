@@ -1,34 +1,34 @@
-void objectid_callback(struct Renderer *renderer, struct ObjectIDSamplesReady *tdr, void *userData);
-void editor_disconnect(struct TessEditor *editor);
-void editor_connected(struct TessEditor *editor);
-void editor_client_send_command(struct TessEditor *editor, uint8_t *data, uint32_t size);
-static inline void editor_client_send_stream(struct TessEditor *editor, struct ByteStream *stream)
+void objectid_callback(Renderer *renderer, ObjectIDSamplesReady *tdr, void *userData);
+void editor_disconnect(TessEditor *editor);
+void editor_connected(TessEditor *editor);
+void editor_client_send_command(TessEditor *editor, uint8_t *data, uint32_t size);
+static inline void editor_client_send_stream(TessEditor *editor, ByteStream *stream)
 {
     editor_client_send_command(editor, stream->start, stream_get_offset(stream));
 }
 
 
-void query_objectid(struct TessEditor *editor)
+void query_objectid(TessEditor *editor)
 {
     RenderMessage rmsg = {};
     rmsg.type = Render_Message_Sample_Object_Id;
     rmsg.sampleO.normalizedSampleCoords = &editor->normalizedCursorPos;
     rmsg.sampleO.sampleCount = 1;
     rmsg.sampleO.buffer = (uint32_t*)&editor->cursorObjectIdBuf;
-    rmsg.sampleO.onComplete = objectid_callback;
+    rmsg.sampleO.onComplete = (void**)&g_tessVtbl->editorObjectId;
     rmsg.sampleO.userData = editor;
     renderer_queue_message(editor->renderSystem->renderer, &rmsg);
 }
 
-void objectid_callback(struct Renderer *renderer, struct ObjectIDSamplesReady *tdr, void *userData)
+void objectid_callback(Renderer *renderer, ObjectIDSamplesReady *tdr, void *userData)
 {
-    struct TessEditor *editor = (struct TessEditor *)userData;
+    TessEditor *editor = (TessEditor *)userData;
     editor->cursorObjectId = editor->cursorObjectIdBuf;
     if(editor->connected)
         query_objectid(editor);
 }
 
-void editor_init(struct TessEditor *editor)
+void editor_init(TessEditor *editor)
 {
     fixed_arena_init(editor->platform, &editor->arena, 256 * 1024);
     POOL_FROM_ARENA(editor->edEntityPool, &editor->arena, 1000);
@@ -45,7 +45,7 @@ void editor_init(struct TessEditor *editor)
     editor->init = true;
 }
 
-void editor_destroy(struct TessEditor *editor)
+void editor_destroy(TessEditor *editor)
 {
     if(editor->connected)
         editor_disconnect(editor);
@@ -57,7 +57,7 @@ void editor_destroy(struct TessEditor *editor)
     fixed_arena_free(editor->platform, &editor->arena);
 }
 
-bool editor_connect(struct TessEditor *editor, const char *ipStr, uint16_t port)
+bool editor_connect(TessEditor *editor, const char *ipStr, uint16_t port)
 {
     assert(editor->init);
 
@@ -81,7 +81,7 @@ bool editor_connect(struct TessEditor *editor, const char *ipStr, uint16_t port)
     return false;
 }
 
-void editor_disconnect(struct TessEditor *editor)
+void editor_disconnect(TessEditor *editor)
 {
     assert(editor->init && editor->connected);
     editor->platform->tcp_close_connection(editor->platform, editor->tcpCon);
@@ -89,7 +89,7 @@ void editor_disconnect(struct TessEditor *editor)
     editor->connected = false;
 }
 
-void editor_send_create_entity_command(struct TessEditor *editor, uint32_t objectId)
+void editor_send_create_entity_command(TessEditor *editor, uint32_t objectId)
 {
     ARRAY_COMMAND_START(stream);
     ARRAY_COMMAND_HEADER_END(stream);
@@ -103,12 +103,12 @@ void editor_send_create_entity_command(struct TessEditor *editor, uint32_t objec
     editor_client_send_stream(editor, &stream);
 } 
 
-struct TessEditorEntity* editor_create_object(struct TessEditor *editor, uint32_t objectId)
+TessEditorEntity* editor_create_object(TessEditor *editor, uint32_t objectId)
 {
-    struct Mat4 identity;
+    Mat4 identity;
     mat4_identity(&identity);
     uint32_t entityId = tess_create_entity(editor->world, objectId, &identity);
-    struct TessEditorEntity *edEnt = pool_allocate(editor->edEntityPool);
+    TessEditorEntity *edEnt = pool_allocate(editor->edEntityPool);
     assert(edEnt); // TODO: deal with this properly!
     edEnt->entityId = entityId;
     edEnt->position = make_v3(0.0f, 0.0f, 0.0f);
@@ -126,16 +126,16 @@ struct TessEditorEntity* editor_create_object(struct TessEditor *editor, uint32_
     return edEnt;
 }
 
-struct TessEditorEntity* editor_get_entity(struct TessEditor *editor, uint32_t entityId)
+TessEditorEntity* editor_get_entity(TessEditor *editor, uint32_t entityId)
 {
     if(entityId >= pool_cap(editor->edEntityPool))
         return NULL;
     return editor->edEntityPool + entityId;
 }
 
-void editor_send_debug_message(struct TessEditor *editor, char *msg);
+void editor_send_debug_message(TessEditor *editor, char *msg);
 
-void editor_draw_ui(struct TessEditor *editor)
+void editor_draw_ui(TessEditor *editor)
 {
     PROF_BLOCK();
     struct nk_context *ctx = editor->nk_ctx;
@@ -164,10 +164,12 @@ void editor_draw_ui(struct TessEditor *editor)
     {
         if(editor->objectSelected)
         {
-            struct TessEditorEntity *edEnt = editor_get_entity(editor, editor->selectedObjectId);
+            TessEditorEntity *edEnt = editor_get_entity(editor, editor->selectedObjectId);
+            TessEditorEntity edEntCpy = *edEnt;
+
             assert(edEnt != NULL);
-            struct TessEntity *ent = tess_get_entity(editor->world, edEnt->entityId);
-            struct TessObject *obj = tess_get_object(editor->world, ent->objectId);
+            TessEntity *ent = tess_get_entity(editor->world, edEnt->entityId);
+            TessObject *obj = tess_get_object(editor->world, ent->objectId);
             nk_layout_row_begin(ctx, NK_STATIC, 30, 2);
             nk_layout_row_push(ctx, 50);
             nk_label(ctx, "Asset:", NK_TEXT_ALIGN_LEFT); 
@@ -185,8 +187,11 @@ void editor_draw_ui(struct TessEditor *editor)
             nk_property_float(ctx, "#Y", -99999.0f, &edEnt->eulerRotation.y, 999999.0f, 0.1f, 1.0f);
             nk_property_float(ctx, "#Z", -99999.0f, &edEnt->eulerRotation.z, 999999.0f, 0.1f, 1.0f);
             edEnt->eulerRotation = normalize_degrees(edEnt->eulerRotation);
-            edEnt->localDirty = true;
-            edEnt->remoteDirty = true;
+            if(memcmp(edEnt, &edEntCpy, sizeof(edEntCpy)) != 0)
+            {
+                edEnt->localDirty = true;
+                edEnt->remoteDirty = true;
+            }
         }
         else
         {
@@ -199,7 +204,7 @@ void editor_draw_ui(struct TessEditor *editor)
     render_profiler(ctx);
 }
 
-void editor_client_send_command(struct TessEditor *editor, uint8_t *data, uint32_t size)
+void editor_client_send_command(TessEditor *editor, uint8_t *data, uint32_t size)
 {
     if(!editor->connected)
     {
@@ -209,21 +214,21 @@ void editor_client_send_command(struct TessEditor *editor, uint8_t *data, uint32
     assert(size > 0 && size <= TESS_EDITOR_SERVER_MAX_COMMAND_SIZE);
     editor->platform->tcp_send(editor->platform, editor->tcpCon, data, size);
 }
-void editor_client_send_empty_command(struct TessEditor *editor, uint16_t cmd)
+void editor_client_send_empty_command(TessEditor *editor, uint16_t cmd)
 {
     uint8_t buf[64];
-    struct ByteStream stream;
+    ByteStream stream;
     init_byte_stream(&stream, buf, sizeof(buf));
     int res = stream_write_empty_command(&stream, cmd);
     assert(res);
     editor_client_send_command(editor, buf, stream_get_offset(&stream));
 }
 
-void editor_send_debug_message(struct TessEditor *editor, char *msg)
+void editor_send_debug_message(TessEditor *editor, char *msg)
 {
     uint32_t msgLen = strlen(msg);
     uint8_t buf[TESS_EDITOR_SERVER_MAX_COMMAND_SIZE];
-    struct ByteStream stream;
+    ByteStream stream;
     init_byte_stream(&stream, buf, TESS_EDITOR_SERVER_MAX_COMMAND_SIZE);
     bool success = stream_write_uint16(&stream, 2 + 2 + 2 + msgLen);
     success &= stream_write_uint16(&stream, Editor_Server_Command_Debug_Message);
@@ -233,13 +238,13 @@ void editor_send_debug_message(struct TessEditor *editor, char *msg)
         editor_client_send_command(editor, buf, stream_get_offset(&stream));
 }
 
-void editor_connected(struct TessEditor *editor)
+void editor_connected(TessEditor *editor)
 {
     editor_client_send_empty_command(editor, Editor_Server_Command_Request_Object_Definitions);
 
 }
 
-void editor_client_update(struct TessEditor *editor)
+void editor_client_update(TessEditor *editor)
 {
     PROF_BLOCK();
     AikePlatform *pl = editor->platform;
@@ -261,7 +266,7 @@ void editor_client_update(struct TessEditor *editor)
     }
 }
 
-void editor_update(struct TessEditor *editor)
+void editor_update(TessEditor *editor)
 {
     PROF_BLOCK();
     uint32_t w = editor->platform->mainWin.width;
@@ -287,7 +292,7 @@ void editor_update(struct TessEditor *editor)
         uint32_t entCount = 0;
         for(int i = 0; i < count; i++)
         {
-            struct TessEditorEntity *edEnt = editor->edEntities[i];
+            TessEditorEntity *edEnt = editor->edEntities[i];
             if(edEnt->remoteDirty)
             {
                 bool written = true;
@@ -320,12 +325,12 @@ void editor_update(struct TessEditor *editor)
 
     for(int i = 0; i < count; i++)
     {
-        struct TessEditorEntity *edEnt = editor->edEntities[i];
+        TessEditorEntity *edEnt = editor->edEntities[i];
         if(edEnt->localDirty)
         {
-            struct TessEntity *ent = tess_get_entity(editor->world, edEnt->entityId);
-            struct Mat4 objectToWorld;
-            struct Quat rotation;
+            TessEntity *ent = tess_get_entity(editor->world, edEnt->entityId);
+            Mat4 objectToWorld;
+            Quat rotation;
             quat_euler_deg(&rotation, edEnt->eulerRotation);
             mat4_trs(&objectToWorld, edEnt->position, rotation, edEnt->scale);
             ent->objectToWorld = objectToWorld;
@@ -341,9 +346,9 @@ void editor_update(struct TessEditor *editor)
 
 
 
-void editor_client_process_command(struct TessEditor *editor, uint16_t cmd, uint8_t *data, uint32_t size)
+void editor_client_process_command(TessEditor *editor, uint16_t cmd, uint8_t *data, uint32_t size)
 {
-    struct ByteStream stream;
+    ByteStream stream;
     init_byte_stream(&stream, data, size);
     switch(cmd)
     {
@@ -388,7 +393,7 @@ void editor_client_process_command(struct TessEditor *editor, uint16_t cmd, uint
                 uint16_t entryCount;
                 uint32_t serverId;
                 uint32_t objectId;
-                struct V3 pos, rot, scale;
+                V3 pos, rot, scale;
                 if(!stream_read_uint16(&stream, &entryCount)) return;
                 for(int i = 0; i < entryCount; i++)
                 {
@@ -397,7 +402,7 @@ void editor_client_process_command(struct TessEditor *editor, uint16_t cmd, uint
                     if(!stream_read_v3(&stream, &pos)) return;
                     if(!stream_read_v3(&stream, &rot)) return;
                     if(!stream_read_v3(&stream, &scale)) return;
-                    struct TessEditorEntity *edEnt;
+                    TessEditorEntity *edEnt;
                     edEnt = editor_create_object(editor, 1);
                     if(edEnt == NULL)
                     {
@@ -421,14 +426,14 @@ void editor_client_process_command(struct TessEditor *editor, uint16_t cmd, uint
             {
                 uint16_t entryCount;
                 uint32_t serverId;
-                struct V3 pos, rot, scale;
+                V3 pos, rot, scale;
                 if(!stream_read_uint16(&stream, &entryCount)) return;
                 {
                     if(!stream_read_uint32(&stream, &serverId)) return;
                     if(!stream_read_v3(&stream, &pos)) return;
                     if(!stream_read_v3(&stream, &rot)) return;
                     if(!stream_read_v3(&stream, &scale)) return;
-                    struct TessEditorEntity *edEnt;
+                    TessEditorEntity *edEnt;
                     khiter_t k = kh_get(uint32, editor->serverEntityMap, serverId);
                     if(k == kh_end(editor->serverEntityMap))
                         return;

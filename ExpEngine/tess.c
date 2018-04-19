@@ -1,20 +1,20 @@
-void tess_strings_init(struct TessStrings *tstrings, struct TessFixedArena *arena)
+void tess_strings_init(TessStrings *tstrings, TessFixedArena *arena)
 {
     fixed_arena_init_from_arena(&tstrings->stringArena, arena, 64 * 1024);
     tstrings->internedStrings = NULL;
 }
 
-void tess_strings_destroy(struct TessStrings *tstrings)
+void tess_strings_destroy(TessStrings *tstrings)
 {
     buf_free(tstrings->internedStrings);
 }
 
-void tess_file_system_init(struct TessFileSystem *fs, struct TessFixedArena *arena)
+void tess_file_system_init(TessFileSystem *fs, TessFixedArena *arena)
 {
     POOL_FROM_ARENA(fs->loadedFilePool, arena, TESS_LOADED_FILE_POOL_SIZE);
 }
 
-void tess_asset_system_init(struct TessAssetSystem *as, struct TessFixedArena *arena)
+void tess_asset_system_init(TessAssetSystem *as, TessFixedArena *arena)
 {
     POOL_FROM_ARENA(as->meshPool, arena, TESS_MESH_POOL_SIZE);
     POOL_FROM_ARENA(as->objectPool, arena, TESS_OBJECT_POOL_SIZE);
@@ -28,7 +28,7 @@ void tess_asset_system_init(struct TessAssetSystem *as, struct TessFixedArena *a
     as->loadingAssetMap = kh_init(64);
 }
 
-void tess_asset_system_destroy(struct TessAssetSystem *as)
+void tess_asset_system_destroy(TessAssetSystem *as)
 {
     // TODO: loadedAssets deinit?
     // free AssetLookupCahce entry buf and map
@@ -39,7 +39,7 @@ void tess_asset_system_destroy(struct TessAssetSystem *as)
     {
         if(kh_exist(h, k))
         {
-            struct AssetLookupCache *cache = (struct AssetLookupCache*)kh_value(h, k);
+            AssetLookupCache *cache = (AssetLookupCache*)kh_value(h, k);
             buf_free(cache->entries);
         }
     }
@@ -50,9 +50,9 @@ void tess_asset_system_destroy(struct TessAssetSystem *as)
     buf_free(as->loadingAssets);
 }
 
-bool tess_load_file(struct TessFileSystem *fs, const char* fileName, uint32_t pipeline, void *userData)
+bool tess_load_file(TessFileSystem *fs, const char* fileName, uint32_t pipeline, void *userData)
 {
-    struct TessFile *tfile = pool_allocate(fs->loadedFilePool);
+    TessFile *tfile = pool_allocate(fs->loadedFilePool);
     assert(tfile);
     AikeFile *file = fs->platform->open_file(fs->platform, fileName, Aike_File_Mode_Read);
     assert(file);
@@ -76,14 +76,14 @@ bool tess_load_file(struct TessFileSystem *fs, const char* fileName, uint32_t pi
 }
 
 // TODO: call this
-void tess_unload_file(struct TessFileSystem *fs, struct TessFile *tfile)
+void tess_unload_file(TessFileSystem *fs, TessFile *tfile)
 {
     free(tfile->req.buffer);
     pool_free(fs->loadedFilePool, tfile);
     printf("unload file %s\n", tfile->filePath);
 }
 
-void tess_process_io_events(struct TessFileSystem *fs)
+void tess_process_io_events(TessFileSystem *fs)
 {
     AikeIOEvent event;
     while(fs->platform->get_next_io_event(fs->platform, &event))
@@ -92,8 +92,8 @@ void tess_process_io_events(struct TessFileSystem *fs)
         {
             case Aike_IO_Event_IO_Request_Done:
             {
-                struct AikeIORequestDoneEvent *ioDone = &event.ioRequestDone;
-                struct TessFile *tfile = (struct TessFile*)ioDone->request;
+                AikeIORequestDoneEvent *ioDone = &event.ioRequestDone;
+                TessFile *tfile = (TessFile*)ioDone->request;
                 assert(ioDone->status == Aike_IO_Status_Completed); // TODO: error handling
                 assert(tfile->pipeline > Tess_File_Pipeline_None && tfile->pipeline < Tess_File_Pipeline_Count);
                 fs->platform->close_file(fs->platform, tfile->req.file);
@@ -109,7 +109,7 @@ void tess_process_io_events(struct TessFileSystem *fs)
 }
 
 // TODO: NO LINEAR SEARCH!!!!!!!!!!!!1
-TStr* tess_intern_string(struct TessStrings *tstrings, const char *string)
+TStr* tess_intern_string(TessStrings *tstrings, const char *string)
 {
     // try to find the string
     int count = buf_len(tstrings->internedStrings);
@@ -129,7 +129,7 @@ TStr* tess_intern_string(struct TessStrings *tstrings, const char *string)
 
 // TODO: i don't think this is any safer
 // also: NO LINEAR SEARCH !!!!!!!!!!!!!111111
-TStr* tess_intern_string_s(struct TessStrings *tstrings, const char *string, uint32_t maxlen)
+TStr* tess_intern_string_s(TessStrings *tstrings, const char *string, uint32_t maxlen)
 {
      // try to find the string
     int count = buf_len(tstrings->internedStrings);

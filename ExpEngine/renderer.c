@@ -4,10 +4,12 @@ struct Renderer *create_headless_renderer()
     return ret;
 }
 
-void init_renderer(struct Renderer *renderer)
+void init_renderer(struct Renderer *renderer, AikePlatform *platform)
 {
     ring_queue_init(RenderMessage, &renderer->ch.toRenderer);
     ring_queue_init(RenderMessage, &renderer->ch.fromRenderer);
+    renderer->platform = platform;
+    renderer->renderThread = NULL;
 }
 
 struct Renderer *create_renderer(u32 rendererType, AikePlatform *platform)
@@ -18,11 +20,11 @@ struct Renderer *create_renderer(u32 rendererType, AikePlatform *platform)
     {
         case RENDERER_TYPE_OPENGL:
             ret = create_opengl_renderer(platform);
-            init_renderer(ret);
+            init_renderer(ret, platform);
             break;
         case RENDERER_TYPE_HEADLESS:
-            init_renderer(ret);
             ret = create_headless_renderer();
+            init_renderer(ret, platform);
             break;
         default:
             tt_render_fatal("Unknown/Unsupported renderer");
@@ -49,3 +51,28 @@ void destroy_renderer(struct Renderer *renderer)
     free(renderer);
 }
 
+void start_renderer(struct Renderer *renderer)
+{
+    switch(renderer->type)
+    {
+        case RENDERER_TYPE_OPENGL:
+            start_opengl_renderer(renderer);
+            break;
+        default:
+            assert(false);
+            break;
+    }
+}
+
+void stop_renderer(struct Renderer *renderer)
+{
+    switch(renderer->type)
+    {
+        case RENDERER_TYPE_OPENGL:
+            stop_opengl_renderer(renderer);
+            break;
+        default:
+            assert(false);
+            break;
+    }
+}

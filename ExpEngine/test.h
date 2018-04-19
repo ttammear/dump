@@ -1,16 +1,16 @@
 #pragma once
 
 #pragma push(pack, 1)
-struct UIVertex
+typedef struct UIVertex
 {
-    struct V4 position;
-    struct V2 texCoord;
+    V4 position;
+    V2 texCoord;
     uint32_t color;
 //    struct V4 color;
-};
+} UIVertex;
 #pragma pop(pack)
 
-struct UIBatch
+typedef struct UIBatch
 {
     uint32_t textureId;
     uint32_t scissorX0;
@@ -19,46 +19,46 @@ struct UIBatch
     uint32_t scissorY1;
     uint32_t indexStart;
     uint32_t indexCount;
-};
+} UIBatch;
 
-struct RenderMeshInstance
+typedef struct RenderMeshInstance
 {
     u32 matrixIndex;
 
     void *instanceDataPtr;
     u32 instanceDataSize;
     u32 objectId;
-};
+} RenderMeshInstance;
 
-struct RenderMeshEntry
+typedef struct RenderMeshEntry
 {
     uint32_t meshId;
     uint32_t materialId;
     u32 numInstances;
-    struct RenderMeshInstance instances[];
-};
+    RenderMeshInstance instances[];
+} RenderMeshEntry;
 
-struct RenderSpace
+typedef struct RenderSpace
 {
-    struct Mat4 viewProjection;
+    Mat4 viewProjection;
     u32 numEntries;
     struct RenderMeshEntry *meshEntries[];
     // Decals
     // Quads/Strps/Triangles/Whatever
-};
+} RenderSpace;
 
-struct RenderPostProc
+typedef struct RenderPostProc
 {
     int dummy;
-};
+} RenderPostProc;
 
-struct RenderStep
+typedef struct RenderStep
 {
     u32 type; // space, postproc
     u32 index;
-};
+} RenderStep;
 
-struct RenderView
+typedef struct RenderView
 {
     u32 numSpaces;
     u32 numPostProcs;
@@ -69,7 +69,7 @@ struct RenderView
     uint32_t numIndices;
     uint16_t *indices;
     uint32_t materialId;
-    struct Mat4 orthoMatrix;
+    Mat4 orthoMatrix;
 
     uint32_t numUIBatches;
     struct UIBatch *uiBatches;
@@ -77,7 +77,7 @@ struct RenderView
     uint32_t matrixCount;
     _Alignas(16) struct Mat4_sse2 *tmatrixBuf;
 
-    struct Mat4_sse2 worldToClip;
+    Mat4_sse2 worldToClip;
 
     // Render features
     struct RenderSpace *space;
@@ -85,61 +85,61 @@ struct RenderView
 
     // Rendering order
     struct RenderStep *steps;
-};
+} RenderView;
 
-struct RenderViewBuffer
+typedef struct RenderViewBuffer
 {
     u32 size;
     u8 *bottomPtr;
 
-    _Alignas(64) struct RenderView view;
+    _Alignas(64) RenderView view;
     u32 swapIndex;
     u8 end[4];
-};
+} RenderViewBuffer;
 
-struct BuilderMeshEntry
+typedef struct BuilderMeshEntry
 {
     uint32_t meshId;
     uint32_t materialId;
     u32 instanceCount;
-};
+} BuilderMeshEntry;
 
-struct BuilderMeshInstance
+typedef struct BuilderMeshInstance
 {
     int mentryIdx;
-    struct Mat4 modelM;
+    Mat4 modelM;
     u32 instanceDataIdx;
     u32 instanceDataSize;
     u32 objectId;
-};
+} BuilderMeshInstance;
 
-struct RenderViewBuilder
+typedef struct RenderViewBuilder
 {
     struct BuilderMeshEntry *meshBuf;
     struct BuilderMeshInstance *instanceBuf;
-    struct Mat4 viewProjection;
+    Mat4 viewProjection;
 
-    struct Mat4 uiViewProjection;
+    Mat4 uiViewProjection;
     struct UIVertex *vertices;
     uint16_t *indices;
     uint32_t materialId;
-    struct Mat4 orthoMatrix;
+    Mat4 orthoMatrix;
     uint32_t indexBase;
 
     struct UIBatch *batches;
-    struct UIBatch curBatch;
+    UIBatch curBatch;
     bool beginBatch;
 
     u8 *instanceDataBuf;;
-};
+} RenderViewBuilder;
 
-struct SwapBuffer
+typedef struct SwapBuffer
 {
     struct RenderViewBuffer *viewBuffers[3];
     _Alignas(64) struct RenderViewBuffer *freeViewBuffer;
     _Alignas(64) volatile u32 viewBuffersTaken;
     _Alignas(64) volatile u32 numSwaps;
-};
+} SwapBuffer;
 
 struct RenderViewBuffer* rview_buffer_init(void *memory, u32 size);
 void* rview_buffer_destroy(struct RenderViewBuffer *rbuf);

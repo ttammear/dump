@@ -24,7 +24,6 @@ void draw_main_menu(struct TessMainMenu *menu, struct nk_context *ctx)
         nk_layout_row_dynamic(ctx, 60, 1);
         if(nk_button_label(ctx, "Play"))
         {
-
         }
         if(nk_button_label(ctx, "Editor"))
         {

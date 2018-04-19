@@ -74,7 +74,7 @@ static unsigned short glDefaultMeshIdx[] =
 
 
 static uint32_t frameId;
-struct GLMesh *get_mesh_safe(struct OpenGLRenderer *renderer, uint32_t meshId);
+GLMesh *get_mesh_safe(OpenGLRenderer *renderer, uint32_t meshId);
 
 GLenum shader_type_to_glenum(u32 type)
 {
@@ -180,23 +180,23 @@ const char *opengl_type_to_str(GLint type)
     }
 }
 
-void opengl_notify_sync(struct OpenGLRenderer *renderer, GLsync *sync, OnSyncAction_t action, void* userData)
+void opengl_notify_sync(OpenGLRenderer *renderer, GLsync *sync, OnSyncAction_t action, void* userData)
 {
     printf("Notify sync at frame %d\n", frameId);
     assert(renderer->numFreeSyncPoints > 0);
     uint32_t freeIdx = renderer->syncPointFreeList[--renderer->numFreeSyncPoints];
-    struct GLSyncPoint *syncp = &renderer->syncPoints[freeIdx];
+    GLSyncPoint *syncp = &renderer->syncPoints[freeIdx];
     syncp->sync = *sync;
     syncp->onSync = action;
     syncp->userData = userData;
     syncp->active = true;
 }
 
-void opengl_trigger_sync(struct OpenGLRenderer *renderer, uint32_t syncId)
+void opengl_trigger_sync(OpenGLRenderer *renderer, uint32_t syncId)
 {
     printf("Trigger sync at frame %d\n", frameId);
     assert(renderer->numFreeSyncPoints < GL_RENDERER_MAX_SYNC_POINTS);
-    struct GLSyncPoint *syncp = &renderer->syncPoints[syncId];
+    GLSyncPoint *syncp = &renderer->syncPoints[syncId];
     syncp->onSync(renderer, syncp->userData);
     syncp->sync = NULL;
     syncp->onSync = NULL;
@@ -205,7 +205,7 @@ void opengl_trigger_sync(struct OpenGLRenderer *renderer, uint32_t syncId)
     renderer->syncPointFreeList[renderer->numFreeSyncPoints++] = syncId;
 }
 
-void opengl_process_program(GLuint program, struct GLMaterial *material)
+void opengl_process_program(GLuint program, GLMaterial *material)
 {
     GLint nUniforms;
     glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &nUniforms);
@@ -235,7 +235,7 @@ void opengl_process_program(GLuint program, struct GLMaterial *material)
     }
     printf("---- end ----\n\n");
 
-    // find the size of istance data struct
+    // find the size of istance data 
     GLuint instanceBlock = glGetUniformBlockIndex(program, "instanceData");
     if(instanceBlock != GL_INVALID_INDEX)
     {
@@ -301,13 +301,13 @@ void opengl_process_program(GLuint program, struct GLMaterial *material)
     }
 }
 
-static inline void opengl_change_instance_buffer(struct OpenGLRenderer *renderer)
+static inline void opengl_change_instance_buffer(OpenGLRenderer *renderer)
 {
     renderer->curInstanceBufferIdx = ++renderer->curInstanceBufferIdx%INSTANCE_BUFFER_COUNT;
     renderer->curMatrixBufferIdx = ++renderer->curMatrixBufferIdx%MATRIX_BUFFER_COUNT;
 }
 
-void opengl_flush_instances(struct OpenGLRenderer *renderer, struct GLMesh *mesh, struct GLMaterial *mat, u32 instanceCount, void *uniformData, u32 uniformDataSize, void *matData, void *oidData)
+void opengl_flush_instances(OpenGLRenderer *renderer, GLMesh *mesh, GLMaterial *mat, u32 instanceCount, void *uniformData, u32 uniformDataSize, void *matData, void *oidData)
 {
     PROF_BLOCK();
     u32 bufIdx = renderer->curInstanceBufferIdx;
@@ -324,8 +324,8 @@ void opengl_flush_instances(struct OpenGLRenderer *renderer, struct GLMesh *mesh
 
     bufIdx = renderer->curMatrixBufferIdx;
     glBindBuffer(GL_UNIFORM_BUFFER, renderer->matrixBuffers[bufIdx]);
-    CHECK_BUF_ALIGN(instanceCount*sizeof(struct Mat4));
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, instanceCount*sizeof(struct Mat4), matData);
+    CHECK_BUF_ALIGN(instanceCount*sizeof(Mat4));
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, instanceCount*sizeof(Mat4), matData);
     blockIdx = glGetUniformBlockIndex(program, "matrixBlock");
     if(blockIdx != GL_INVALID_INDEX)
         glUniformBlockBinding(program, blockIdx, UNIFORM_BUFFER_MATRICES+bufIdx);
@@ -361,10 +361,10 @@ void opengl_flush_instances(struct OpenGLRenderer *renderer, struct GLMesh *mesh
     //opengl_change_instance_buffer(renderer);
 }
 
-void calculate_vertex_buffer_size(struct MeshQuery *mq, uint32_t *size, uint32_t *stride, uint32_t offsetArr[])
+void calculate_vertex_buffer_size(MeshQuery *mq, uint32_t *size, uint32_t *stride, uint32_t offsetArr[])
 {
     uint32_t vertexCount = mq->vertexCount;
-    uint32_t perVertexSize = sizeof(struct V4);
+    uint32_t perVertexSize = sizeof(V4);
     for(int i = 0; i < MAX_ATTRIBUTE_BUFFERS; i++)
     {
         // TODO: handle invalid type
@@ -375,36 +375,36 @@ void calculate_vertex_buffer_size(struct MeshQuery *mq, uint32_t *size, uint32_t
     *stride = perVertexSize;
 }
 
-struct GLMesh* get_mesh(struct OpenGLRenderer *renderer, uint32_t meshId)
+GLMesh* get_mesh(OpenGLRenderer *renderer, uint32_t meshId)
 {
     if(meshId >= buf_len(renderer->meshes))
     {
         // TODO: log error
         return NULL;
     }
-    struct GLMesh *ret = &renderer->meshes[meshId];
+    GLMesh *ret = &renderer->meshes[meshId];
     assert(ret->id == meshId);
     return ret;
 }
 
-struct GLMesh *get_mesh_safe(struct OpenGLRenderer *renderer, uint32_t meshId)
+GLMesh *get_mesh_safe(OpenGLRenderer *renderer, uint32_t meshId)
 {
     if(meshId >= buf_len(renderer->meshes))
     {
         return &renderer->meshes[0];
     }
-    struct GLMesh *ret = &renderer->meshes[meshId];
+    GLMesh *ret = &renderer->meshes[meshId];
     assert(ret->id == meshId);
     return ret;
 }
 
-void opengl_handle_mesh_query(struct OpenGLRenderer *renderer, struct MeshQuery *mq)
+void opengl_handle_mesh_query(OpenGLRenderer *renderer, MeshQuery *mq)
 {
     uint32_t meshId = mq->meshId;
     if(meshId == 0)
     {
         meshId = buf_len(renderer->meshes);
-        struct GLMesh mesh = {.id = meshId};
+        GLMesh mesh = {.id = meshId};
         buf_push(renderer->meshes, mesh);
         printf("new mesh %d\n", meshId);
     }
@@ -419,7 +419,7 @@ void opengl_handle_mesh_query(struct OpenGLRenderer *renderer, struct MeshQuery 
         return;
     }
 
-    struct GLMesh *mesh = get_mesh(renderer, meshId);
+    GLMesh *mesh = get_mesh(renderer, meshId);
     if(!mesh)
         return;
     if(mesh->state != GL_Mesh_State_Init && mesh->state != GL_Mesh_State_Ready)
@@ -488,7 +488,7 @@ void opengl_handle_mesh_query(struct OpenGLRenderer *renderer, struct MeshQuery 
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
-void opengl_mesh_ready(struct OpenGLRenderer *renderer, struct GLMesh* mesh)
+void opengl_mesh_ready(OpenGLRenderer *renderer, GLMesh* mesh)
 {
     assert(mesh->state == GL_Mesh_State_Wait_Sync);
     mesh->state = GL_Mesh_State_Ready;
@@ -502,11 +502,11 @@ void opengl_mesh_ready(struct OpenGLRenderer *renderer, struct GLMesh* mesh)
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
-void opengl_handle_mesh_update(struct OpenGLRenderer *renderer, struct MeshUpdate *mu)
+void opengl_handle_mesh_update(OpenGLRenderer *renderer, MeshUpdate *mu)
 {
     // TODO: handle errors
     uint32_t meshId = mu->meshId;
-    struct GLMesh *mesh = get_mesh(renderer, meshId);
+    GLMesh *mesh = get_mesh(renderer, meshId);
     if(!mesh)
         return;
     if(mesh->state != GL_Mesh_State_Dirty)
@@ -548,7 +548,7 @@ void opengl_handle_mesh_update(struct OpenGLRenderer *renderer, struct MeshUpdat
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
-void opengl_destroy_material(struct GLMaterial *material)
+void opengl_destroy_material(GLMaterial *material)
 {
     GLuint glshader;
     for(int i = 0; i < MATERIAL_MAX_SHADERS; i++)
@@ -576,19 +576,19 @@ void opengl_destroy_material(struct GLMaterial *material)
     }
 }
 
-struct GLMaterial *get_material(struct OpenGLRenderer *renderer, uint32_t matId)
+GLMaterial *get_material(OpenGLRenderer *renderer, uint32_t matId)
 {
     if(matId >= buf_len(renderer->materials))
     {
         // TODO: log error
         return NULL;
     }
-    struct GLMaterial *ret = &renderer->materials[matId];
+    GLMaterial *ret = &renderer->materials[matId];
     assert(ret->id == matId);
     return ret;
 }
 
-void opengl_material_ready(struct OpenGLRenderer *renderer, struct GLMaterial *mat)
+void opengl_material_ready(OpenGLRenderer *renderer, GLMaterial *mat)
 {
     printf("material updated!\n");
     glDeleteSync(mat->fence);
@@ -602,16 +602,16 @@ void opengl_material_ready(struct OpenGLRenderer *renderer, struct GLMaterial *m
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
-void opengl_handle_material_query(struct OpenGLRenderer *renderer, struct MaterialQuery *mq, bool internal)
+void opengl_handle_material_query(OpenGLRenderer *renderer, MaterialQuery *mq, bool internal)
 {
     uint32_t materialId = mq->materialId;
     if(materialId == 0)
     {
         materialId = buf_len(renderer->materials);
-        struct GLMaterial mat = {.id = materialId};
+        GLMaterial mat = {.id = materialId};
         buf_push(renderer->materials, mat);
     }
-    struct GLMaterial *material = get_material(renderer, materialId);
+    GLMaterial *material = get_material(renderer, materialId);
     if(material == NULL)
         return;
     if(material->state != GL_Material_State_Init && material->state != GL_Material_State_Ready)
@@ -729,19 +729,19 @@ void opengl_handle_material_query(struct OpenGLRenderer *renderer, struct Materi
     }
 }
 
-static inline struct GLTexture *get_texture(struct OpenGLRenderer *renderer, uint32_t texId)
+static inline GLTexture *get_texture(OpenGLRenderer *renderer, uint32_t texId)
 {
     if(texId >= buf_len(renderer->textures))
     {
         // TODO: log error
         return NULL;
     }
-    struct GLTexture *ret = &renderer->textures[texId];
+    GLTexture *ret = &renderer->textures[texId];
     assert(ret->id == texId);
     return ret;
 }
 
-void opengl_handle_texture_query(struct OpenGLRenderer *renderer, struct TextureQuery *tq)
+void opengl_handle_texture_query(OpenGLRenderer *renderer, TextureQuery *tq)
 {
     // TODO: max size?
     if(tq->width == 0 || tq->height == 0)
@@ -754,10 +754,10 @@ void opengl_handle_texture_query(struct OpenGLRenderer *renderer, struct Texture
     if(textureId == 0)
     {
         textureId = buf_len(renderer->textures);
-        struct GLTexture tex = {.id = textureId};
+        GLTexture tex = {.id = textureId};
         buf_push(renderer->textures, tex);
     }
-    struct GLTexture *tex = get_texture(renderer, textureId);
+    GLTexture *tex = get_texture(renderer, textureId);
     if(!tex)
         return;
     if(tex->state != GL_Texture_State_Init && tex->state != GL_Texture_State_Ready)
@@ -802,7 +802,7 @@ void opengl_handle_texture_query(struct OpenGLRenderer *renderer, struct Texture
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &response);
 }
 
-void opengl_texture_ready(struct OpenGLRenderer *renderer, struct GLTexture *tex)
+void opengl_texture_ready(OpenGLRenderer *renderer, GLTexture *tex)
 {
     assert(tex->state == GL_Texture_State_Wait_Sync);
     tex->state = GL_Texture_State_Ready;
@@ -816,7 +816,7 @@ void opengl_texture_ready(struct OpenGLRenderer *renderer, struct GLTexture *tex
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
-void opengl_handle_texture_update(struct OpenGLRenderer *renderer, struct TextureUpdate *tu)
+void opengl_handle_texture_update(OpenGLRenderer *renderer, TextureUpdate *tu)
 {
     uint32_t textureId = tu->textureId;
     if(textureId == 0)
@@ -825,7 +825,7 @@ void opengl_handle_texture_update(struct OpenGLRenderer *renderer, struct Textur
         fprintf(stderr, "NOT A TEXTURE\n");
         return;
     }
-    struct GLTexture *tex = get_texture(renderer, textureId);
+    GLTexture *tex = get_texture(renderer, textureId);
     if(!tex)
         return;
     if(tex->state != GL_Texture_State_Dirty)
@@ -880,7 +880,7 @@ void opengl_handle_texture_update(struct OpenGLRenderer *renderer, struct Textur
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
-void opengl_handle_object_id_samples(struct OpenGLRenderer *renderer, struct SampleObjectId *soid)
+void opengl_handle_object_id_samples(OpenGLRenderer *renderer, SampleObjectId *soid)
 {
     PROF_BLOCK();
     RenderMessage msg = {};
@@ -929,10 +929,10 @@ respond:
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
-bool opengl_process_messages(struct OpenGLRenderer *renderer)
+bool opengl_process_messages(OpenGLRenderer *renderer)
 {
     PROF_BLOCK();
-    struct Renderer *r = &renderer->renderer;
+    Renderer *r = &renderer->renderer;
     RenderMessage msg;
     while(ring_queue_dequeue(RenderMessage, &r->ch.toRenderer, &msg))
     {
@@ -965,7 +965,7 @@ bool opengl_process_messages(struct OpenGLRenderer *renderer)
                 // TODO: CLEAN UP
                 fprintf(stderr, "PLEASE CLEAN UP THE STATEE!!!\n");
                 // detach glcontext from this thread
-                renderer->platform->make_window_current(renderer->platform, NULL);
+                renderer->renderer.platform->make_window_current(renderer->renderer.platform, NULL);
                 return false;
             case Render_Message_Screen_Resize:
                 renderer->windowWidth = msg.screenR.width;
@@ -980,10 +980,10 @@ bool opengl_process_messages(struct OpenGLRenderer *renderer)
     return true;
 }
 
-void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer *rbuf)
+void opengl_render_view(OpenGLRenderer *renderer, RenderViewBuffer *rbuf)
 {
     PROF_BLOCK();
-    struct RenderView *view = &rbuf->view;
+    RenderView *view = &rbuf->view;
     if(view->space == NULL)
         return;
     u32 meshCount = view->space->numEntries;
@@ -998,7 +998,7 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
 
     PROF_START_STR("Extract matrices");
     // extract matrices
-    _Alignas(16) struct Mat4 matBuf[view->matrixCount*TT_SIMD_32_WIDTH];
+    _Alignas(16) Mat4 matBuf[view->matrixCount*TT_SIMD_32_WIDTH];
     assert(((uintptr_t)&view->tmatrixBuf & 0xF) == 0);
     assert(((uintptr_t)matBuf & 0xF) == 0);
 
@@ -1012,9 +1012,9 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
     {
         idofst = 0;
         mofst = 0;
-        struct RenderMeshEntry *mentry = view->space->meshEntries[i];
-        struct GLMaterial *material = &renderer->materials[mentry->materialId];
-        struct GLMesh *mesh = get_mesh_safe(renderer, mentry->meshId);
+        RenderMeshEntry *mentry = view->space->meshEntries[i];
+        GLMaterial *material = &renderer->materials[mentry->materialId];
+        GLMesh *mesh = get_mesh_safe(renderer, mentry->meshId);
         // use fallback material if the one attached to mesh isn't valid
         if(!material->isValid)
             material = &renderer->materials[0];
@@ -1027,7 +1027,7 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
 
         for(instId = 0; instId < instanceCount; instId++, instRunId++)
         {
-            struct RenderMeshInstance *minstance = &mentry->instances[instId];
+            RenderMeshInstance *minstance = &mentry->instances[instId];
             u32 idsize = minstance->instanceDataSize;
             void *idptr= minstance->instanceDataPtr;
             // TODO: std140 rules
@@ -1035,7 +1035,7 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
 
             // buffer limit reached, have to flush
             if((idofst + idsize) > renderer->uniBufSize
-                    || (mofst + sizeof(struct Mat4)) > renderer->uniBufSize)
+                    || (mofst + sizeof(Mat4)) > renderer->uniBufSize)
             {
                 opengl_flush_instances(renderer, mesh, material, instRunId, idbuf, idofst, mbuf, oidBuf);
                 idofst = mofst = instRunId = 0;
@@ -1046,10 +1046,10 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
             if(renderer->renderObjectId)
                 oidBuf[instRunId*4] = minstance->objectId;
             idofst += idsize;
-            static_assert(sizeof(struct Mat4) == 4*4*4, "Mat4 assumed to be packed, otherwise it won't match OpenGL layout!");
+            static_assert(sizeof(Mat4) == 4*4*4, "Mat4 assumed to be packed, otherwise it won't match OpenGL layout!");
             //@OPTIMIZE: could we somehow get rid of this copy?
-            memcpy(&mbuf[mofst], &matBuf[minstance->matrixIndex], sizeof(struct Mat4));
-            mofst += sizeof(struct Mat4);
+            memcpy(&mbuf[mofst], &matBuf[minstance->matrixIndex], sizeof(Mat4));
+            mofst += sizeof(Mat4);
             PROF_END();
         }
         // @OPTIMIZE: we currently reset buffer offset, but we could keep writing to
@@ -1081,7 +1081,7 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
         glBufferSubData(GL_ARRAY_BUFFER, 0, vertBufSize, view->vertices);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->immIndexBuf);
         glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, idxBufSize, view->indices);
-        struct GLMaterial *mat = get_material(renderer, view->materialId);
+        GLMaterial *mat = get_material(renderer, view->materialId);
         glUseProgram(mat->glProgram);        
         GLuint loc = glGetUniformLocation(mat->glProgram, "toClip");
         glUniformMatrix4fv(loc, 1, GL_FALSE, (GLfloat*)&view->orthoMatrix);
@@ -1089,7 +1089,7 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
         glUniform1i(loc, 0);
         for(int i = 0; i < view->numUIBatches; i++)
         {
-            struct UIBatch *ub = &view->uiBatches[i];
+            UIBatch *ub = &view->uiBatches[i];
             glEnable(GL_SCISSOR_TEST);
             glScissor(ub->scissorX0, ub->scissorY0, ub->scissorX1, ub->scissorY1);
 
@@ -1108,7 +1108,7 @@ void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer
     PROF_END();
 }
 
-void opengl_init_object_id_buffer(struct OpenGLRenderer *renderer)
+void opengl_init_object_id_buffer(OpenGLRenderer *renderer)
 {
     assert(renderer->objectIdPbo == 0);
     glGenBuffers(1, &renderer->objectIdPbo);
@@ -1139,7 +1139,7 @@ void opengl_init_object_id_buffer(struct OpenGLRenderer *renderer)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void opengl_destroy_object_id_buffer(struct OpenGLRenderer *renderer)
+void opengl_destroy_object_id_buffer(OpenGLRenderer *renderer)
 {
     assert(renderer->objectIdPbo != 0);
     assert(renderer->objectIdInstanceBuf != 0);
@@ -1155,7 +1155,7 @@ void opengl_destroy_object_id_buffer(struct OpenGLRenderer *renderer)
 
 void *opengl_update_proc(void *data);
 
-void opengl_init(struct OpenGLRenderer *renderer)
+void opengl_init(OpenGLRenderer *renderer)
 {
     // Set expected state
     //
@@ -1190,8 +1190,8 @@ void opengl_init(struct OpenGLRenderer *renderer)
     //
 
     // generate color texture
-    uint32_t width = renderer->platform->mainWin.width;
-    uint32_t height = renderer->platform->mainWin.height;
+    uint32_t width = renderer->renderer.platform->mainWin.width;
+    uint32_t height = renderer->renderer.platform->mainWin.height;
     renderer->fboWidth = width;
     renderer->fboHeight = height;
     glGenTextures(1, &renderer->fboColorTex);
@@ -1264,10 +1264,10 @@ void opengl_init(struct OpenGLRenderer *renderer)
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(struct UIVertex), (GLvoid*)offsetof(struct UIVertex, position));
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(struct UIVertex), (GLvoid*)offsetof(struct UIVertex, texCoord));
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(UIVertex), (GLvoid*)offsetof(UIVertex, position));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(UIVertex), (GLvoid*)offsetof(UIVertex, texCoord));
     // TODO: f32 colors?
-    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(struct UIVertex), (GLvoid*)offsetof(struct UIVertex, color));
+    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(UIVertex), (GLvoid*)offsetof(UIVertex, color));
     glBindVertexArray(0);
 
     // Generate default mesh, texture and material
@@ -1311,7 +1311,7 @@ void opengl_init(struct OpenGLRenderer *renderer)
     buf_reserve(renderer->textures, 100);
     buf_reserve(renderer->materials, 100);
 
-    struct GLMesh mesh = {
+    GLMesh mesh = {
         .id = 0,
         .state = GL_Mesh_State_Ready,
         .numVertices = ARRAY_COUNT(glDefaultMesh),
@@ -1322,7 +1322,7 @@ void opengl_init(struct OpenGLRenderer *renderer)
         .vertexStride = 32,
     };
 
-    struct GLTexture tex = {
+    GLTexture tex = {
         .id = 0,
         .state = GL_Texture_State_Ready,
         .format = Texture_Format_RGBA,
@@ -1356,12 +1356,12 @@ void opengl_init(struct OpenGLRenderer *renderer)
     opengl_init_object_id_buffer(renderer);
 }
 
-void check_sync_points(struct OpenGLRenderer *renderer)
+void check_sync_points(OpenGLRenderer *renderer)
 { 
     for(int i = 0; i < GL_RENDERER_MAX_SYNC_POINTS; i++)
     {
         // TODO: it would probably be cheaper to keep a list than always iterate all
-        struct GLSyncPoint *syncp = &renderer->syncPoints[i];
+        GLSyncPoint *syncp = &renderer->syncPoints[i];
         if(syncp->active)
         {
             // TODO: i changed syncp->sync to a value type, but if the fence is update or whatever it might change or whatever
@@ -1378,43 +1378,67 @@ void check_sync_points(struct OpenGLRenderer *renderer)
 void *opengl_proc(void *data);
 
 // MAIN THREAD CALLS THIS
-struct Renderer *create_opengl_renderer(AikePlatform *platform)
+Renderer *create_opengl_renderer(AikePlatform *platform)
 {
     // TODO: proper allocator (caller frees this right now)
-    struct OpenGLRenderer *ret = aligned_alloc(_Alignof(struct OpenGLRenderer), sizeof(struct OpenGLRenderer));
-    ret->platform = platform;
+    OpenGLRenderer *ret = aligned_alloc(_Alignof(OpenGLRenderer), sizeof(OpenGLRenderer));
+
+    ret->renderer.platform = platform;
+    ret->curView = NULL;
 
     platform->make_window_current(platform, &platform->mainWin);
     opengl_init(ret);
 
-    struct Renderer *grenderer = (struct Renderer*)ret;
-    grenderer->threadProc = opengl_proc;
+    Renderer *grenderer = (Renderer*)ret;
 
     for(int i = 0 ; i< GL_RENDERER_MAX_SYNC_POINTS; i++)
     {
         ret->syncPointFreeList[i] = i;
-        ret->syncPoints[i] = (struct GLSyncPoint){};
+        ret->syncPoints[i] = (GLSyncPoint){};
     }
     ret->numFreeSyncPoints = GL_RENDERER_MAX_SYNC_POINTS;
 
-    return (struct Renderer*)ret;
+    return (Renderer*)ret;
 }
 
-// MAIN THREAD CALLS THIS
-void destroy_opengl_renderer(struct Renderer *rend)
+void stop_opengl_renderer(Renderer *rend)
 {
+    if(NULL == rend->renderThread)
+    {
+        fprintf(stderr, "stop_opengl_renderer when not started!\n");
+        return;
+    }
     RenderMessage msg;
     msg.type = Render_Message_Stop;
     renderer_queue_message(rend, &msg);
 
-    struct OpenGLRenderer *glrend = (struct OpenGLRenderer*)rend;
+    OpenGLRenderer *glrend = (OpenGLRenderer*)rend;
 
     void *result;
-    glrend->platform->join_thread(rend->renderThread, &result);
+    rend->platform->join_thread(rend->renderThread, &result);
     printf("render thread exited with %p\n", result);
+    // TODO: does this leak?
+    rend->renderThread = NULL;
+}
+
+void start_opengl_renderer(Renderer *rend)
+{
+    if(NULL != rend->renderThread)
+    {
+        fprintf(stderr, "start_opengl_renderer when already started!\n");
+        return;
+    }
+
+    rend->renderThread = rend->platform->create_thread(rend, opengl_proc);
+}
+
+// MAIN THREAD CALLS THIS
+void destroy_opengl_renderer(Renderer *rend)
+{
+    OpenGLRenderer *glrend = (OpenGLRenderer*)rend;
 
     // TODO: just move this to render thread...
-    glrend->platform->make_window_current(glrend->platform, &glrend->platform->mainWin);
+    rend->platform->make_window_current(rend->platform, &rend->platform->mainWin);
     glDeleteBuffers(INSTANCE_BUFFER_COUNT, glrend->instanceDataBuffers);
     glDeleteBuffers(MATRIX_BUFFER_COUNT, glrend->matrixBuffers);
     glDeleteBuffers(1, &glrend->immVertBuf);
@@ -1439,12 +1463,14 @@ void destroy_opengl_renderer(struct Renderer *rend)
 
 void *opengl_proc(void *data)
 {
+    // TODO: new debug context is created for every renderer_start
     DEBUG_INIT("OpenGL thread");
-    struct OpenGLRenderer *renderer = (struct OpenGLRenderer*)data;
-    struct SwapBuffer *viewSwapBuffer = ((struct Renderer*)data)->swapBuffer;
-    renderer->curView = take_view_buffer(viewSwapBuffer);
+    OpenGLRenderer *renderer = (OpenGLRenderer*)data;
+    SwapBuffer *viewSwapBuffer = ((Renderer*)data)->swapBuffer;
+    if(renderer->curView == NULL)
+        renderer->curView = take_view_buffer(viewSwapBuffer);
     assert(renderer->curView);
-    renderer->platform->make_window_current(renderer->platform, &renderer->platform->mainWin);
+    renderer->renderer.platform->make_window_current(renderer->renderer.platform, &renderer->renderer.platform->mainWin);
     bool running = true;
     while(running)
     {
@@ -1461,7 +1487,7 @@ void *opengl_proc(void *data)
             check_sync_points(renderer);
             renderer->curView = swap_view_if_newer(viewSwapBuffer, renderer->curView);
             if(oldView == (uintptr_t)renderer->curView)
-                renderer->platform->sleep(1000);
+                renderer->renderer.platform->sleep(1000);
         }
 
         PROF_START_STR("opengl frame");
@@ -1487,7 +1513,7 @@ void *opengl_proc(void *data)
         PROF_END();
 
         PROF_START_STR("present frame");
-        renderer->platform->present_frame(renderer->platform, &renderer->platform->mainWin);
+        renderer->renderer.platform->present_frame(renderer->renderer.platform, &renderer->renderer.platform->mainWin);
         PROF_END();
         frameId++;
 

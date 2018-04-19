@@ -1,67 +1,67 @@
 #pragma push(pack 1)
 
-struct EditorCommandHeader
+typedef struct EditorCommandHeader
 {
     uint16_t size;
     uint16_t cmd;
     uint8_t data[];
-};
+} EditorCommandHeader;
 
-struct ObjectDefinition
+typedef struct ObjectDefinition
 {
     uint32_t objectId;
     uint8_t assetIdLen;
     char assetId[]; // packagename/assetname
-};
+} ObjectDefiniton;
 
-struct EditorCommandDefineObjects
+typedef struct EditorCommandDefineObjects
 {
     uint16_t numEntries;
     struct ObjectDefinition objects[];
-};
+} EditorCommandDefineObjects;
 
-struct EditorCommandDebugMessage
+typedef struct EditorCommandDebugMessage
 {
     uint16_t msgLen;
     char msg[];
-};
+} EditorCommandDebugMessage;
 
-struct CreateEntityEntry
+typedef struct CreateEntityEntry
 {
     uint32_t id;
     uint32_t objectId;
-    struct V3 position;
-    struct V3 eulerRotation;
-    struct V3 scale;
-};
+    V3 position;
+    V3 eulerRotation;
+    V3 scale;
+} CreateEntityEntry;
 
-struct ServerCreateEntityEntry
+typedef struct ServerCreateEntityEntry
 {
     uint32_t objectId;
-    struct V3 position;
-    struct V3 eulerRotation;
-    struct V3 scale;
-};
+    V3 position;
+    V3 eulerRotation;
+    V3 scale;
+} ServerCreateEntityEntry;
 
-struct ServerTransformEntityEntry
+typedef struct ServerTransformEntityEntry
 {
     uint32_t serverId; // server entity id
-    struct V3 position;
-    struct V3 eulerRotation;
-    struct V3 scale;
-};
+    V3 position;
+    V3 eulerRotation;
+    V3 scale;
+} ServerTransformEntityEntry;
 
-struct EditorCommandCreateEntities
+typedef struct EditorCommandCreateEntities
 {
     uint16_t numEntities;
     struct CreateEntityEntry entries[];
-};
+} EditorCommandCreateEntities;
 
-struct EditorCommandServerCreateEntities
+typedef struct EditorCommandServerCreateEntities
 {
     uint16_t numEntities;
     struct ServerCreateEntityEntry entries[];
-};
+} EditorCommandServerCreateEntities;
 
 #pragma pop(pack)
 
@@ -79,12 +79,12 @@ enum EditorServerCommandType
     Editor_Server_Command_Debug_Message,
 };
 
-struct ByteStream
+typedef struct ByteStream
 {
     uint8_t *start;
     uint8_t *cur;
     uint8_t *end;
-};
+} ByteStream;
 
 #define member_size(type, member) sizeof(((type *)0)->member)
 

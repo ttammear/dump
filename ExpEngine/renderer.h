@@ -108,7 +108,7 @@ static const uint32_t s_vertexAttributeTypePrims[] =
     [Vertex_Attribute_Type_Float] = 1,
 };
 
-struct MeshQuery
+typedef struct MeshQuery
 {
     void *userData;
     MQComplete_A onComplete;
@@ -118,9 +118,9 @@ struct MeshQuery
     b32 largeIndices;
     uint32_t dataStorageSize;
     uint8_t attributeTypes[MAX_ATTRIBUTE_BUFFERS];
-};
+} MeshQuery;
 
-struct MeshQueryResult
+typedef struct MeshQueryResult
 {
     uint32_t meshId;
     void *userData;
@@ -128,38 +128,38 @@ struct MeshQueryResult
     void *vertBufPtr;
     void *idxBufPtr;
     void *dataBufPtr;
-};
+} MeshQueryResult;
 
-struct MeshUpdate
+typedef struct MeshUpdate
 {
     uint32_t meshId;
     void *userData;
     MReady_A onComplete;
-};
+} MeshUpdate;
 
-struct MeshReady
+typedef struct MeshReady
 {
     uint32_t meshId;
     void *userData;
     MReady_A onComplete;
-};
+} MeshReady;
 
-struct MaterialQuery
+typedef struct MaterialQuery
 {
     void *userData;
     uint32_t materialId;
     uint8_t shaderTypes[MATERIAL_MAX_SHADERS];
     const void *shaderCodes[MATERIAL_MAX_SHADERS];
     uint32_t shaderLengths[MATERIAL_MAX_SHADERS];
-};
+} MaterialQuery;
 
-struct MaterialReady
+typedef struct MaterialReady
 {
     uint32_t materialId;
     void *userData;
-};
+} MaterialReady;
 
-struct TextureQuery
+typedef struct TextureQuery
 {
     void *userData;
     TQComplete_A onComplete;
@@ -168,37 +168,37 @@ struct TextureQuery
     uint32_t height;
     uint32_t filter;
     enum TextureFormat format;
-};
+} TextureQuery;
 
-struct TextureQueryResponse
+typedef struct TextureQueryResponse
 {
     uint32_t textureId;
     void *userData;
     TQComplete_A onComplete;
     void *textureDataPtr;
-};
+} TextureQueryResponse;
 
-struct TextureUpdate
+typedef struct TextureUpdate
 {
     uint32_t textureId;
     void *userData;
     TReady_A onComplete;
-};
+} TextureUpdate;
 
-struct TextureReady
+typedef struct TextureReady
 {
     uint32_t textureId;
     void *userData;
     TReady_A onComplete;
-};
+} TextureReady;
 
-struct ScreenResize
+typedef struct ScreenResize
 {
     uint32_t width;
     uint32_t height;
-};
+} ScreenResize;
 
-struct SampleObjectId
+typedef struct SampleObjectId
 {
     // texture coordinates for samples 0..1
     struct V2 *normalizedSampleCoords;
@@ -208,16 +208,16 @@ struct SampleObjectId
     uint32_t *buffer;
 
     void *userData;
-    OSReady_A onComplete;
+    void ** onComplete;
 
     uint32_t fromTextureId;
-};
+} SampleObjectId;
 
-struct ObjectIDSamplesReady
+typedef struct ObjectIDSamplesReady
 {
     void *userData;
-    OSReady_A onComplete;
-};
+    void ** onComplete;
+} ObjectIDSamplesReady;
 
 typedef struct RenderMessage
 {
@@ -242,30 +242,32 @@ typedef struct RenderMessage
 
 DEFINE_RING_QUEUE(RenderMessage, 10);
 
-struct RenderMessageChannel
+typedef struct RenderMessageChannel
 {
     RING_QUEUE_TYPE(RenderMessage) toRenderer;
     RING_QUEUE_TYPE(RenderMessage) fromRenderer;
-};
+} RenderMessageChannel;
 
 typedef void* (*render_thread_proc_t)(void*);
 
-struct Renderer
+typedef struct Renderer
 {
     uint32_t type;
     struct RenderMessageChannel ch;
 
-    render_thread_proc_t threadProc;
     AikeThread *renderThread;
+    AikePlatform *platform;
 
     struct SwapBuffer *swapBuffer;
-};
+} Renderer;
 
 struct Renderer *create_renderer(u32 rendererType, AikePlatform *platform);
 void destroy_renderer(struct Renderer *renderer);
 
 struct Renderer *create_opengl_renderer(AikePlatform *platform);
 void destroy_opengl_renderer(struct Renderer *glrend);
+void start_opengl_renderer(struct Renderer *rend);
+void stop_opengl_renderer(struct Renderer *rend);
 
 // TODO: remove
 void *opengl_proc(void *data);

@@ -84,18 +84,11 @@ static const char *uiFragSrc =
     "outColor = v_color * texture2D(_MainTex, v_texcoord);\n"
 "}";
 
-struct GameData
+typedef struct GameData
 {
     struct RenderViewBuilder *viewBuilder;
     AikePlatform *platform;
-};
 
-static int s_x, s_y;
-static void *s_texdata;
-static float rotval = 0.0f;
-
-struct GameState
-{
     struct nk_context nk_ctx;
     struct nk_font_atlas atlas;
     struct nk_font *font; 
@@ -109,17 +102,21 @@ struct GameState
     bool ui_ready;
 
     struct V3 camPos;
-};
 
-struct GameState gameState;
+    int s_x, s_y;
+    void *s_texdata;
+    float rotval;
+
+} GameData;
 
 void atlas_ready(struct Renderer *renderer, struct TextureQueryResponse *tqr, void *userData)
 {
+    struct GameData *gdata = (struct GameData*)userData;
     RenderMessage response = {};
-    memcpy(tqr->textureDataPtr, gameState.image, gameState.w*gameState.h*4);
-    nk_font_atlas_end(&gameState.atlas, nk_handle_id((int)tqr->textureId), &gameState.null);
-    nk_init_fixed(&gameState.nk_ctx, calloc(1, 1024*1024), 1024*1024, &gameState.font->handle);
-    gameState.ui_ready = true;
+    memcpy(tqr->textureDataPtr, gdata->image, gdata->w*gdata->h*4);
+    nk_font_atlas_end(&gdata->atlas, nk_handle_id((int)tqr->textureId), &gdata->null);
+    nk_init_fixed(&gdata->nk_ctx, calloc(1, 1024*1024), 1024*1024, &gdata->font->handle);
+    gdata->ui_ready = true;
     response.type = Render_Message_Texture_Update;
     response.texU.textureId = tqr->textureId;
     renderer_queue_message(renderer, &response);
@@ -127,9 +124,10 @@ void atlas_ready(struct Renderer *renderer, struct TextureQueryResponse *tqr, vo
 
 void fill_cat_texture(struct Renderer *renderer, struct TextureQueryResponse *tqr, void *userData)
 {
-    uint32_t texsize = s_x*s_y*4;
-    memcpy(tqr->textureDataPtr, s_texdata, texsize);
-    stbi_image_free(s_texdata);
+    struct GameData *gdata = (struct GameData*)userData;
+    uint32_t texsize = gdata->s_x*gdata->s_y*4;
+    memcpy(tqr->textureDataPtr, gdata->s_texdata, texsize);
+    stbi_image_free(gdata->s_texdata);
 
     RenderMessage response = {};
     response.type = Render_Message_Texture_Update;
@@ -168,8 +166,8 @@ void loadDummyMesh(const char *path, struct Renderer *renderer)
 void init_game(struct Renderer *renderer, struct GameData *gdata, struct TessClient *tess)
 {
     int comp;
-    s_texdata = stbi_load("./cat.png", &s_x, &s_y, &comp, 4);
-    assert(s_texdata != NULL);
+    gdata->s_texdata = stbi_load("./cat.png", &gdata->s_x, &gdata->s_y, &comp, 4);
+    assert(gdata->s_texdata != NULL);
     
     RenderMessage msg = {};
 
@@ -211,11 +209,11 @@ void init_game(struct Renderer *renderer, struct GameData *gdata, struct TessCli
 
     msg = (RenderMessage){};
     msg.type = Render_Message_Texture_Query;
-    msg.texQ.userData = NULL;
+    msg.texQ.userData = gdata;
     msg.texQ.onComplete = fill_cat_texture;
     msg.texQ.textureId = 0;
-    msg.texQ.width = s_x;
-    msg.texQ.height = s_y;
+    msg.texQ.width = gdata->s_x;
+    msg.texQ.height = gdata->s_y;
     msg.texQ.format = Texture_Format_RGBA;
     msg.texQ.filter = Texture_Filter_Trilinear;
     renderer_queue_message(renderer, &msg);
@@ -223,28 +221,26 @@ void init_game(struct Renderer *renderer, struct GameData *gdata, struct TessCli
     // GUI
     //const char *font_path = "FreeMono.ttf";
     const char *font_path = NULL;
-    nk_buffer_init_default(&gameState.cmds);
-    nk_font_atlas_init_default(&gameState.atlas);
-    nk_font_atlas_begin(&gameState.atlas);
-    if (font_path) gameState.font = nk_font_atlas_add_from_file(&gameState.atlas, font_path, 13.0f, NULL);
-    else gameState.font = nk_font_atlas_add_default(&gameState.atlas, 13.0f, NULL);
+    nk_buffer_init_default(&gdata->cmds);
+    nk_font_atlas_init_default(&gdata->atlas);
+    nk_font_atlas_begin(&gdata->atlas);
+    if (font_path) gdata->font = nk_font_atlas_add_from_file(&gdata->atlas, font_path, 13.0f, NULL);
+    else gdata->font = nk_font_atlas_add_default(&gdata->atlas, 13.0f, NULL);
 
-    gameState.image = nk_font_atlas_bake(&gameState.atlas, &gameState.w, &gameState.h, NK_FONT_ATLAS_RGBA32);
+    gdata->image = nk_font_atlas_bake(&gdata->atlas, &gdata->w, &gdata->h, NK_FONT_ATLAS_RGBA32);
 
     msg = (RenderMessage){};
     msg.type = Render_Message_Texture_Query;
-    msg.texQ.userData = &gameState;
+    msg.texQ.userData = gdata;
     msg.texQ.onComplete = atlas_ready;
-    msg.texQ.width = gameState.w;
-    msg.texQ.height = gameState.h;
+    msg.texQ.width = gdata->w;
+    msg.texQ.height = gdata->h;
     msg.texQ.format = Texture_Format_RGBA;
     msg.texQ.filter = Texture_Filter_Bilinear;
     renderer_queue_message(renderer, &msg);
 
     //nk_init_default(&ctx, &font->handle);}
-    gameState.ui_ready = false;
-
-    pyramid = 1;
+    gdata->ui_ready = false;
 }
 
 void deinit_game()
@@ -326,7 +322,7 @@ void write_object(struct CreateObjectsWindowState *cws)
 void update_game(struct GameData *gdata)
 {
     PROF_START();
-    rotval += 0.01f;
+    gdata->rotval += 0.01f;
 
 #pragma push(pack, 1)
     struct TestInstanceData
@@ -354,12 +350,12 @@ void update_game(struct GameData *gdata)
     for(int i = 0; i < 100; i++)
     for(int j = 0; j < 100; j++)
     {
-        quat_angle_axis(&rot, rotval*70.0f * ((float)j / 10.0f), make_v3(0.0f, 1.0f, 0.0f));
-        quat_angle_axis(&rot2, -rotval*140.0f * ((float)i / 10.0f), make_v3(0.0f, 1.0f, 0.0f));
+        quat_angle_axis(&rot, gdata->rotval*70.0f * ((float)j / 10.0f), make_v3(0.0f, 1.0f, 0.0f));
+        quat_angle_axis(&rot2, -gdata->rotval*140.0f * ((float)i / 10.0f), make_v3(0.0f, 1.0f, 0.0f));
         bool cube = j%2==0;
         //data.v1 = cols[rand() % ARRAY_COUNT(cols)];
         mat4_trs(&model, make_v3((float)i*2 - 100.0f, -5.0f, 10.0f + (float)j*2 - 17.0f), cube?rot:rot2, one);
-        add_mesh_instance(gdata->viewBuilder, cube?pyramid:0, cube?pyMat:1, &model, &data, sizeof(data), -1);
+        add_mesh_instance(gdata->viewBuilder, cube?1:0, cube?pyMat:1, &model, &data, sizeof(data), -1);
     }
 
     PROF_END();
@@ -385,7 +381,7 @@ void update_game(struct GameData *gdata)
 
     PROF_START_STR("Nuklear GUI");
 
-    struct nk_context *ctx = &gameState.nk_ctx;
+    struct nk_context *ctx = &gdata->nk_ctx;
 
     int mx = (int)gdata->platform->mouseX;
     int my = (int)gdata->platform->mouseY;
@@ -401,13 +397,13 @@ void update_game(struct GameData *gdata)
     nk_input_key(ctx, NK_KEY_TAB, akeys[AIKE_KEY_TAB] != 0);
 
     if(akeys[AIKE_KEY_W])
-        gameState.camPos.z += 0.1f;
+        gdata->camPos.z += 0.1f;
     if(akeys[AIKE_KEY_S])
-        gameState.camPos.z -= 0.1f;
+        gdata->camPos.z -= 0.1f;
     if(akeys[AIKE_KEY_A])
-        gameState.camPos.x -= 0.1f;
+        gdata->camPos.x -= 0.1f;
     if(akeys[AIKE_KEY_D])
-        gameState.camPos.x += 0.1f;
+        gdata->camPos.x += 0.1f;
 
     uint32_t next = 0;
     while((next = gdata->platform->next_character(gdata->platform)))
@@ -423,7 +419,7 @@ void update_game(struct GameData *gdata)
 
     static struct CreateObjectsWindowState cwState;
 
-    if(gameState.ui_ready)
+    if(gdata->ui_ready)
     {
         if (nk_begin(ctx, "Show", nk_rect(50, 50, 220, 400),
             NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE)) {
@@ -446,7 +442,7 @@ void update_game(struct GameData *gdata)
             nk_layout_row_end(ctx);
 
             nk_layout_row_dynamic(ctx, 30, 1);
-            nk_property_int(ctx, "#Mesh:", 0, (int*)&pyramid, 20, 1, 0.1f);
+            //nk_property_int(ctx, "#Mesh:", 0, (int*)&pyramid, 20, 1, 0.1f);
 
             nk_layout_row_begin(ctx, NK_STATIC, 30, 2);
                 nk_layout_row_push(ctx, 60);
@@ -515,7 +511,7 @@ void update_game(struct GameData *gdata)
         config.vertex_layout = vertex_layout;
         config.vertex_size = sizeof(struct UIVertex);
         config.vertex_alignment = _Alignof(struct UIVertex);
-        config.null = gameState.null;
+        config.null = gdata->null;
         config.circle_segment_count = 22;
         config.curve_segment_count = 22;
         config.arc_segment_count = 22;
@@ -527,7 +523,7 @@ void update_game(struct GameData *gdata)
         {struct nk_buffer vbuf, ebuf;
         nk_buffer_init_fixed(&vbuf, vertBuf, sizeof(vertBuf[0])*maxVerts);
         nk_buffer_init_fixed(&ebuf, indexBuf, sizeof(indexBuf[0])*maxIndices);
-        nk_convert(ctx, &gameState.cmds, &vbuf, &ebuf, &config);}
+        nk_convert(ctx, &gdata->cmds, &vbuf, &ebuf, &config);}
 
         add_vertices(gdata->viewBuilder, vertBuf, maxVerts);
 
@@ -535,7 +531,7 @@ void update_game(struct GameData *gdata)
         float sy = 1.0f;
 
         uint32_t curIdxBase = 0;
-        nk_draw_foreach(cmd, ctx, &gameState.cmds) {
+        nk_draw_foreach(cmd, ctx, &gdata->cmds) {
             if (!cmd->elem_count) continue;
             int scX0 = (cmd->clip_rect.x * sx);
             int scY0 = ((height - (int32_t)(cmd->clip_rect.y + cmd->clip_rect.h)) * sy);

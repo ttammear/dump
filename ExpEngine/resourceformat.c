@@ -5,14 +5,14 @@
 #define TTR_AREF_EXTERN_MASK 0x80000000
 #define TTR_IS_EXTERN_AREF(x) (((x.tblIndex) & TTR_AREF_EXTERN_MASK) != 0) 
 
-struct TTRAssetRef
+typedef struct TTRAssetRef
 {
     uint32_t tblIndex; // highest order bit - 0=descTbl 1=importTbl
-};
+} TTRAssetRef;
 
 typedef int32_t TTRRef;
 
-struct TTRHeader
+typedef struct TTRHeader
 {
     uint32_t signature;
     uint16_t majorVersion;
@@ -21,55 +21,55 @@ struct TTRHeader
     //uint8_t globalOffsetFormat; // offset size 32 bit or 64 bit
     TTRRef descTblRef;
     TTRRef importTblRef;
-};
+} TTRHeader;
 
-struct TTRDescTblEntry
+typedef struct TTRDescTblEntry
 {
     uint32_t type;
     TTRRef ref;
     char assetName[TTR_MAX_NAME_LEN];
-};
+} TTRDescTblEntry;
 
-struct TTRImportTblEntry
+typedef struct TTRImportTblEntry
 {
     uint32_t type;
     char packageName[TTR_MAX_NAME_LEN];
     char assetName[TTR_MAX_NAME_LEN];
-};
+} TTRImportTblEntry;
 
-struct TTRDescTbl
+typedef struct TTRDescTbl
 {
     uint32_t entryCount;
     struct TTRDescTblEntry entries[];
-};
+} TTRDescTbl;
 
-struct TTRImportTbl
+typedef struct TTRImportTbl
 {
     uint32_t entryCount;
     struct TTRImportTblEntry entries[];
-};
+} TTRImportTbl;
 
-struct TTRMeshDesc
+typedef struct TTRMeshDesc
 {
     uint32_t indexSize;
     uint32_t vertStride;
     uint32_t numAttrs;
     uint8_t attrs[];
-};
+} TTRMeshDesc;
 
-struct TTRMeshSection
+typedef struct TTRMeshSection
 {
     uint32_t startIndex;
     uint32_t indexCount;
-};
+} TTRMeshSection;
 
-struct TTRBuffer
+typedef struct TTRBuffer
 {
     uint32_t size;
     uint8_t data[];
-};
+} TTRBuffer;
 
-struct TTRMesh
+typedef struct TTRMesh
 {
     TTRRef descRef;
     TTRRef vertBufRef;
@@ -78,15 +78,15 @@ struct TTRMesh
     uint32_t numIndices;
     uint32_t numSections;
     struct TTRMeshSection sections[];
-};
+} TTRMesh;
 
-struct TTRObject
+typedef struct TTRObject
 {
     struct TTRAssetRef meshARef;
     // TODO: material?
     // TODO: collider?
     // something else?
-};
+} TTRObject;
 
 #pragma pop(pack)
 
@@ -100,7 +100,7 @@ struct TTRObject
 #define STREAM_PUSH(stream, type) ({type* rettval = (type*)stream; (stream) += sizeof(type); rettval;})
 #define STREAM_PUSH_FLEX(stream, type, arr, count) ({type* rettval = (type*)stream; (stream) += TTR_GET_SIZE(type, arr, count); rettval;})
 
-struct LoadMeshData
+typedef struct LoadMeshData
 {
     // stage 0 - get data layout
     struct Renderer *renderer;
@@ -111,41 +111,39 @@ struct LoadMeshData
     struct MeshQueryResult mqr;
     // stage 2 - loaded
     uint32_t meshId;
-};
+} LoadMeshData;
 
-void ttr_load_first_mesh(struct LoadMeshData *data, uint32_t stage);
+void ttr_load_first_mesh(LoadMeshData *data, uint32_t stage);
 
-void ttr_mesh_query_result(struct Renderer *renderer, struct MeshQueryResult *mqr, void *userData)
+void ttr_mesh_query_result(Renderer *renderer, MeshQueryResult *mqr, void *userData)
 {
-    struct LoadMeshData *lmdata = (struct LoadMeshData*)userData;
+    LoadMeshData *lmdata = (LoadMeshData*)userData;
     lmdata->mqr = *mqr;
     lmdata->renderer = renderer;
     ttr_load_first_mesh(lmdata, 1);
 }
 
-void ttr_mesh_ready(struct Renderer *renderer, struct MeshReady *mr, void *userData)
+void ttr_mesh_ready(Renderer *renderer, MeshReady *mr, void *userData)
 {
-    struct LoadMeshData *lmdata = (struct LoadMeshData*)userData;
+    LoadMeshData *lmdata = (LoadMeshData*)userData;
     lmdata->meshId = mr->meshId;
     ttr_load_first_mesh(lmdata, 2);
 }
 
-static uint32_t pyramid;
-
-void ttr_load_first_mesh(struct LoadMeshData *data, uint32_t stage)
+void ttr_load_first_mesh(LoadMeshData *data, uint32_t stage)
 {
     switch(stage)
     {
         case 0:
         {
-        struct TTRHeader *header = (struct TTRHeader*)data->fileMem;
-        struct TTRDescTbl *tbl = TTR_REF_TO_PTR(struct TTRDescTbl, header->descTblRef);
+        TTRHeader *header = (TTRHeader*)data->fileMem;
+        TTRDescTbl *tbl = TTR_REF_TO_PTR(TTRDescTbl, header->descTblRef);
         for(int i = 0; i < tbl->entryCount; i++)
         {
             if(tbl->entries[i].type == TTR_4CHAR("MESH"))
             {
-                struct TTRMesh *ttrMesh = TTR_REF_TO_PTR(struct TTRMesh, tbl->entries[i].ref);
-                struct TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(struct TTRMeshDesc, ttrMesh->descRef);
+                TTRMesh *ttrMesh = TTR_REF_TO_PTR(TTRMesh, tbl->entries[i].ref);
+                TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(TTRMeshDesc, ttrMesh->descRef);
                 data->ttrMesh = ttrMesh;
                 RenderMessage msg = {};
                 msg.type = Render_Message_Mesh_Query;
@@ -168,10 +166,10 @@ void ttr_load_first_mesh(struct LoadMeshData *data, uint32_t stage)
         break;
         case 1:
         {
-            struct TTRMesh *ttrMesh = data->ttrMesh;
-            struct TTRBuffer *vbuf = TTR_REF_TO_PTR(struct TTRBuffer, ttrMesh->vertBufRef);
-            struct TTRBuffer *ibuf = TTR_REF_TO_PTR(struct TTRBuffer, ttrMesh->indexBufRef);
-            struct TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(struct TTRMeshDesc, ttrMesh->descRef);
+            TTRMesh *ttrMesh = data->ttrMesh;
+            TTRBuffer *vbuf = TTR_REF_TO_PTR(TTRBuffer, ttrMesh->vertBufRef);
+            TTRBuffer *ibuf = TTR_REF_TO_PTR(TTRBuffer, ttrMesh->indexBufRef);
+            TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(TTRMeshDesc, ttrMesh->descRef);
             uint32_t stride = ttrMeshDesc->vertStride;
             uint32_t vcount = ttrMesh->numVertices;
             uint32_t icount = ibuf->size / 2;

@@ -29,7 +29,7 @@ enum GLTextureState
     GL_Texture_State_Ready
 };
 
-struct GLMesh
+typedef struct GLMesh
 {
     uint32_t id;
     uint32_t state;
@@ -52,9 +52,9 @@ struct GLMesh
     uint32_t vertexStride;
     uint32_t vertexBufferSize;
     uint32_t indexBufferSize;
-};
+} GLMesh;
 
-struct GLTexture
+typedef struct GLTexture
 {
     uint32_t id;
     uint32_t state;
@@ -73,15 +73,15 @@ struct GLTexture
     GLsync fence;
 
     uint32_t bufferSize;
-};
+} GLTexture;
 
-struct GLShader
+typedef struct GLShader
 {
     GLuint glShader;
     u32 type;
-};
+} GLShader;
 
-struct GLMaterial
+typedef struct GLMaterial
 {
     uint32_t id;
     uint32_t state;
@@ -93,24 +93,24 @@ struct GLMaterial
     GLsync fence;
     uint32_t perInstanceDataSize;
     struct GLShader shaders[MATERIAL_MAX_SHADERS];
-};
+} GLMaterial;
 
 struct OpenGLRenderer;
 typedef void (*OnSyncAction_t)(struct OpenGLRenderer *renderer, void *data);
 
-struct GLSyncPoint
+typedef struct GLSyncPoint
 {
     bool active;
     GLsync sync;
     OnSyncAction_t onSync;
     void *userData;
-};
+} GLSyncPoint;
 
 #define GL_RENDERER_MAX_SYNC_POINTS 64
 
-struct OpenGLRenderer
+typedef struct OpenGLRenderer
 {
-    struct Renderer renderer;
+    Renderer renderer;
 
     // max size for unitform buffer
     u32 uniBufSize;
@@ -148,20 +148,19 @@ struct OpenGLRenderer
 
     uint32_t numFreeSyncPoints;
     uint32_t syncPointFreeList[GL_RENDERER_MAX_SYNC_POINTS];
-    struct GLSyncPoint syncPoints[GL_RENDERER_MAX_SYNC_POINTS];
+    GLSyncPoint syncPoints[GL_RENDERER_MAX_SYNC_POINTS];
 
     struct GLMaterial *materials;
     struct GLTexture *textures;
     struct GLMesh *meshes;
 
-    struct GLMaterial fallbackMaterial;
+    GLMaterial fallbackMaterial;
 
-    AikePlatform *platform;
     struct SwapBuffer *swapbuf;
     struct RenderViewBuffer *curView;
-};
+} OpenGLRenderer;
 
-void opengl_render_view(struct OpenGLRenderer *renderer, struct RenderViewBuffer *rbuf);
+void opengl_render_view(OpenGLRenderer *renderer, RenderViewBuffer *rbuf);
 
 #define BUF_ALIGN_MASK 0x3
 // nothing will blow up, but better have everything aligned!

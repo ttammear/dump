@@ -1,11 +1,11 @@
 
 void tess_replace_id_name_characters(char buf[], const char *name, uint32_t buflen);
-void tess_fill_mesh_data(struct Renderer *renderer, struct MeshQueryResult *mqr, void *userData);
-void tess_finalize_mesh(struct Renderer *renderer, struct MeshReady *mr, void *userData);
+void tess_fill_mesh_data(Renderer *renderer, MeshQueryResult *mqr, void *userData);
+void tess_finalize_mesh(Renderer *renderer, MeshReady *mr, void *userData);
 
-void tess_load_mesh(struct TessAssetSystem *as, struct TTRMesh *tmesh, struct TessLoadingAsset *lasset)
+void tess_load_mesh(TessAssetSystem *as, TTRMesh *tmesh, TessLoadingAsset *lasset)
 {
-    struct TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(struct TTRMeshDesc, tmesh->descRef);
+    TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(TTRMeshDesc, tmesh->descRef);
     RenderMessage msg = {};
     msg.type = Render_Message_Mesh_Query;
     msg.meshQuery.userData = (void*)lasset;
@@ -19,14 +19,14 @@ void tess_load_mesh(struct TessAssetSystem *as, struct TTRMesh *tmesh, struct Te
     printf("LOAD MESH\n");
 }
 
-void tess_fill_mesh_data(struct Renderer *renderer, struct MeshQueryResult *mqr, void *userData)
+void tess_fill_mesh_data(Renderer *renderer, MeshQueryResult *mqr, void *userData)
 {
-    struct TessLoadingAsset *lasset = (struct TessLoadingAsset*)userData;
-    struct TTRMesh *tmesh = lasset->meshData.tmesh;
-    struct TessAssetSystem *as = lasset->meshData.as;
-    struct TTRBuffer *vbuf = TTR_REF_TO_PTR(struct TTRBuffer, tmesh->vertBufRef);
-    struct TTRBuffer *ibuf = TTR_REF_TO_PTR(struct TTRBuffer, tmesh->indexBufRef);
-    struct TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(struct TTRMeshDesc, tmesh->descRef);
+    TessLoadingAsset *lasset = (TessLoadingAsset*)userData;
+    TTRMesh *tmesh = lasset->meshData.tmesh;
+    TessAssetSystem *as = lasset->meshData.as;
+    TTRBuffer *vbuf = TTR_REF_TO_PTR(TTRBuffer, tmesh->vertBufRef);
+    TTRBuffer *ibuf = TTR_REF_TO_PTR(TTRBuffer, tmesh->indexBufRef);
+    TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(TTRMeshDesc, tmesh->descRef);
     memcpy(mqr->vertBufPtr, vbuf->data, vbuf->size);
     memcpy(mqr->idxBufPtr, ibuf->data, ibuf->size);
     RenderMessage msg = {};
@@ -38,11 +38,11 @@ void tess_fill_mesh_data(struct Renderer *renderer, struct MeshQueryResult *mqr,
     printf("FILL MESH\n");
 }
 
-void tess_finalize_mesh(struct Renderer *renderer, struct MeshReady *mr, void *userData)
+void tess_finalize_mesh(Renderer *renderer, MeshReady *mr, void *userData)
 {
-    struct TessLoadingAsset *lasset = (struct TessLoadingAsset*)userData;
-    struct TessAssetSystem *as = lasset->meshData.as;
-    struct TessMeshAsset *mesh = pool_allocate(as->meshPool);
+    TessLoadingAsset *lasset = (TessLoadingAsset*)userData;
+    TessAssetSystem *as = lasset->meshData.as;
+    TessMeshAsset *mesh = pool_allocate(as->meshPool);
     assert(mesh);
     mesh->meshId = mr->meshId;
     mesh->asset.assetId = lasset->assetId;
@@ -53,9 +53,9 @@ void tess_finalize_mesh(struct Renderer *renderer, struct MeshReady *mr, void *u
     printf("FINALIZE MESH\n");
 }
 
-void tess_process_ttr_file(struct TessAssetSystem *as, struct TessFile *tfile)
+void tess_process_ttr_file(TessAssetSystem *as, TessFile *tfile)
 {
-    struct TessLoadingAsset *lasset = (struct TessLoadingAsset*)tfile->userData;
+    TessLoadingAsset *lasset = (TessLoadingAsset*)tfile->userData;
     lasset->file = tfile;
 
     void* fileBuf = tfile->req.buffer;
@@ -63,17 +63,16 @@ void tess_process_ttr_file(struct TessAssetSystem *as, struct TessFile *tfile)
     uint64_t fileSize = tfile->req.nBytes;
 
     // TODO: check everything before you read it!!!!!!
-    struct TTRHeader *header = (struct TTRHeader*)fileBuf;
-    struct TTRDescTbl *tbl = TTR_REF_TO_PTR(struct TTRDescTbl, header->descTblRef);
-    struct TTRImportTbl *imTbl = TTR_REF_TO_PTR(struct TTRImportTbl, header->importTblRef);
-    struct TessAssetDependency *dep;
+    TTRHeader *header = (TTRHeader*)fileBuf;
+    TTRDescTbl *tbl = TTR_REF_TO_PTR(TTRDescTbl, header->descTblRef);
+    TTRImportTbl *imTbl = TTR_REF_TO_PTR(TTRImportTbl, header->importTblRef);
     // TODO: maybe this should be cached in TessAsset?
     TStr *assetName = tess_get_asset_name_from_id(as, lasset->assetId);
     TStr *packageName = tess_get_asset_package_from_id(as, lasset->assetId);
     bool found = false;
     for(int i = 0; i < tbl->entryCount; i++)
     {
-        struct TTRDescTblEntry *entry = &tbl->entries[i];
+        TTRDescTblEntry *entry = &tbl->entries[i];
         char nameBuf[TTR_MAX_NAME_LEN];
         tess_replace_id_name_characters(nameBuf, entry->assetName, ARRAY_COUNT(nameBuf));
         TStr *internedName = tess_intern_string_s(as->tstrings, nameBuf, TTR_MAX_NAME_LEN);
@@ -87,7 +86,7 @@ void tess_process_ttr_file(struct TessAssetSystem *as, struct TessFile *tfile)
                 case TTR_4CHAR("MESH"):
                     {
                         lasset->meshData.as = as;
-                        struct TTRMesh *tmesh = TTR_REF_TO_PTR(struct TTRMesh, tbl->entries[i].ref);
+                        TTRMesh *tmesh = TTR_REF_TO_PTR(TTRMesh, tbl->entries[i].ref);
                         lasset->meshData.tmesh = tmesh;
                         lasset->type = Tess_Asset_Mesh;
                         tess_load_mesh(as, tmesh, lasset);
@@ -96,13 +95,13 @@ void tess_process_ttr_file(struct TessAssetSystem *as, struct TessFile *tfile)
                 case TTR_4CHAR("OBJ "):
                     {
                         lasset->status = Tess_Asset_Dependency_Status_Done;
-                        struct TTRObject *tobject = TTR_REF_TO_PTR(struct TTRObject, tbl->entries[i].ref);
-                        struct TTRAssetRef aref = tobject->meshARef;
+                        TTRObject *tobject = TTR_REF_TO_PTR(TTRObject, tbl->entries[i].ref);
+                        TTRAssetRef aref = tobject->meshARef;
                         uint32_t meshEntryIdx = (aref.tblIndex & ~TTR_AREF_EXTERN_MASK);
                         TStr *meshAssetName, *meshPackageName;
                         if(TTR_IS_EXTERN_AREF(aref))
                         {
-                            struct TTRImportTblEntry *imEnt = &imTbl->entries[meshEntryIdx];
+                            TTRImportTblEntry *imEnt = &imTbl->entries[meshEntryIdx];
                             meshAssetName = tess_intern_string_s(as->tstrings, imEnt->assetName, TTR_MAX_NAME_LEN);
                             meshPackageName = tess_intern_string_s(as->tstrings, imEnt->packageName, TTR_MAX_NAME_LEN);
                         }
@@ -112,7 +111,7 @@ void tess_process_ttr_file(struct TessAssetSystem *as, struct TessFile *tfile)
                             meshPackageName = packageName;
                         }
 
-                        struct TessObjectAsset *tessObj = pool_allocate(as->objectPool);
+                        TessObjectAsset *tessObj = pool_allocate(as->objectPool);
                         tessObj->asset.assetId = lasset->assetId;
                         tessObj->asset.type = Tess_Asset_Object;
                         lasset->asset = &tessObj->asset;
@@ -136,7 +135,7 @@ void tess_process_ttr_file(struct TessAssetSystem *as, struct TessFile *tfile)
     }
 }
 
-TStr *tess_get_asset_id(struct TessAssetSystem *as, TStr *package, TStr *asset)
+TStr *tess_get_asset_id(TessAssetSystem *as, TStr *package, TStr *asset)
 {
     char buf[TTR_MAX_NAME_LEN*2 + 2];
     assert(package->len + asset->len + 2 < ARRAY_COUNT(buf));
@@ -146,7 +145,7 @@ TStr *tess_get_asset_id(struct TessAssetSystem *as, TStr *package, TStr *asset)
     return tess_intern_string_s(as->tstrings, buf, ARRAY_COUNT(buf));
 }
 
-TStr *tess_get_asset_name_from_id(struct TessAssetSystem *as, TStr *assetId)
+TStr *tess_get_asset_name_from_id(TessAssetSystem *as, TStr *assetId)
 {
     const char *name = strrchr(assetId->cstr, '/');
     assert(name);
@@ -154,7 +153,7 @@ TStr *tess_get_asset_name_from_id(struct TessAssetSystem *as, TStr *assetId)
     return tess_intern_string(as->tstrings, name + 1);
 }
 
-TStr *tess_get_asset_package_from_id(struct TessAssetSystem *as, TStr *assetId)
+TStr *tess_get_asset_package_from_id(TessAssetSystem *as, TStr *assetId)
 {
     const char *name = strrchr(assetId->cstr, '/');
     assert(name);
@@ -163,19 +162,19 @@ TStr *tess_get_asset_package_from_id(struct TessAssetSystem *as, TStr *assetId)
     return ret;
 }
 
-bool tess_is_asset_loaded(struct TessAssetSystem *as, TStr *assetId)
+bool tess_is_asset_loaded(TessAssetSystem *as, TStr *assetId)
 {
     khiter_t k = kh_get(64, as->loadedAssetMap, (intptr_t)assetId);
     return k != kh_end(as->loadedAssetMap);
 }
 
-bool tess_is_asset_loading(struct TessAssetSystem *as, TStr *assetId)
+bool tess_is_asset_loading(TessAssetSystem *as, TStr *assetId)
 {
     khiter_t k = kh_get(64, as->loadingAssetMap, (intptr_t)assetId);
     return k != kh_end(as->loadingAssetMap);
 }
 
-void tess_load_asset_if_not_loaded(struct TessAssetSystem *as, TStr *assetId)
+void tess_load_asset_if_not_loaded(TessAssetSystem *as, TStr *assetId)
 {
     int dummy;
     if(tess_is_asset_loaded(as, assetId))
@@ -189,7 +188,7 @@ void tess_load_asset_if_not_loaded(struct TessAssetSystem *as, TStr *assetId)
     TStr *packageName = tess_get_asset_package_from_id(as, assetId);
     if(get_asset_file(as, assetId, &fileName))
     {
-        struct TessLoadingAsset *lasset = pool_allocate(as->loadingAssetPool);
+        TessLoadingAsset *lasset = pool_allocate(as->loadingAssetPool);
         lasset->file = NULL;
         lasset->asset = NULL;
         lasset->assetId = assetId;
@@ -216,21 +215,21 @@ void tess_load_asset_if_not_loaded(struct TessAssetSystem *as, TStr *assetId)
     }
 }
 
-struct TessAsset* tess_get_asset(struct TessAssetSystem *as, TStr *assetId)
+TessAsset* tess_get_asset(TessAssetSystem *as, TStr *assetId)
 {
     khiter_t k = kh_get(64, as->loadedAssetMap, (intptr_t)assetId);
     if(k == kh_end(as->loadedAssetMap))
         return NULL;
-    struct TessAsset *ret = kh_value(as->loadedAssetMap, k);
+    TessAsset *ret = kh_value(as->loadedAssetMap, k);
     return ret;
 }
 
-void tess_check_complete(struct TessAssetSystem *as)
+void tess_check_complete(TessAssetSystem *as)
 {
     int count = buf_len(as->loadingAssets);
     for(int i = 0; i < count;)
     {
-        struct TessLoadingAsset *lasset = as->loadingAssets[i];
+        TessLoadingAsset *lasset = as->loadingAssets[i];
         bool done = false;
         switch(lasset->type)
         {
@@ -242,13 +241,13 @@ void tess_check_complete(struct TessAssetSystem *as)
                 assert(lasset->status == Tess_Asset_Dependency_Status_Done);
                 if(tess_is_asset_loaded(as, lasset->objectData.meshAssetId))
                 {
-                    struct TessObjectAsset *obj = (struct TessObjectAsset*)lasset->asset;
-                    struct TessAsset *meshAsset = tess_get_asset(as, lasset->objectData.meshAssetId);
+                    TessObjectAsset *obj = (TessObjectAsset*)lasset->asset;
+                    TessAsset *meshAsset = tess_get_asset(as, lasset->objectData.meshAssetId);
                     assert(meshAsset);
                     // TODO: object expected it to be mesh
                     // but it wasnt, so load failed, unload whatever was loaded
                     assert(meshAsset->type == Tess_Asset_Mesh);
-                    obj->mesh = (struct TessMeshAsset*)meshAsset;
+                    obj->mesh = (TessMeshAsset*)meshAsset;
                     done = true;
                 }
                 break;
@@ -286,7 +285,7 @@ void tess_check_complete(struct TessAssetSystem *as)
     }
 }
 
-bool tess_are_all_loads_complete(struct TessAssetSystem *as)
+bool tess_are_all_loads_complete(TessAssetSystem *as)
 {
     return buf_len(as->loadingAssets) == 0;
 }
@@ -315,7 +314,7 @@ void tess_replace_id_name_characters(char buf[], const char *name, uint32_t bufl
     assert(false);
 }
 
-void tess_gen_lookup_cache_for_package(struct TessAssetSystem *as, TStr *packageName)
+void tess_gen_lookup_cache_for_package(TessAssetSystem *as, TStr *packageName)
 {
     char pdirPath[AIKE_MAX_PATH];
     AikeFileEntry entries[64];
@@ -332,7 +331,7 @@ void tess_gen_lookup_cache_for_package(struct TessAssetSystem *as, TStr *package
         return;
     }
 
-    struct AssetLookupCache *cache = pool_allocate(as->assetLookupCachePool);
+    AssetLookupCache *cache = pool_allocate(as->assetLookupCachePool);
     assert(cache);
     cache->entries = NULL;
     key = kh_put(str, as->packageAssetMap, packageName->cstr, &dummy);
@@ -356,10 +355,10 @@ void tess_gen_lookup_cache_for_package(struct TessAssetSystem *as, TStr *package
                 strcat(pdirPath, "/");
                 strcat(pdirPath, entries[i].name);
                 AikeMemoryBlock *block = platform->map_file(platform, pdirPath, 0, 0);
-                struct TTRHeader *hdr = (struct TTRHeader*)block->memory;
+                TTRHeader *hdr = (TTRHeader*)block->memory;
                 if(!STRUCT_IN_RANGE(block->memory, block->size, hdr))
                     goto unmap_file_and_continue; // missing header
-                struct TTRDescTbl *dtbl = TTR_REF_TO_PTR(struct TTRDescTbl, hdr->descTblRef);
+                TTRDescTbl *dtbl = TTR_REF_TO_PTR(TTRDescTbl, hdr->descTblRef);
                 if(!STRUCT_IN_RANGE(block->memory, block->size, dtbl))
                     goto unmap_file_and_continue; // corrupt header/descTbl
                 if(!ARRAY_IN_RANGE(block->memory, block->size, dtbl->entries, dtbl->entryCount))
@@ -369,7 +368,7 @@ void tess_gen_lookup_cache_for_package(struct TessAssetSystem *as, TStr *package
                 {
                     char ebuf[TTR_MAX_NAME_LEN];
                     tess_replace_id_name_characters(ebuf, dtbl->entries[j].assetName, TTR_MAX_NAME_LEN);
-                    struct AssetLookupEntry *entry = pool_allocate(as->assetLookupEntryPool);
+                    AssetLookupEntry *entry = pool_allocate(as->assetLookupEntryPool);
                     assert(entry);
                     entry->packageName = packageName;
                     entry->fileName = tess_intern_string(as->tstrings, entries[i].name);
@@ -386,7 +385,7 @@ unmap_file_and_continue:
     platform->close_directory(platform, dir);
 }
 
-bool get_asset_file(struct TessAssetSystem *as, TStr *assetId, TStr **result)
+bool get_asset_file(TessAssetSystem *as, TStr *assetId, TStr **result)
 {
     TStr *package = tess_get_asset_package_from_id(as, assetId);
     TStr *assetName = tess_get_asset_name_from_id(as, assetId);
@@ -396,7 +395,7 @@ bool get_asset_file(struct TessAssetSystem *as, TStr *assetId, TStr **result)
         fprintf(stderr, "get_asset_file() called for package %s, but no cache for that package!\n", package->cstr);
         return false;
     }
-    __auto_type cache = (struct AssetLookupCache*)kh_value(as->packageAssetMap, k);
+    __auto_type cache = (AssetLookupCache*)kh_value(as->packageAssetMap, k);
     int count = buf_len(cache->entries);
     for(int i = 0; i < count; i++)
     {

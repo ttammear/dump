@@ -58,6 +58,9 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 
 #include "renderer.h"
 
+#define TESS_VTABLE_IMPLEMENTATION
+#include "vtable.h"
+
 #include "memory.c"
 #include "renderer.c"
 #include "test.c"
