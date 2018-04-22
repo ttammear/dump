@@ -42,6 +42,7 @@ void editor_init(TessEditor *editor)
     editor->edEntities = NULL;
     editor->tcpCon = NULL;
 
+    editor->objectSelected = false;
     editor->init = true;
 }
 
@@ -57,6 +58,20 @@ void editor_destroy(TessEditor *editor)
     fixed_arena_free(editor->platform, &editor->arena);
 }
 
+void editor_reset(TessEditor *editor)
+{
+    kh_clear(uint32, editor->entityMap);
+    kh_clear(uint32, editor->serverEntityMap);
+    pool_clear(editor->edEntityPool);
+    buf_clear(editor->edEntities);
+    // clear world
+    tess_reset_world(editor->world);
+
+    editor_command_buf_reset(&editor->cmdBuf, editor, NULL, false);
+
+    editor->objectSelected = false;
+}
+
 bool editor_connect(TessEditor *editor, const char *ipStr, uint16_t port)
 {
     assert(editor->init);
@@ -66,7 +81,6 @@ bool editor_connect(TessEditor *editor, const char *ipStr, uint16_t port)
 
     query_objectid(editor);
 
-    editor_command_buf_reset(&editor->cmdBuf, editor, NULL, false);
     AikeTCPConnection *connection;
     connection = editor->platform->tcp_connect(editor->platform, ipStr, port);
     editor->tcpCon = connection;
@@ -76,6 +90,7 @@ bool editor_connect(TessEditor *editor, const char *ipStr, uint16_t port)
         printf("Editor connected to %s:%d\n", ipStr, port); 
         editor->connected = true;
         editor_connected(editor);
+        editor_reset(editor);
         return true;
     }
     return false;
@@ -87,6 +102,7 @@ void editor_disconnect(TessEditor *editor)
     editor->platform->tcp_close_connection(editor->platform, editor->tcpCon);
     editor->tcpCon = NULL;
     editor->connected = false;
+    editor->client->mode = Tess_Client_Mode_Menu;
 }
 
 void editor_send_create_entity_command(TessEditor *editor, uint32_t objectId)
@@ -257,6 +273,7 @@ void editor_client_update(TessEditor *editor)
         {
             printf("Editor client disconnected\n");
             editor_disconnect(editor);
+            break;
         }
         else
         {

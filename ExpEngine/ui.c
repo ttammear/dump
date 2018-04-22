@@ -178,7 +178,7 @@ void profile_entry_recursive(struct nk_context *ctx, struct ProfileEntry *entry,
             printf(" "); */
         char buf[1024];
         stbsp_sprintf(buf, "%s %fms", entry->locationStr, milliseconds);
-        if(nk_tree_push_id(ctx, NK_TREE_TAB, buf, NK_MINIMIZED, (uint32_t)entry->locationStr))
+        if(nk_tree_push_id(ctx, NK_TREE_TAB, buf, NK_MINIMIZED, (uint32_t)(uintptr_t)entry->locationStr))
         {
             nk_layout_row_dynamic(ctx, 20, 1);
             nk_labelf(ctx, NK_TEXT_LEFT, "%llucy %fms", (unsigned long long)cycles, milliseconds);

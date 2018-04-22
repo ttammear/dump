@@ -26,6 +26,7 @@ void tess_asset_system_init(TessAssetSystem *as, TessFixedArena *arena)
     as->packageAssetMap = kh_init(str);
     as->loadedAssetMap = kh_init(64);
     as->loadingAssetMap = kh_init(64);
+    as->assetStatusMap = kh_init(uint32);
 }
 
 void tess_asset_system_destroy(TessAssetSystem *as)
@@ -46,6 +47,7 @@ void tess_asset_system_destroy(TessAssetSystem *as)
     kh_destroy(str, as->packageAssetMap);
     kh_destroy(64, as->loadedAssetMap);
     kh_destroy(64, as->loadingAssetMap);
+    kh_destroy(uint32, as->assetStatusMap);
     buf_free(as->loadedAssets);
     buf_free(as->loadingAssets);
 }

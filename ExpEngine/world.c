@@ -1,4 +1,5 @@
 
+// define new object
 void tess_register_object(TessGameSystem *gs, uint32_t id, TStr *assetId)
 {
     assert(id > 0 && id < ARRAY_COUNT(gs->objectTable));
@@ -17,6 +18,7 @@ void tess_register_object(TessGameSystem *gs, uint32_t id, TStr *assetId)
     tess_load_asset_if_not_loaded(gs->assetSystem, assetId);
 }
 
+// set all defined object assets
 void tess_temp_assign_all(TessGameSystem *gs)
 {
     printf("FIXME: tess_temp_assign_all\n");
@@ -105,4 +107,10 @@ void tess_render_entities(TessGameSystem *gs)
         uint32_t meshId = obj->asset->mesh->meshId;
         render_system_render_mesh(gs->renderSystem, meshId, ent->id, &ent->objectToWorld);
     }
+}
+
+void tess_reset_world(TessGameSystem *gs)
+{
+    pool_clear(gs->entityPool);
+    buf_clear(gs->activeEntities);
 }

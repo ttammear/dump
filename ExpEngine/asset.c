@@ -1,9 +1,9 @@
 
-void tess_replace_id_name_characters(char buf[], const char *name, uint32_t buflen);
+internal void tess_replace_id_name_characters(char buf[], const char *name, uint32_t buflen);
 void tess_fill_mesh_data(Renderer *renderer, MeshQueryResult *mqr, void *userData);
 void tess_finalize_mesh(Renderer *renderer, MeshReady *mr, void *userData);
 
-void tess_load_mesh(TessAssetSystem *as, TTRMesh *tmesh, TessLoadingAsset *lasset)
+internal void tess_load_mesh(TessAssetSystem *as, TTRMesh *tmesh, TessLoadingAsset *lasset)
 {
     TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(TTRMeshDesc, tmesh->descRef);
     RenderMessage msg = {};
@@ -83,7 +83,7 @@ void tess_process_ttr_file(TessAssetSystem *as, TessFile *tfile)
         {
             switch(entry->type) 
             {
-                case TTR_4CHAR("MESH"):
+                case 'HSEM': // MESH
                     {
                         lasset->meshData.as = as;
                         TTRMesh *tmesh = TTR_REF_TO_PTR(TTRMesh, tbl->entries[i].ref);
@@ -92,7 +92,7 @@ void tess_process_ttr_file(TessAssetSystem *as, TessFile *tfile)
                         tess_load_mesh(as, tmesh, lasset);
                         found = true;
                     } break;
-                case TTR_4CHAR("OBJ "):
+                case ' JBO': // OBJ
                     {
                         lasset->status = Tess_Asset_Dependency_Status_Done;
                         TTRObject *tobject = TTR_REF_TO_PTR(TTRObject, tbl->entries[i].ref);
@@ -122,6 +122,7 @@ void tess_process_ttr_file(TessAssetSystem *as, TessFile *tfile)
                         found = true;
                     }break;
                 default:
+                    lasset->status = Tess_Asset_Dependency_Status_Fail;
                     fprintf(stderr, "Trying to load unknown asset type!\n");
                     break;
             }
@@ -131,7 +132,7 @@ void tess_process_ttr_file(TessAssetSystem *as, TessFile *tfile)
     {
         // nothing was loaded
         // TODO: log error or something??
-        fprintf(stderr, "TTR file loaded, but asset %s was not found in it!", lasset->assetId->cstr);
+        fprintf(stderr, "TTR file loaded, but asset %s was not found in it!\n", lasset->assetId->cstr);
     }
 }
 
@@ -174,6 +175,12 @@ bool tess_is_asset_loading(TessAssetSystem *as, TStr *assetId)
     return k != kh_end(as->loadingAssetMap);
 }
 
+uint32_t tess_get_asset_status(TessAssetSystem *as, TStr *assetId)
+{
+    khiter_t k = kh_get(uint32, as->assetStatusMap, (intptr_t)assetId);
+    return k == kh_end(as->assetStatusMap) ? Tess_Asset_Status_None : kh_value(as->assetStatusMap, k);
+}
+
 void tess_load_asset_if_not_loaded(TessAssetSystem *as, TStr *assetId)
 {
     int dummy;
@@ -198,6 +205,9 @@ void tess_load_asset_if_not_loaded(TessAssetSystem *as, TStr *assetId)
         buf_push(as->loadingAssets, lasset);
         khiter_t k = kh_put(64, as->loadingAssetMap, (intptr_t)assetId, &dummy);
         kh_value(as->loadingAssetMap, k) = lasset;
+
+        k = kh_put(uint32, as->assetStatusMap, (intptr_t)assetId, &dummy);
+        kh_value(as->assetStatusMap, k) = Tess_Asset_Status_Loading;
 
         assert(lasset);
         char buf[AIKE_MAX_PATH];
@@ -224,39 +234,80 @@ TessAsset* tess_get_asset(TessAssetSystem *as, TStr *assetId)
     return ret;
 }
 
-void tess_check_complete(TessAssetSystem *as)
+internal void tess_loading_asset_done(TessAssetSystem *as, TessLoadingAsset *lasset, uint32_t status)
 {
-    int count = buf_len(as->loadingAssets);
-    for(int i = 0; i < count;)
+    khiter_t k;
+    // asset loaded!
+    assert(lasset->file);
+    tess_unload_file(as->fileSystem, lasset->file);
+    int find = buf_find_idx(as->loadingAssets, lasset);
+    assert(find != -1);
+    buf_remove_at(as->loadingAssets, find);
+
+    // remove from loadingAssetMap
+    k = kh_get(64, as->loadingAssetMap, (intptr_t)lasset->assetId);
+    assert(k != kh_end(as->loadingAssetMap));
+    kh_del(64, as->loadingAssetMap, k);
+
+    // set new status
+    k = kh_get(uint32, as->assetStatusMap, (intptr_t)lasset->assetId);
+    assert(k != kh_end(as->assetStatusMap));
+    kh_val(as->assetStatusMap, k) = status;
+
+    uint32_t count = buf_len(as->loadingAssets);
+    pool_free(as->loadingAssetPool, lasset);
+}
+
+internal void tess_check_complete(TessAssetSystem *as)
+{
+    for(int i = 0; i < buf_len(as->loadingAssets);)
     {
         TessLoadingAsset *lasset = as->loadingAssets[i];
         bool done = false;
-        switch(lasset->type)
+        bool fail = false;
+        
+        if(lasset->status != Tess_Asset_Dependency_Status_Fail)
         {
-            case Tess_Asset_Mesh:
-                if(lasset->status == Tess_Asset_Dependency_Status_Done)
-                    done = true;
-                break;
-            case Tess_Asset_Object:
-                assert(lasset->status == Tess_Asset_Dependency_Status_Done);
-                if(tess_is_asset_loaded(as, lasset->objectData.meshAssetId))
-                {
-                    TessObjectAsset *obj = (TessObjectAsset*)lasset->asset;
-                    TessAsset *meshAsset = tess_get_asset(as, lasset->objectData.meshAssetId);
-                    assert(meshAsset);
-                    // TODO: object expected it to be mesh
-                    // but it wasnt, so load failed, unload whatever was loaded
-                    assert(meshAsset->type == Tess_Asset_Mesh);
-                    obj->mesh = (TessMeshAsset*)meshAsset;
-                    done = true;
-                }
-                break;
-            case Tess_Asset_Unknown: // most likely file not loaded yet
-                break;
-            default:
-                fprintf(stderr, "Unknown asset, can't finalize! %d %s\n", lasset->type, lasset->assetId->cstr);
-                break;
+            uint32_t status;
+            switch(lasset->type)
+            {
+                case Tess_Asset_Mesh:
+                    if(lasset->status == Tess_Asset_Dependency_Status_Done)
+                        done = true;
+                    break;
+                case Tess_Asset_Object:
+                    assert(lasset->status == Tess_Asset_Dependency_Status_Done);
+                    status = tess_get_asset_status(as, lasset->objectData.meshAssetId);
+                    if(status == Tess_Asset_Status_Loaded)
+                    {
+                        TessObjectAsset *obj = (TessObjectAsset*)lasset->asset;
+                        TessAsset *meshAsset = tess_get_asset(as, lasset->objectData.meshAssetId);
+                        assert(meshAsset);
+                        // TODO: object expected it to be mesh
+                        // but it wasnt, so load failed, unload whatever was loaded
+                        assert(meshAsset->type == Tess_Asset_Mesh);
+                        obj->mesh = (TessMeshAsset*)meshAsset;
+                        done = true;
+                    }
+                    else if(status == Tess_Asset_Status_Fail)
+                        fail = true;
+                    break;
+                case Tess_Asset_Unknown: // most likely file not loaded yet
+                    break;
+                default:
+                    fprintf(stderr, "Unknown asset, can't finalize! %d %s\n", lasset->type, lasset->assetId->cstr);
+                    break;
+            }
         }
+        else
+        {
+            // NOTE: will delete current interated loadingAsset
+            tess_loading_asset_done(as, lasset, Tess_Asset_Status_Fail);
+            fprintf(stderr, "Failed to load asset %s\n", lasset->assetId->cstr);
+            fail = true;
+            continue; // deleted current dont increment
+        }
+
         if(done)
         {
             int dummy;
@@ -264,24 +315,19 @@ void tess_check_complete(TessAssetSystem *as)
             assert(lasset->asset);
             kh_value(as->loadedAssetMap, k) = lasset->asset;
 
-            // asset loaded!
-            assert(lasset->file);
-            tess_unload_file(as->fileSystem, lasset->file);
-            int find = buf_find_idx(as->loadingAssets, lasset);
-            assert(find != -1);
-            buf_remove_at(as->loadingAssets, find);
-            k = kh_get(64, as->loadingAssetMap, (intptr_t)lasset->assetId);
-            assert(k != kh_end(as->loadingAssetMap));
-            kh_del(64, as->loadingAssetMap, k);
-            count = buf_len(as->loadingAssets);
-            pool_free(as->loadingAssetPool, lasset);
             printf("Asset loaded! %s\n", lasset->assetId->cstr);
-
-            // NOTE: no increment because we deleted this element
-            // so next element will have this id
+            // NOTE: will delete current interated loadingAsset
+            tess_loading_asset_done(as, lasset, Tess_Asset_Dependency_Status_Done);
+            continue; // deleted current, no increment
         }
-        else            
-            i++;
+        if(fail)
+        {
+            assert(!done);
+            tess_loading_asset_done(as, lasset, Tess_Asset_Status_Fail);
+            fprintf(stderr, "Failed to load asset %s\n", lasset->assetId->cstr);
+            continue; // deleted current, dont increment
+        }
+        i++;
     }
 }
 
@@ -296,7 +342,7 @@ bool tess_are_all_loads_complete(TessAssetSystem *as)
 // all characters except A-z and 0-9 get replaced with '-'
 // the intention of this is to make id names safe so we don't have to worry about
 // someone hacking around with / /n /t %s and stuff like that
-void tess_replace_id_name_characters(char buf[], const char *name, uint32_t buflen)
+internal void tess_replace_id_name_characters(char buf[], const char *name, uint32_t buflen)
 {
     for(int i = 0; i < buflen; i++)
     {
@@ -314,7 +360,7 @@ void tess_replace_id_name_characters(char buf[], const char *name, uint32_t bufl
     assert(false);
 }
 
-void tess_gen_lookup_cache_for_package(TessAssetSystem *as, TStr *packageName)
+internal void tess_gen_lookup_cache_for_package(TessAssetSystem *as, TStr *packageName)
 {
     char pdirPath[AIKE_MAX_PATH];
     AikeFileEntry entries[64];

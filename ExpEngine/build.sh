@@ -10,26 +10,46 @@ cd ..
 
 set -e
 
-CFLAGS='-Wshadow -pthread -std=c11 -ffast-math -O0 -ggdb3 -DAIKE_X86'
+CFLAGS='-Wshadow -Wno-multichar -pthread -std=c11 -ffast-math -O0 -ggdb3 -DAIKE_X86'
 LFLAGS=''
 COMFLAGS=''
+CC='clang'
+LINKER='clang'
 
-echo 'compiling platform...'
-clang ./AikePlatform/linux_main.c $CFLAGS $COMFLAGS -D AIKE_DEBUG -D AIKE_AIO -lGL -lm -lX11 -ldl -linput -ludev -rdynamic -o ../ExpEngineBuild/Engine.out
+# compile platform
+if [ "$1" == 'platform' ]
+then
+PLATTIME=$(date +%s%N)
+$CC ./AikePlatform/linux_main.c $CFLAGS $COMFLAGS -D AIKE_DEBUG -D AIKE_AIO -lm -lX11 -ldl -lGL -linput -ludev -rdynamic -o ../ExpEngineBuild/Engine.out
+echo "compiling platform $(($(($(date +%s%N) - $PLATTIME))/1000000))ms"
+fi
 
-echo 'compiling engine...'
-clang -I./AikePlatform unitybuild.c $CFLAGS $COMFLAGS -fPIC -c -o ./obj/engine.o -D_DEBUG -D AIKE_AIO
+# compile engine
+ENGTIME=$(date +%s%N)
+$CC -I./AikePlatform unitybuild.c $CFLAGS $COMFLAGS -fPIC -c -o ./obj/engine.o -D_DEBUG -D AIKE_AIO
+echo "compiling engine $(($(($(date +%s%N) - $ENGTIME))/1000000))ms"
 
+#compile libs
+if [ "$1" == 'libs' ]
+then
+LIBTIME=$(date +%s%N)
 #clang -c -O0 -gdwarf-4 -fPIC libs_static.c -o ./obj/libs.o
-#clang -shared -O2 -gdwarf-4 -fPIC libs_static.c -o ../ExpEngineBuild/libAikeDeps.so
+#precompile headers
+#clang -cc1 -std=c11 -pthread -target-cpu x86-64 -pic-level 2 -ffp-contract=fast -ffast-math -ffinite-math-only -menable-unsafe-fp-math -I/usr/lib/llvm-5.0/lib/clang/5.0.2/include -I/usr/include/x86_64-linux-gnu -I/usr/include libs.h -emit-pch -o libs.h.pch
+$CC -shared -O2 -gdwarf-4 -fPIC libs_static.c -o ../ExpEngineBuild/libAikeDeps.so
+echo "compiling libs $(($(($(date +%s%N) - $LIBTIME))/1000000))ms"
+fi
 
-echo 'linking engine...'
-clang ./obj/engine.o ../ExpEngineBuild/libAikeDeps.so -shared -lm -lGL -fPIC $LFLAGS $COMFLAGS -g -o ../ExpEngineBuild/libAike.so
+#link engine
+LINKTIME=$(date +%s%N)
+$LINKER ./obj/engine.o ../ExpEngineBuild/libAikeDeps.so -shared -lm -fPIC $LFLAGS $COMFLAGS -g -o ../ExpEngineBuild/libAike.so
+echo "linking engine $(($(($(date +%s%N) - $LINKTIME))/1000000))ms"
 
 CURTIME=$(date +%s%N)
-echo "done in $(($(($CURTIME - $STARTTIME))/1000000))ms!"
+echo "total $(($(($CURTIME - $STARTTIME))/1000000))ms"
 
-if [ $1 == 'run' ]
+#run if run set
+if [ "$1" == 'run' ]
 then
 #vblank_mode=0
 gnome-terminal -- ../ExpEngineBuild/Engine.out

@@ -1,10 +1,10 @@
-struct Renderer *create_headless_renderer()
+internal struct Renderer *create_headless_renderer()
 {
     struct Renderer *ret = calloc(1, sizeof(struct Renderer));
     return ret;
 }
 
-void init_renderer(struct Renderer *renderer, AikePlatform *platform)
+internal void init_renderer(struct Renderer *renderer, AikePlatform *platform)
 {
     ring_queue_init(RenderMessage, &renderer->ch.toRenderer);
     ring_queue_init(RenderMessage, &renderer->ch.fromRenderer);

@@ -42,6 +42,16 @@ enum ShaderType_E
     ShaderType_Count
 };
 
+enum ShaderType
+{
+    Shader_Type_None,
+    Shader_Type_Color_Unlit,
+    Shader_Type_Vertex_Color_Unlit,
+    Shader_Type_Textured_Unlit,
+    Shader_Type_UI_Textured_Vertex_Color,
+    Shader_Type_Count,
+};
+
 enum VertexAttributeType
 {
     Vertex_Attribute_Type_None = 0,
@@ -148,9 +158,8 @@ typedef struct MaterialQuery
 {
     void *userData;
     uint32_t materialId;
-    uint8_t shaderTypes[MATERIAL_MAX_SHADERS];
-    const void *shaderCodes[MATERIAL_MAX_SHADERS];
-    uint32_t shaderLengths[MATERIAL_MAX_SHADERS];
+    uint32_t shaderId;
+    // TODO: per instance data
 } MaterialQuery;
 
 typedef struct MaterialReady
@@ -268,6 +277,3 @@ struct Renderer *create_opengl_renderer(AikePlatform *platform);
 void destroy_opengl_renderer(struct Renderer *glrend);
 void start_opengl_renderer(struct Renderer *rend);
 void stop_opengl_renderer(struct Renderer *rend);
-
-// TODO: remove
-void *opengl_proc(void *data);

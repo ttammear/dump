@@ -1,88 +1,3 @@
-static const char *vertShaderSrc =  "#version 330 core\n"
-"attribute vec4 a_position;\n"
-"attribute vec2 a_user0;\n"
-"attribute vec4 a_user1;\n"
-""
-"layout (std140) uniform vectors\n"
-"{\n" 
-    "vec4 v[];\n"
-"};\n"
-"struct InstanceData { \n"
-    "vec2 v1; \n"
-    "vec2 v2; \n"
-"};\n"
-"layout (std140) uniform instanceBlock\n"
-"{\n"
-    "InstanceData idata[128];\n"
-"};\n"
-"layout (std140) uniform matrixBlock\n"
-"{\n"
-    "mat4 matrices[128];\n"
-"};\n"
-"layout (std140) uniform objectIdBlock\n"
-"{\n"
-    "int objectIds[128]; // waste of space sucks but shift and mask with ivec4 is too hard for old AMD drivers\n"
-"};\n"
-""
-"varying vec2 v_texcoord;\n"
-"varying vec4 v_color;\n"
-"flat out int v_objectId;\n"
-"uniform int instId;\n"
-"void main(void) {\n"\
-   "int id = gl_InstanceID;"
-   "gl_Position = matrices[id] * a_position;\n"
-   "v_texcoord = vec2(a_user0.x, 1.0 - a_user0.y);\n"
-   "v_color = pow(a_user1, vec4(2.2));\n"
-   "v_objectId = objectIds[id];\n"
-"}";
-			
-static const char *fragShaderSrc = "#version 330 core\n"
-"uniform sampler2D _MainTex;\n"
-"varying vec2 v_texcoord;\n"
-"varying vec4 v_color;\n"
-"flat in int v_objectId;\n"
-"out vec4 outColor;\n"
-"layout(location = 1) out int outObjectId;\n"
-"void main(void) {\n"
-   "//gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n"
-   "outColor = texture2D(_MainTex, v_texcoord) * v_color;\n"
-   "outObjectId = v_objectId;\n"
-   "//gl_FragColor = vec4(v_texcoord.x, v_texcoord.y, 0.0, 1.0);\n"
-"}";
-
-static const char *fragShaderSolidSrc = "#version 330 core\n"
-"varying vec4 v_color;\n"
-"flat in int v_objectId;\n"
-"out vec4 outColor;\n"
-"layout(location = 1) out int outObjectId;\n"
-"void main(void) {\n"
-   "outColor = v_color;\n"
-   "outObjectId = v_objectId;\n"
-"}";
-
-static const char *uiVertSrc = 
-"#version 330 core\n"
-"uniform mat4 toClip;\n"
-"attribute vec2 a_position;\n"
-"attribute vec2 a_user0;\n"
-"attribute vec4 a_user1;\n"
-"varying vec2 v_texcoord;\n"
-"varying vec4 v_color;\n"
-"void main(void) {\n"
-    "gl_Position = toClip * vec4(a_position, 0.0f, 1.0f);\n"
-    "v_texcoord = vec2(a_user0.x, a_user0.y);\n"
-    "v_color = pow(a_user1, vec4(2.2));\n"
-"}";
-
-static const char *uiFragSrc =
-"#version 330 core\n"
-"varying vec2 v_texcoord;\n"
-"varying vec4 v_color;\n"
-"uniform sampler2D _MainTex;\n"
-"out vec4 outColor;\n"
-"void main(void) {\n"
-    "outColor = v_color * texture2D(_MainTex, v_texcoord);\n"
-"}";
 
 typedef struct GameData
 {
@@ -173,38 +88,23 @@ void init_game(struct Renderer *renderer, struct GameData *gdata, struct TessCli
 
     msg = (RenderMessage){};
     msg.type = Render_Message_Material_Query;
-    msg.matQ.userData = (void*)vertShaderSrc;
+    msg.matQ.userData = NULL;
     msg.matQ.materialId = 0;
-    msg.matQ.shaderTypes[0] = ShaderType_GLSL_Vert;
-    msg.matQ.shaderCodes[0] = vertShaderSrc;
-    msg.matQ.shaderLengths[0] = strlen(vertShaderSrc);
-    msg.matQ.shaderTypes[1] = ShaderType_GLSL_Frag;
-    msg.matQ.shaderCodes[1] = fragShaderSrc;
-    msg.matQ.shaderLengths[1] = strlen(fragShaderSrc);
-    renderer_queue_message(renderer, &msg);
-
-    msg = (RenderMessage){};
-    msg.type = Render_Message_Material_Query;
-    msg.matQ.userData = (void*)fragShaderSolidSrc;
-    msg.matQ.materialId = 0;
-    msg.matQ.shaderTypes[0] = ShaderType_GLSL_Vert;
-    msg.matQ.shaderCodes[0] = vertShaderSrc;
-    msg.matQ.shaderLengths[0] = strlen(vertShaderSrc);
-    msg.matQ.shaderTypes[1] = ShaderType_GLSL_Frag;
-    msg.matQ.shaderCodes[1] = fragShaderSolidSrc;
-    msg.matQ.shaderLengths[1] = strlen(fragShaderSolidSrc);
+    msg.matQ.shaderId = Shader_Type_Textured_Unlit;
     renderer_queue_message(renderer, &msg);
 
     msg = (RenderMessage){};
     msg.type = Render_Message_Material_Query;
     msg.matQ.userData = NULL;
     msg.matQ.materialId = 0;
-    msg.matQ.shaderTypes[0] = ShaderType_GLSL_Vert;
-    msg.matQ.shaderCodes[0] = uiVertSrc;
-    msg.matQ.shaderLengths[0] = strlen(uiVertSrc);
-    msg.matQ.shaderTypes[1] = ShaderType_GLSL_Frag;
-    msg.matQ.shaderCodes[1] = uiFragSrc;
-    msg.matQ.shaderLengths[1] = strlen(uiFragSrc);
+    msg.matQ.shaderId = Shader_Type_Vertex_Color_Unlit;
+    renderer_queue_message(renderer, &msg);
+
+    msg = (RenderMessage){};
+    msg.type = Render_Message_Material_Query;
+    msg.matQ.userData = NULL;
+    msg.matQ.materialId = 0;
+    msg.matQ.shaderId = Shader_Type_UI_Textured_Vertex_Color;
     renderer_queue_message(renderer, &msg);
 
     msg = (RenderMessage){};

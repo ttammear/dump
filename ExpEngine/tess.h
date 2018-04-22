@@ -11,6 +11,9 @@
 #define TESS_MAX_OBJECTS 10
 #define TESS_MAX_ENTITIES 100
 
+#define internal static
+#define global static
+
 
 enum TessFilePipeline
 {
@@ -71,6 +74,14 @@ enum TessAssetDependencyStatus
     Tess_Asset_Dependency_Status_Done,
     Tess_Asset_Dependency_Status_Extern,
     Tess_Asset_Dependency_Status_Fail,
+};
+
+enum TessAssetStatus
+{
+    Tess_Asset_Status_None,
+    Tess_Asset_Status_Loading,
+    Tess_Asset_Status_Loaded,
+    Tess_Asset_Status_Fail
 };
 
 enum TessObjectFlags
@@ -150,6 +161,7 @@ typedef struct TessAssetSystem
     khash_t(str) *packageAssetMap;
     khash_t(64) *loadedAssetMap; // TStr assetId, TessAsset*
     khash_t(64) *loadingAssetMap; // TStr assetId, TessLoadingAsset*
+    khash_t(uint32) *assetStatusMap; // TStr assetId, uint32
 
     struct TessStrings *tstrings;
     struct Renderer *renderer;

@@ -1,6 +1,4 @@
-#ifdef AIKE_X86
-#include <GL/gl.h> // TODO: this should be part of platform
-#else
+#ifdef AIKE_ANDROID
 #include <GLES/gl.h>
 #include <GLES2/gl2.h>
 #define AIKE_GLES
@@ -84,15 +82,12 @@ typedef struct GLShader
 typedef struct GLMaterial
 {
     uint32_t id;
-    uint32_t state;
+
+    GLuint glProgram;
 
     void *userData;
-
-    b32 isValid;
-    GLuint glProgram;
-    GLsync fence;
+    
     uint32_t perInstanceDataSize;
-    struct GLShader shaders[MATERIAL_MAX_SHADERS];
 } GLMaterial;
 
 struct OpenGLRenderer;
@@ -146,6 +141,9 @@ typedef struct OpenGLRenderer
     u32 windowWidth;
     u32 windowHeight;
 
+    GLuint builtinPrograms[Shader_Type_Count];
+    GLuint uiProgram;
+
     uint32_t numFreeSyncPoints;
     uint32_t syncPointFreeList[GL_RENDERER_MAX_SYNC_POINTS];
     GLSyncPoint syncPoints[GL_RENDERER_MAX_SYNC_POINTS];
@@ -159,8 +157,6 @@ typedef struct OpenGLRenderer
     struct SwapBuffer *swapbuf;
     struct RenderViewBuffer *curView;
 } OpenGLRenderer;
-
-void opengl_render_view(OpenGLRenderer *renderer, RenderViewBuffer *rbuf);
 
 #define BUF_ALIGN_MASK 0x3
 // nothing will blow up, but better have everything aligned!

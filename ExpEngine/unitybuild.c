@@ -11,6 +11,10 @@
 #include <xmmintrin.h>
 #endif
 
+#ifdef __GNUC__
+#include <x86intrin.h>
+#endif
+
 // TODO: tt_simd?
 #define TT_SIMD_32_WIDTH   4
 
@@ -22,11 +26,12 @@
 // the implementations I don't plan to change go into libs_static.c
 // and they aren't recompiled to keep iteration times fast
 
+
 //#define STB_SPRINTF_IMPLEMENTATION
 #include "libs/stb_sprintf.h"
 //#define STB_IMAGE_IMPLEMENTATION
 #include "libs/stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
+//#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "libs/stb_image_write.h"
 
 
@@ -86,7 +91,3 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 
 #include "opengl_renderer.h"
 #include "opengl_renderer.c"
-
-#ifdef _DEBUG
-static_assert(__COUNTER__ < PROFILER_MAX_ENTRIES_PER_FRAME, "not enough profiler slots");
-#endif
