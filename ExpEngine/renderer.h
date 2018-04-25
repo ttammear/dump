@@ -26,29 +26,20 @@ struct Renderer;
 struct TextureQueryResponse;
 struct TextureReady;
 struct ObjectIDSamplesReady;
+struct MaterialReady;
 typedef void (*MQComplete_A)(struct Renderer* rend, struct MeshQueryResult *mqr, void *userData);
 typedef void (*MReady_A)(struct Renderer *rend, struct MeshReady *mr, void *userData);
 typedef void (*TQComplete_A)(struct Renderer* rend, struct TextureQueryResponse *tqr, void *userData);
 typedef void (*TReady_A)(struct Renderer *rend, struct TextureReady *tr, void *userData);
 typedef void (*OSReady_A)(struct Renderer *rend, struct ObjectIDSamplesReady *tdr, void *userData);
-
-enum ShaderType_E
-{
-    ShaderType_None,
-    ShaderType_GLSL_ES_Frag,
-    ShaderType_GLSL_ES_Vert,
-    ShaderType_GLSL_Frag,
-    ShaderType_GLSL_Vert,
-    ShaderType_Count
-};
+typedef void (*MatReady_A)(struct Renderer *rend, struct MaterialReady *mr, void *userData);
 
 enum ShaderType
 {
     Shader_Type_None,
-    Shader_Type_Color_Unlit,
-    Shader_Type_Vertex_Color_Unlit,
-    Shader_Type_Textured_Unlit,
-    Shader_Type_UI_Textured_Vertex_Color,
+    Shader_Type_Unlit_Color, // Color
+    Shader_Type_Unlit_Vertex_Color, // nothing
+    Shader_Type_Unlit_Textured, // texture, tint?
     Shader_Type_Count,
 };
 
@@ -118,6 +109,37 @@ static const uint32_t s_vertexAttributeTypePrims[] =
     [Vertex_Attribute_Type_Float] = 1,
 };
 
+// Material instance data
+//
+
+#pragma pack(push, 1)
+struct UnlitColorIData
+{
+    V4 color;
+};
+
+struct UnlitTexturedIData
+{
+    uint32_t textureId;
+    V4 color;
+};
+
+struct UnlitVertexColor
+{
+    V4 color;
+};
+
+union InstanceData
+{
+    struct UnlitColorIData unlitColor;
+    struct UnlitTexturedIData unlitTextured;
+    struct UnlitVertexColor unlitVertexColor;
+};
+#pragma pack(pop)
+
+// Renderer commands
+//
+
 typedef struct MeshQuery
 {
     void *userData;
@@ -157,15 +179,17 @@ typedef struct MeshReady
 typedef struct MaterialQuery
 {
     void *userData;
+    MatReady_A onComplete;
     uint32_t materialId;
     uint32_t shaderId;
-    // TODO: per instance data
+    union InstanceData iData;
 } MaterialQuery;
 
 typedef struct MaterialReady
 {
     uint32_t materialId;
     void *userData;
+    MatReady_A onComplete;
 } MaterialReady;
 
 typedef struct TextureQuery

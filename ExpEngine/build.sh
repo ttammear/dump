@@ -26,7 +26,7 @@ fi
 
 # compile engine
 ENGTIME=$(date +%s%N)
-$CC -I./AikePlatform unitybuild.c $CFLAGS $COMFLAGS -fPIC -c -o ./obj/engine.o -D_DEBUG -D AIKE_AIO
+$CC -I./AikePlatform -I./libs/libcoro unitybuild.c $CFLAGS $COMFLAGS -fPIC -c -o ./obj/engine.o -D_DEBUG -D AIKE_AIO
 echo "compiling engine $(($(($(date +%s%N) - $ENGTIME))/1000000))ms"
 
 #compile libs
@@ -42,7 +42,7 @@ fi
 
 #link engine
 LINKTIME=$(date +%s%N)
-$LINKER ./obj/engine.o ../ExpEngineBuild/libAikeDeps.so -shared -lm -fPIC $LFLAGS $COMFLAGS -g -o ../ExpEngineBuild/libAike.so
+$LINKER ./obj/engine.o ../ExpEngineBuild/libAikeDeps.so ./libs/libcoro/libcoro.a -shared -lm -fPIC $LFLAGS $COMFLAGS -g -o ../ExpEngineBuild/libAike.so
 echo "linking engine $(($(($(date +%s%N) - $LINKTIME))/1000000))ms"
 
 CURTIME=$(date +%s%N)

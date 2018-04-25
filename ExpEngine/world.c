@@ -86,6 +86,33 @@ void tess_update_camera_perspective(TessCamera *cam)
     mat4_perspective(&cam->viewToClip, cam->FOV, cam->aspectRatio, cam->nearPlane, cam->farPlane);
 }
 
+/*void tess_clip_to_world_pos(TessCamera *cam, V3 clipPos, V3 screenPos)
+{
+    Mat4 clipToView;
+    inverse_perspective(&inv_persp, &cam->viewToClip);
+
+    Mat4 viewToWorld;
+    mat4_tr(&viewToWorld, cam->position, cam->rotation);
+
+    Mat4 worldToClip;
+    mat4_mul(&worldToClip, &viewToWorld, &clipToView);
+}*/
+
+V3 tess_world_to_clip_pos(TessCamera *cam, V3 worldPos)
+{
+    V3 camPos = cam->position;
+    Quat camRot = cam->rotation;
+    V3 camInvTranslate = make_v3(-camPos.x, -camPos.y, -camPos.z);
+    Quat camInvRotation = make_quat(-camRot.w, camRot.x, camRot.y, camRot.z);
+    Mat4 worldToView;
+    mat4_rt(&worldToView, camInvRotation, camInvTranslate);
+    Mat4 worldToClip;
+    mat4_mul(&worldToClip, &cam->viewToClip, &worldToView);
+    V4 result;
+    mat4_v4_mul(&result, &worldToClip, make_v4(worldPos.x, worldPos.y, worldPos.z, 1.0f));
+    return make_v3(result.x/result.w, result.y/result.w, result.z/result.w);
+}
+
 void tess_render_entities(TessGameSystem *gs)
 {
     PROF_BLOCK();
@@ -94,7 +121,7 @@ void tess_render_entities(TessGameSystem *gs)
     V3 camInvTranslate = make_v3(-camPos.x, -camPos.y, -camPos.z);
     Quat camInvRotation = make_quat(-camRot.w, camRot.x, camRot.y, camRot.z);
     Mat4 worldToView;
-    mat4_tr(&worldToView, camInvTranslate, camInvRotation);
+    mat4_rt(&worldToView, camInvRotation, camInvTranslate);
 
     mat4_mul(&gs->renderSystem->worldToClip, &gs->activeCamera->viewToClip, &worldToView);
 
@@ -105,7 +132,8 @@ void tess_render_entities(TessGameSystem *gs)
         TessObject *obj = &gs->objectTable[ent->objectId];
         assert(BIT_IS_SET(obj->flags, Tess_Object_Flag_Loaded));
         uint32_t meshId = obj->asset->mesh->meshId;
-        render_system_render_mesh(gs->renderSystem, meshId, ent->id, &ent->objectToWorld);
+        uint32_t materialId = obj->asset->materialId;
+        render_system_render_mesh(gs->renderSystem, meshId, materialId, ent->id, &ent->objectToWorld);
     }
 }
 

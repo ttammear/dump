@@ -1,6 +1,6 @@
 #pragma once
 
-#pragma push(pack, 1)
+#pragma pack(push, 1)
 typedef struct UIVertex
 {
     V4 position;
@@ -8,7 +8,7 @@ typedef struct UIVertex
     uint32_t color;
 //    struct V4 color;
 } UIVertex;
-#pragma pop(pack)
+#pragma pack(pop)
 
 typedef struct UIBatch
 {
@@ -24,9 +24,6 @@ typedef struct UIBatch
 typedef struct RenderMeshInstance
 {
     u32 matrixIndex;
-
-    void *instanceDataPtr;
-    u32 instanceDataSize;
     u32 objectId;
 } RenderMeshInstance;
 
@@ -68,7 +65,6 @@ typedef struct RenderView
     struct UIVertex *vertices;
     uint32_t numIndices;
     uint16_t *indices;
-    uint32_t materialId;
     Mat4 orthoMatrix;
 
     uint32_t numUIBatches;
@@ -108,8 +104,6 @@ typedef struct BuilderMeshInstance
 {
     int mentryIdx;
     Mat4 modelM;
-    u32 instanceDataIdx;
-    u32 instanceDataSize;
     u32 objectId;
 } BuilderMeshInstance;
 
@@ -129,8 +123,6 @@ typedef struct RenderViewBuilder
     struct UIBatch *batches;
     UIBatch curBatch;
     bool beginBatch;
-
-    u8 *instanceDataBuf;;
 } RenderViewBuilder;
 
 typedef struct SwapBuffer
@@ -146,7 +138,7 @@ void* rview_buffer_destroy(struct RenderViewBuffer *rbuf);
 void rview_buffer_clear(struct RenderViewBuffer *rbuf);
 void rview_builder_reset(struct RenderViewBuilder *builder);
 void build_view(struct RenderViewBuilder *builder, struct RenderViewBuffer *buf);
-void add_mesh_instance(struct RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId, struct Mat4 *modelM, void *instanceData, u32 instanceDataSize, u32 objectId);
+void add_mesh_instance(struct RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId, struct Mat4 *modelM, u32 objectId);
 
 void swap_buffer_init(struct SwapBuffer *vb);
 void swap_buffer_destroy(struct SwapBuffer *sb);

@@ -1,4 +1,4 @@
-#pragma push(pack 1)
+#pragma pack(push, 1)
 
 typedef struct EditorCommandHeader
 {
@@ -63,7 +63,7 @@ typedef struct EditorCommandServerCreateEntities
     struct ServerCreateEntityEntry entries[];
 } EditorCommandServerCreateEntities;
 
-#pragma pop(pack)
+#pragma pack(pop)
 
 enum EditorServerCommandType
 {

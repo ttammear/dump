@@ -48,7 +48,10 @@ void process_render_messages(TessRenderSystem *rs)
                     printf("texture ready %d\n", msg.texR.textureId);
                 break;
             case Render_Message_Material_Ready:
-                printf("material ready %d\n", msg.matR.materialId);
+                if(msg.matR.onComplete != NULL)
+                    msg.matR.onComplete(renderer, &msg.matR, msg.matR.userData);
+                else
+                    printf("material ready %d\n", msg.matR.materialId);
                 break;
             case Render_Message_Sample_Object_Ready:
                 if(msg.sampleOR.onComplete != NULL)
@@ -75,11 +78,9 @@ void render_system_begin_update(TessRenderSystem *rs)
     rview_builder_reset(rs->viewBuilder);
 }
 
-void render_system_render_mesh(TessRenderSystem *rs, uint32_t meshId, uint32_t objectId, Mat4 *objectToWorld)
+void render_system_render_mesh(TessRenderSystem *rs, uint32_t meshId, uint32_t materialId, uint32_t objectId, Mat4 *objectToWorld)
 {
-    uint32_t materialId = 2;
-    uint32_t data = 0;
-    add_mesh_instance(rs->viewBuilder, meshId, materialId, objectToWorld, &data, 0, objectId);
+    add_mesh_instance(rs->viewBuilder, meshId, materialId, objectToWorld, objectId);
 }
 
 void render_system_end_update(TessRenderSystem *rs)

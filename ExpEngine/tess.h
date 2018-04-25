@@ -1,5 +1,6 @@
 #define TESS_LOADED_FILE_POOL_SIZE 100
 #define TESS_MESH_POOL_SIZE 100
+#define TESS_TEXTURE_POOL_SIZE 100
 #define TESS_OBJECT_POOL_SIZE 100
 #define TESS_LOADING_ASSET_POOL_SIZE 100
 #define TESS_DEP_NODE_POOL_SIZE 1000
@@ -70,6 +71,7 @@ enum TessAssetType
 enum TessAssetDependencyStatus
 {
     Tess_Asset_Dependency_Status_None,
+    Tess_Asset_Dependency_Status_Wait_Dependencies,
     Tess_Asset_Dependency_Status_Loading,
     Tess_Asset_Dependency_Status_Done,
     Tess_Asset_Dependency_Status_Extern,
@@ -102,10 +104,17 @@ typedef struct TessMeshAsset
     uint32_t meshId;
 } TessMeshAsset;
 
+typedef struct TessTextureAsset
+{
+    TessAsset asset;
+    uint32_t textureId;
+} TessTextureAsset;
+
 typedef struct TessObjectAsset
 {
     TessAsset asset;
     TessMeshAsset *mesh;
+    uint32_t materialId;
     // TODO: material?
 } TessObjectAsset;
 
@@ -115,13 +124,31 @@ typedef struct TessMeshDepData
     struct TTRMesh *tmesh;
 } TessMeshDepData;
 
+typedef struct TessTexDepData
+{
+    struct TessAssetSystem *as;
+    struct TTRTexture *ttex;
+} TessTexDepData;
+
 typedef struct TessObjectDepData
 {
+    struct TessAssetSystem *as;
     TStr *meshAssetId;
+    TStr *textureAssetId;
+    struct TTRObject *tobj;
 } TessObjectDepData;
+
+typedef struct TessAssetDependency
+{
+    TStr *assetId;
+    struct TessAsset *asset;
+    struct TessAssetDependency *next;
+}TessAssetDependency;
 
 typedef struct TessLoadingAsset
 {
+    TessAssetDependency *dependencies;
+    void (*onDependenciesLoaded)(struct TessAssetSystem*, struct TessLoadingAsset *lasset);
     struct TessFile *file;
     uint32_t status;
     TStr *assetId;
@@ -130,6 +157,7 @@ typedef struct TessLoadingAsset
     union
     {
         TessMeshDepData meshData;
+        TessTexDepData texData;
         TessObjectDepData objectData;
     } ;
 }TessLoadingAsset;
@@ -152,6 +180,7 @@ typedef struct TessAssetSystem
     struct TessFileSystem *fileSystem;
     struct TessAsset **loadedAssets;
     struct TessMeshAsset *meshPool;
+    struct TessTextureAsset *texturePool;
     struct TessObjectAsset *objectPool;
     struct TessLoadingAsset *loadingAssetPool;
     struct TessLoadingAsset **loadingAssets;
@@ -214,6 +243,7 @@ typedef struct TessGameSystem
     struct TessCamera defaultCamera;
 
     struct TessRenderSystem *renderSystem;
+    struct TessStrings *tstrings;
 } TessGameSystem;
 
 // --------------- INPUT -------------------
@@ -223,15 +253,23 @@ typedef struct TessInputSystem
     uint16_t keyStates[AIKE_KEY_COUNT];
     uint16_t keyStatesPrev[AIKE_KEY_COUNT];
 
+    V2 mouseDelta;
+    V2 normMouseDelta; // mouse delta in range 0...1
+    V2 mousePos;
+    V2 mousePrev;
+
     AikePlatform *platform;
 } TessInputSystem;
 
 #define mouse_left_down(x) ((x)->keyStates[AIKE_BTN_LEFT] && !(x)->keyStatesPrev[AIKE_BTN_LEFT])
-#define mouse1_right_down(x) ((x)->keyStates[AIKE_BTN_RIGHT] && !(x)->keyStatesPrev[AIKE_BTN_RIGHT])
-#define mouse_left_up(x) ((x)->keyStates[AIKE_BTN_LEFT] && !(x)->keyStatesPrev[AIKE_BTN_LEFT])
-#define mouse1_right_up(x) (!(x)->keyStates[AIKE_BTN_RIGHT] && (x)->keyStatesPrev[AIKE_BTN_RIGHT])
+#define mouse_right_down(x) ((x)->keyStates[AIKE_BTN_RIGHT] && !(x)->keyStatesPrev[AIKE_BTN_RIGHT])
+#define mouse_left_up(x) (!(x)->keyStates[AIKE_BTN_LEFT] && (x)->keyStatesPrev[AIKE_BTN_LEFT])
+#define mouse_right_up(x) (!(x)->keyStates[AIKE_BTN_RIGHT] && (x)->keyStatesPrev[AIKE_BTN_RIGHT])
 #define mouse_left(x) ((x)->keyStates[AIKE_BTN_LEFT] != 0)
 #define mouse_right(x) ((x)->keyStates[AIKE_BTN_RIGHT] != 0)
+
+#define key(x, k) ((x)->keyStates[(k)])
+#define key_down(x, k) ((x)->keyStates[(k)] && !(x)->keyStatesPrev[(k)])
 
 // --------------- RENDERING -------------------
 
@@ -318,6 +356,8 @@ typedef struct TessEditor
     b32 init;
     b32 connected;
 
+    char ipStr[256];
+    uint16_t port;
     AikeTCPConnection *tcpCon;
 
     V2 normalizedCursorPos;
@@ -328,7 +368,15 @@ typedef struct TessEditor
     int32_t cursorObjectId;
 
     bool objectSelected;
+    int32_t selectedEditorEntityId;
     int32_t selectedObjectId;
+
+    bool moving;
+    V3 moveDirection;
+
+    struct TessCamera *cam;
+    V2 camRot;
+    bool camLocked;
 
     khash_t(uint32) *entityMap; // entityId -> editorEntityId
     khash_t(uint32) *serverEntityMap; // serverId -> editorEntityId
@@ -336,6 +384,7 @@ typedef struct TessEditor
     struct TessEditorEntity **edEntities;
 
     struct nk_context *nk_ctx;
+    coro_context coroCtx;
 
     struct TessRenderSystem *renderSystem;
     struct TessUISystem *uiSystem;
@@ -357,6 +406,7 @@ enum TessClientMode
     Tess_Client_Mode_Menu,
     Tess_Client_Mode_Editor,
     Tess_Client_Mode_CrazyTown,
+    Tess_Client_Mode_Game,
 };
 
 typedef struct TessClient
@@ -378,6 +428,7 @@ typedef struct TessClient
     uint32_t mode;
 
     AikePlatform *platform;
+    coro_context *mainctx;
 } TessClient;
 
 // Server
@@ -443,6 +494,10 @@ TStr *tess_get_asset_id(struct TessAssetSystem *as, TStr *package, TStr *asset);
 TStr *tess_get_asset_name_from_id(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_package_from_id(struct TessAssetSystem *as, TStr *assetId);
 
+void tess_register_object(TessGameSystem *gs, uint32_t id, TStr *assetId);
+uint32_t tess_create_entity(TessGameSystem *gs, uint32_t id, Mat4 *modelMatrix);
+void tess_reset_world(TessGameSystem *gs);
+
 void tess_input_init(struct TessInputSystem *input);
 void tess_input_begin(struct TessInputSystem *input);
 void tess_input_end(struct TessInputSystem *input);
@@ -452,10 +507,7 @@ void tess_ui_destroy(struct TessUISystem *ui);
 void tess_ui_begin(struct TessUISystem *ui);
 void tess_ui_end(struct TessUISystem *ui);
 
-void editor_update(struct TessEditor *editor);
-bool editor_connect(struct TessEditor *editor, const char *ipStr, uint16_t port);
-void editor_init(struct TessEditor *editor);
-void editor_destroy(struct TessEditor *editor);
+void editor_coroutine(TessEditor *editor);
 void tess_render_entities(struct TessGameSystem *gs);
 
 void tess_main_menu_init(struct TessMainMenu *menu);

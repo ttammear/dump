@@ -40,26 +40,13 @@ typedef struct Mat4
 
         struct
         {
-            r32 m11, m12, m13, m14;
-            r32 m21, m22, m23, m24;
-            r32 m31, m32, m33, m34;
-            r32 m41, m42, m43, m44;
+            r32 m11, m21, m31, m41;
+            r32 m12, m22, m32, m42;
+            r32 m13, m23, m33, m43;
+            r32 m14, m24, m34, m44;
         };
     };
 }Mat4;
-
-/*typedef struct Mat4_simd
-{
-    TT_SIMD_T m11, m12, m13, m14;
-    TT_SIMD_T m21, m22, m23, m24;
-    TT_SIMD_T m31, m32, m33, m34;
-    TT_SIMD_T m41, m42, m43, m44;
-} Mat4_simd;
-
-void mat4_simd_mul(struct Mat4_simd *result, struct Mat4_simd *l, struct Mat4 *r)
-{
-
-}*/
 
 #ifdef AIKE_X86
 
@@ -67,10 +54,10 @@ typedef struct Mat4_sse2
 {
     union {
         struct {
-            __m128 m11, m12, m13, m14;
-            __m128 m21, m22, m23, m24;
-            __m128 m31, m32, m33, m34;
-            __m128 m41, m42, m43, m44;
+            __m128 m11, m21, m31, m41;
+            __m128 m12, m22, m32, m42;
+            __m128 m13, m23, m33, m43;
+            __m128 m14, m24, m34, m44;
         } ;
         struct
         {
@@ -197,12 +184,80 @@ static inline struct Quat make_quat(r32 w, r32 x, r32 y, r32 z)
     return ret;
 }
 
+static inline V2 v2_add(V2 *restrict res, V2 lhs, V2 rhs)
+{
+    res->x = lhs.x + rhs.x;
+    res->y = lhs.y + rhs.y;
+    return *res;
+}
+
+static inline V2 v2_sub(V2 *restrict res, V2 lhs, V2 rhs)
+{
+    res->x = lhs.x - rhs.x;
+    res->y = lhs.y - rhs.y;
+    return *res;
+}
+
+static inline void v2_normalize(V2 *v)
+{
+    float len = sqrtf(v->x*v->x + v->y*v->y);
+    v->x = v->x / len;
+    v->y = v->y / len;
+}
+
+static inline float v2_dot(V2 l, V2 r)
+{
+    return l.x*r.x + l.y*r.y;
+}
+
+static inline float v2_len(V2 v)
+{
+    return sqrtf(v.x*v.x + v.y*v.y);
+}
+
+static inline V3 v3_add(V3 *restrict res, V3 lhs, V3 rhs)
+{
+    res->x = lhs.x + rhs.x;
+    res->y = lhs.y + rhs.y;
+    res->z = lhs.z + rhs.z;
+    return *res;
+}
+
+static inline V3 v3_sub(V3 *restrict res, V3 lhs, V3 rhs)
+{
+    res->x = lhs.x - rhs.x;
+    res->y = lhs.y - rhs.y;
+    res->z = lhs.z - rhs.z;
+    return *res;
+}
+
+static inline void v3_normalize(V3 *v)
+{
+    float len = sqrtf(v->x*v->x + v->y*v->y + v->z*v->z);
+    v->x /= len;
+    v->y /= len;
+    v->z /= len;
+}
+
+static inline bool v3_hasnan(V3 v)
+{
+    return isnan(v.x) || isnan(v.y) || isnan(v.z);
+}
+
 static inline void quat_identity(struct Quat *q)
 {
     q->w = 1.0f;
     q->x = 0.0f;
     q->y = 0.0f;
     q->z = 0.0f;
+}
+
+static inline void mat4_v4_mul(V4 *restrict res, struct Mat4 *restrict m, V4 v)
+{
+    res->x = v.x * m->m11 + v.y * m->m12 + v.z * m->m13 + v.w * m->m14;
+    res->y = v.x * m->m21 + v.y * m->m22 + v.z * m->m23 + v.w * m->m24;
+    res->z = v.x * m->m31 + v.y * m->m32 + v.z * m->m33 + v.w * m->m34;
+    res->w = v.x * m->m41 + v.y * m->m42 + v.z * m->m43 + v.w * m->m44;
 }
 
 static inline void quat_angle_axis(struct Quat *q, r32 angleDeg, struct V3 axis)
@@ -230,7 +285,7 @@ static inline void quat_euler(struct Quat *q, struct V3 euler)
 	q->z = sy * cr * cp - cy * sr * sp;
 }
 
-static inline void quat_euler_deg(struct Quat *q, struct V3 euler)
+static inline void quat_euler_deg(struct Quat *restrict q, struct V3 euler)
 {
 	float cy = cosf(euler.x * 0.5f * DEG2RAD_F);
 	float sy = sinf(euler.x * 0.5f * DEG2RAD_F);
@@ -242,6 +297,14 @@ static inline void quat_euler_deg(struct Quat *q, struct V3 euler)
 	q->x = cy * sr * cp - sy * cr * sp;
 	q->y = cy * cr * sp + sy * sr * cp;
 	q->z = sy * cr * cp - cy * sr * sp;
+}
+
+static inline void quat_mul(Quat *restrict res, Quat l, Quat r)
+{
+	res->w = l.w * r.w - l.x * r.x - l.y * r.y - l.z * r.z;
+	res->x = l.w * r.x + l.x * r.w + l.y * r.z - l.z * r.y;
+	res->y = l.w * r.y - l.x * r.z + l.y * r.w + l.z * r.x;
+	res->z = l.w * r.z + l.x * r.y - l.y * r.x + l.z * r.w;
 }
 
 static inline struct V3 normalize_degrees(struct V3 degRot)
@@ -257,78 +320,96 @@ static inline void mat4_perspective(struct Mat4 *m, r32 fov, r32 aspect, r32 zNe
     const r32 tanHalfFOV = tanf(fov*DEG2RAD_F*0.5f);
     r32 depth = zNear - zFar;
     m->m11 = 1.0f / (tanHalfFOV * aspect);
-    m->m12 = 0.0f;
-    m->m13 = 0.0f;
-    m->m14 = 0.0f;
-
     m->m21 = 0.0f;
-    m->m22 = 1.0f / tanHalfFOV;
-    m->m23 = 0.0f;
-    m->m24 = 0.0f;
-
     m->m31 = 0.0f;
-    m->m32 = 0.0f;
-    m->m33 = (-zNear - zFar) / depth;
-    m->m34 = 1.0f;
-
     m->m41 = 0.0f;
+
+    m->m12 = 0.0f;
+    m->m22 = 1.0f / tanHalfFOV;
+    m->m32 = 0.0f;
     m->m42 = 0.0f;
-    m->m43 = 2.0f * zFar * zNear / depth;
+
+    m->m13 = 0.0f;
+    m->m23 = 0.0f;
+    m->m33 = (-zNear - zFar) / depth;
+    m->m43 = 1.0f;
+
+    m->m14 = 0.0f;
+    m->m24 = 0.0f;
+    m->m34 = 2.0f * zFar * zNear / depth;
     m->m44 = 0.0f;
+}
+
+static inline void inverse_perspective(Mat4 *dest, Mat4 *perspectiveMat)
+{
+    float a = perspectiveMat->m[0];
+    float b = perspectiveMat->m[5];
+    float c = perspectiveMat->m[10];
+    float d = perspectiveMat->m[14];
+    float e = perspectiveMat->m[11];
+
+    for(int i = 0; i < 16; i++)
+        dest->m[i]  = 0.0f;
+
+    dest->m[0]  = 1.0f / a;
+    dest->m[5]  = 1.0f / b;
+    dest->m[11] = 1.0f / d;
+    dest->m[14] = 1.0f / e;
+    dest->m[15] = -c / (d * e);
 }
 
 static inline void mat4_ortho(struct Mat4 *m, r32 l, r32 r, r32 b, r32 t, r32 zn, r32 zf)
 {
     m->m11 = 2.0f / (r - l);
-    m->m12 = 0.0f;
-    m->m13 = 0.0f;
-    m->m14 = 0.0f;
-
     m->m21 = 0.0f;
-    m->m22 = 2.0f / (t - b);
-    m->m23 = 0.0f;
-    m->m24 = 0.0f;
-
     m->m31 = 0.0f;
-    m->m32 = 0.0f;
-    m->m33 = -2.0f/(zf-zn);
-    m->m34 = 0.0f;
+    m->m41 = 0.0f;
 
-    m->m41 = -(r+l)/(r-l);
-    m->m42 = -(t+b)/(t-b);
-    m->m43 = -(zf+zn)/(zf-zn);
+    m->m12 = 0.0f;
+    m->m22 = 2.0f / (t - b);
+    m->m32 = 0.0f;
+    m->m42 = 0.0f;
+
+    m->m13 = 0.0f;
+    m->m23 = 0.0f;
+    m->m33 = -2.0f/(zf-zn);
+    m->m43 = 0.0f;
+
+    m->m14 = -(r+l)/(r-l);
+    m->m24 = -(t+b)/(t-b);
+    m->m34 = -(zf+zn)/(zf-zn);
     m->m44 = 1.0f;
 }
 
-static inline void mat4_rotation(struct Mat4 *m, struct Quat *q)
+static inline void mat4_rotation(struct Mat4 *restrict m, struct Quat *restrict q)
 {
     m->m11 = 1.0f - 2.0f*q->y*q->y - 2.0f*q->z*q->z;
-	m->m12 = 2.0f*q->x*q->y + 2.0f*q->z*q->w;
-	m->m13 = 2.0f*q->x*q->z - 2.0f*q->y*q->w;
-	m->m14 = 0.0f;
-
-	m->m21 = 2.0f*q->x*q->y - 2.0f*q->z*q->w;
-	m->m22 = 1.0f - 2.0f*q->x*q->x - 2.0f*q->z*q->z;
-	m->m23 = 2.0f*q->y*q->z + 2.0f*q->x*q->w;
-	m->m24 = 0.0f;
-
-	m->m31 = 2.0f*q->x*q->z + 2.0f*q->y*q->w;
-	m->m32 = 2.0f*q->y*q->z - 2.0f*q->x*q->w;
-	m->m33 = 1.0f - 2.0f*q->x*q->x - 2.0f*q->y*q->y;
-	m->m34 = 0.0f;
-
+	m->m21 = 2.0f*q->x*q->y + 2.0f*q->z*q->w;
+	m->m31 = 2.0f*q->x*q->z - 2.0f*q->y*q->w;
 	m->m41 = 0.0f;
+
+	m->m12 = 2.0f*q->x*q->y - 2.0f*q->z*q->w;
+	m->m22 = 1.0f - 2.0f*q->x*q->x - 2.0f*q->z*q->z;
+	m->m32 = 2.0f*q->y*q->z + 2.0f*q->x*q->w;
 	m->m42 = 0.0f;
+
+	m->m13 = 2.0f*q->x*q->z + 2.0f*q->y*q->w;
+	m->m23 = 2.0f*q->y*q->z - 2.0f*q->x*q->w;
+	m->m33 = 1.0f - 2.0f*q->x*q->x - 2.0f*q->y*q->y;
 	m->m43 = 0.0f;
+
+	m->m14 = 0.0f;
+	m->m24 = 0.0f;
+	m->m34 = 0.0f;
 	m->m44 = 1.0f;
 }
 
 static inline void mat4_identity(struct Mat4 *m)
 {
-    m->m11 = 1.0f; m->m12 = 0.0f; m->m13 = 0.0f; m->m14 = 0.0f;
-    m->m21 = 0.0f; m->m22 = 1.0f; m->m23 = 0.0f; m->m24 = 0.0f;
-    m->m31 = 0.0f; m->m32 = 0.0f; m->m33 = 1.0f; m->m34 = 0.0f;
-    m->m41 = 0.0f; m->m42 = 0.0f; m->m43 = 0.0f; m->m44 = 1.0f;
+    m->m11 = 1.0f; m->m21 = 0.0f; m->m31 = 0.0f; m->m41 = 0.0f;
+    m->m12 = 0.0f; m->m22 = 1.0f; m->m32 = 0.0f; m->m42 = 0.0f;
+    m->m13 = 0.0f; m->m23 = 0.0f; m->m33 = 1.0f; m->m43 = 0.0f;
+    m->m14 = 0.0f; m->m24 = 0.0f; m->m34 = 0.0f; m->m44 = 1.0f;
 }
 
 static inline void mat4_mul(struct Mat4 *m, struct Mat4 *l, struct Mat4 *r)
@@ -347,22 +428,22 @@ static inline void mat4_mul(struct Mat4 *m, struct Mat4 *l, struct Mat4 *r)
 	}
 */
     // compiler just fails to unroll it, this is 2x faster
-    m->m11 = l->m11 * r->m11 + l->m21 * r->m12 + l->m31 * r->m13 + l->m41 * r->m14;
-    m->m12 = l->m12 * r->m11 + l->m22 * r->m12 + l->m32 * r->m13 + l->m42 * r->m14;
-    m->m13 = l->m13 * r->m11 + l->m23 * r->m12 + l->m33 * r->m13 + l->m43 * r->m14;
-    m->m14 = l->m14 * r->m11 + l->m24 * r->m12 + l->m34 * r->m13 + l->m44 * r->m14;
-    m->m21 = l->m11 * r->m21 + l->m21 * r->m22 + l->m31 * r->m23 + l->m41 * r->m24;
-    m->m22 = l->m12 * r->m21 + l->m22 * r->m22 + l->m32 * r->m23 + l->m42 * r->m24;
-    m->m23 = l->m13 * r->m21 + l->m23 * r->m22 + l->m33 * r->m23 + l->m43 * r->m24;
-    m->m24 = l->m14 * r->m21 + l->m24 * r->m22 + l->m34 * r->m23 + l->m44 * r->m24;
-    m->m31 = l->m11 * r->m31 + l->m21 * r->m32 + l->m31 * r->m33 + l->m41 * r->m34;
-    m->m32 = l->m12 * r->m31 + l->m22 * r->m32 + l->m32 * r->m33 + l->m42 * r->m34;
-    m->m33 = l->m13 * r->m31 + l->m23 * r->m32 + l->m33 * r->m33 + l->m43 * r->m34;
-    m->m34 = l->m14 * r->m31 + l->m24 * r->m32 + l->m34 * r->m33 + l->m44 * r->m34;
-    m->m41 = l->m11 * r->m41 + l->m21 * r->m42 + l->m31 * r->m43 + l->m41 * r->m44;
-    m->m42 = l->m12 * r->m41 + l->m22 * r->m42 + l->m32 * r->m43 + l->m42 * r->m44;
-    m->m43 = l->m13 * r->m41 + l->m23 * r->m42 + l->m33 * r->m43 + l->m43 * r->m44;
-    m->m44 = l->m14 * r->m41 + l->m24 * r->m42 + l->m34 * r->m43 + l->m44 * r->m44;
+    m->m11 = l->m11 * r->m11 + l->m12 * r->m21 + l->m13 * r->m31 + l->m14 * r->m41;
+    m->m21 = l->m21 * r->m11 + l->m22 * r->m21 + l->m23 * r->m31 + l->m24 * r->m41;
+    m->m31 = l->m31 * r->m11 + l->m32 * r->m21 + l->m33 * r->m31 + l->m34 * r->m41;
+    m->m41 = l->m41 * r->m11 + l->m42 * r->m21 + l->m43 * r->m31 + l->m44 * r->m41;
+    m->m12 = l->m11 * r->m12 + l->m12 * r->m22 + l->m13 * r->m32 + l->m14 * r->m42;
+    m->m22 = l->m21 * r->m12 + l->m22 * r->m22 + l->m23 * r->m32 + l->m24 * r->m42;
+    m->m32 = l->m31 * r->m12 + l->m32 * r->m22 + l->m33 * r->m32 + l->m34 * r->m42;
+    m->m42 = l->m41 * r->m12 + l->m42 * r->m22 + l->m43 * r->m32 + l->m44 * r->m42;
+    m->m13 = l->m11 * r->m13 + l->m12 * r->m23 + l->m13 * r->m33 + l->m14 * r->m43;
+    m->m23 = l->m21 * r->m13 + l->m22 * r->m23 + l->m23 * r->m33 + l->m24 * r->m43;
+    m->m33 = l->m31 * r->m13 + l->m32 * r->m23 + l->m33 * r->m33 + l->m34 * r->m43;
+    m->m43 = l->m41 * r->m13 + l->m42 * r->m23 + l->m43 * r->m33 + l->m44 * r->m43;
+    m->m14 = l->m11 * r->m14 + l->m12 * r->m24 + l->m13 * r->m34 + l->m14 * r->m44;
+    m->m24 = l->m21 * r->m14 + l->m22 * r->m24 + l->m23 * r->m34 + l->m24 * r->m44;
+    m->m34 = l->m31 * r->m14 + l->m32 * r->m24 + l->m33 * r->m34 + l->m34 * r->m44;
+    m->m44 = l->m41 * r->m14 + l->m42 * r->m24 + l->m43 * r->m34 + l->m44 * r->m44;
 }
 
 /*static void v4_mat3_mul(struct V4 *res, struct V4 *v, struct Mat4 *m)
@@ -377,20 +458,20 @@ static inline void mat4_mul(struct Mat4 *m, struct Mat4 *l, struct Mat4 *r)
 static inline void mat4_trs(struct Mat4 *res, struct V3 t, struct Quat r, struct V3 s)
 {
     res->m11 = (1.0f-2.0f*(r.y*r.y+r.z*r.z))*s.x;
-    res->m12 = (r.x*r.y+r.z*r.w)*s.x*2.0f;
-    res->m13 = (r.x*r.z-r.y*r.w)*s.x*2.0f;
-    res->m14 = 0.0f;
-    res->m21 = (r.x*r.y-r.z*r.w)*s.y*2.0f;
+    res->m21 = (r.x*r.y+r.z*r.w)*s.x*2.0f;
+    res->m31 = (r.x*r.z-r.y*r.w)*s.x*2.0f;
+    res->m41 = 0.0f;
+    res->m12 = (r.x*r.y-r.z*r.w)*s.y*2.0f;
     res->m22 = (1.0f-2.0f*(r.x*r.x+r.z*r.z))*s.y;
-    res->m23 = (r.y*r.z+r.x*r.w)*s.y*2.0f;
-    res->m24 = 0.0f;
-    res->m31 = (r.x*r.z+r.y*r.w)*s.z*2.0f;
-    res->m32 = (r.y*r.z-r.x*r.w)*s.z*2.0f;
+    res->m32 = (r.y*r.z+r.x*r.w)*s.y*2.0f;
+    res->m42 = 0.0f;
+    res->m13 = (r.x*r.z+r.y*r.w)*s.z*2.0f;
+    res->m23 = (r.y*r.z-r.x*r.w)*s.z*2.0f;
     res->m33 = (1.0f-2.0f*(r.x*r.x+r.y*r.y))*s.z;
-    res->m34 = 0.0f;
-    res->m41 = t.x;
-    res->m42 = t.y;
-    res->m43 = t.z;
+    res->m43 = 0.0f;
+    res->m14 = t.x;
+    res->m24 = t.y;
+    res->m34 = t.z;
     res->m44 = 1.0f;
 }
 
@@ -398,19 +479,52 @@ static inline void mat4_trs(struct Mat4 *res, struct V3 t, struct Quat r, struct
 static inline void mat4_tr(struct Mat4 *res, struct V3 t, struct Quat r)
 {
     res->m11 = (1.0f-2.0f*(r.y*r.y+r.z*r.z));
-    res->m12 = (r.x*r.y+r.z*r.w)*2.0f;
-    res->m13 = (r.x*r.z-r.y*r.w)*2.0f;
-    res->m14 = 0.0f;
-    res->m21 = (r.x*r.y-r.z*r.w)*2.0f;
+    res->m21 = (r.x*r.y+r.z*r.w)*2.0f;
+    res->m31 = (r.x*r.z-r.y*r.w)*2.0f;
+    res->m41 = 0.0f;
+    res->m12 = (r.x*r.y-r.z*r.w)*2.0f;
     res->m22 = (1.0f-2.0f*(r.x*r.x+r.z*r.z));
-    res->m23 = (r.y*r.z+r.x*r.w)*2.0f;
-    res->m24 = 0.0f;
-    res->m31 = (r.x*r.z+r.y*r.w)*2.0f;
-    res->m32 = (r.y*r.z-r.x*r.w)*2.0f;
+    res->m32 = (r.y*r.z+r.x*r.w)*2.0f;
+    res->m42 = 0.0f;
+    res->m13 = (r.x*r.z+r.y*r.w)*2.0f;
+    res->m23 = (r.y*r.z-r.x*r.w)*2.0f;
     res->m33 = (1.0f-2.0f*(r.x*r.x+r.y*r.y));
-    res->m34 = 0.0f;
-    res->m41 = t.x;
-    res->m42 = t.y;
-    res->m43 = t.z;
+    res->m43 = 0.0f;
+    res->m14 = t.x;
+    res->m24 = t.y;
+    res->m34 = t.z;
     res->m44 = 1.0f;
+}
+
+static inline void mat4_rt(struct Mat4 *res, struct Quat r, struct V3 t)
+{
+    Mat4 translate, rotate;
+    mat4_identity(&translate);
+    translate.m14 = t.x;
+    translate.m24 = t.y;
+    translate.m34 = t.z;
+    mat4_rotation(&rotate, &r);
+    mat4_mul(res, &rotate, &translate);
+}
+
+static inline void quat_v3_mul_pos(V3 *restrict res, Quat q, V3 v)
+{
+    // TODO: optimize
+    Mat4 mat;
+    mat4_rotation(&mat, &q);
+    V4 vh = make_v4(v.x, v.y, v.z, 1.0f);
+    V4 rh;
+    mat4_v4_mul(&rh, &mat, vh);
+    res->x = rh.x; res->y = rh.y; res->z = rh.z;
+}
+
+static inline void quat_v3_mul_dir(V3 *restrict res, Quat q, V3 v)
+{
+    // TODO: optimize
+    Mat4 mat;
+    mat4_rotation(&mat, &q);
+    V4 vh = make_v4(v.x, v.y, v.z, 0.0f);
+    V4 rh;
+    mat4_v4_mul(&rh, &mat, vh);
+    res->x = rh.x; res->y = rh.y; res->z = rh.z;
 }

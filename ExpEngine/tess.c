@@ -17,6 +17,7 @@ void tess_file_system_init(TessFileSystem *fs, TessFixedArena *arena)
 void tess_asset_system_init(TessAssetSystem *as, TessFixedArena *arena)
 {
     POOL_FROM_ARENA(as->meshPool, arena, TESS_MESH_POOL_SIZE);
+    POOL_FROM_ARENA(as->texturePool, arena, TESS_TEXTURE_POOL_SIZE);
     POOL_FROM_ARENA(as->objectPool, arena, TESS_OBJECT_POOL_SIZE);
     POOL_FROM_ARENA(as->loadingAssetPool, arena, TESS_LOADING_ASSET_POOL_SIZE);
     POOL_FROM_ARENA(as->assetLookupCachePool, arena, TESS_ASSET_LOOKUP_CACHE_POOL_SIZE);

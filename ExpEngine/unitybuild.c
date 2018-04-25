@@ -1,3 +1,5 @@
+#include "aike_platform.h"
+
 #include <stdint.h>
 #include <math.h>
 #include <stdio.h>
@@ -6,6 +8,8 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stddef.h>
+
+#include <coro.h>
 
 #ifdef AIKE_X86
 #include <xmmintrin.h>
@@ -49,8 +53,6 @@ KHASH_MAP_INIT_STR(str, void*)
 KHASH_MAP_INIT_INT64(64, void*)
 KHASH_MAP_INIT_INT(uint32, uint32_t)
 
-#include "aike_platform.h"
-
 #include "debug.h"
 #ifdef _DEBUG
 #include "debug.c"
@@ -71,6 +73,7 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 #include "test.c"
 
 #include "resourceformat.c"
+#include "map.c"
 #include "render_system.c"
 #include "tess.c"
 #include "client.c"

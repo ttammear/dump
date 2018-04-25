@@ -43,7 +43,6 @@ void rview_builder_init(RenderViewBuilder *builder)
 {
     builder->meshBuf = NULL;
     builder->instanceBuf = NULL;
-    builder->instanceDataBuf = NULL;
     builder->vertices = NULL;
     builder->indices = NULL;
     builder->batches = NULL;
@@ -55,7 +54,6 @@ void rview_builder_destroy(RenderViewBuilder *builder)
 {
     buf_free(builder->meshBuf);
     buf_free(builder->instanceBuf);
-    buf_free(builder->instanceDataBuf);
     buf_free(builder->vertices);
     buf_free(builder->indices);
     buf_free(builder->batches);
@@ -65,7 +63,6 @@ void rview_builder_reset(RenderViewBuilder *builder)
 {
     buf_clear(builder->meshBuf);
     buf_clear(builder->instanceBuf);
-    buf_clear(builder->instanceDataBuf);
     buf_clear(builder->vertices);
     buf_clear(builder->indices);
     buf_clear(builder->batches);
@@ -147,7 +144,7 @@ void builder_new_vertex_stream(RenderViewBuilder *builder)
     builder->indexBase = buf_len(builder->vertices);
 }
 
-void add_mesh_instance(RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId, Mat4 *modelM, void *instanceData, u32 instanceDataSize, u32 objectId)
+void add_mesh_instance(RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId, Mat4 *modelM, u32 objectId)
 {
     int entryIdx = findEntry(builder, meshId, materialId);
     if(entryIdx < 0)
@@ -159,16 +156,9 @@ void add_mesh_instance(RenderViewBuilder *builder, uint32_t meshId, uint32_t mat
         entryIdx = buf_len(builder->meshBuf)-1;
     }
     u32 dbufIdx = 0;
-    if(instanceData != NULL)
-    {
-        dbufIdx = buf_push_count(builder->instanceDataBuf, ALIGN_UP(instanceDataSize, 16));
-        memcpy(&builder->instanceDataBuf[dbufIdx], instanceData, instanceDataSize);
-    }
     buf_push(builder->instanceBuf, (BuilderMeshInstance) {
                 .modelM = *modelM,
                 .mentryIdx = entryIdx,
-                .instanceDataIdx = dbufIdx,
-                .instanceDataSize = instanceDataSize,
                 .objectId = objectId
         });
     builder->meshBuf[entryIdx].instanceCount++;
@@ -218,10 +208,6 @@ void build_view(RenderViewBuilder *builder, RenderViewBuffer *buf)
         RenderMeshEntry *mentry = view->space->meshEntries[binstance->mentryIdx];
         RenderMeshInstance *rinstance = &mentry->instances[mentry->numInstances++];
         rinstance->matrixIndex = i;
-        rinstance->instanceDataPtr = rview_buffer_allocate_from(buf, binstance->instanceDataSize);
-        assert(rinstance->instanceDataPtr != NULL);
-        memcpy(rinstance->instanceDataPtr, &builder->instanceDataBuf[binstance->instanceDataIdx], binstance->instanceDataSize);
-        rinstance->instanceDataSize = binstance->instanceDataSize;
         rinstance->objectId = binstance->objectId;
         // TODO: uniforms
     }
@@ -257,7 +243,6 @@ void build_view(RenderViewBuilder *builder, RenderViewBuffer *buf)
     }
     view->numVertices = buf_len(builder->vertices);
     view->numIndices = buf_len(builder->indices);
-    view->materialId = builder->materialId;
     view->orthoMatrix = builder->orthoMatrix;
 
     view->numUIBatches = buf_len(builder->batches);
@@ -325,8 +310,6 @@ RenderViewBuffer* swap_view_for_newer(SwapBuffer *sbuf, RenderViewBuffer *vbuf)
             __sync_fetch_and_add(&sbuf->numSwaps, 1);
             return oldVal;
         }
-        else // TODO REMOVE
-            printf("fetch failed\n");
     }
 }
 
@@ -350,8 +333,6 @@ RenderViewBuffer* swap_view_if_newer(SwapBuffer *sbuf, RenderViewBuffer *vbuf)
             __sync_fetch_and_add(&sbuf->numSwaps, 1);
             return oldVal;
         }
-        else // TODO REMOVE
-            printf("fetch failed\n");
     }
 }
 

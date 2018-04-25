@@ -24,6 +24,20 @@ void draw_main_menu(struct TessMainMenu *menu, struct nk_context *ctx)
         nk_layout_row_dynamic(ctx, 60, 1);
         if(nk_button_label(ctx, "Play"))
         {
+            void *buf = malloc(1024*1024);
+            FILE *file = fopen("map.ttm", "rb");
+            if(file != NULL)
+            {
+                fseek(file, 0, SEEK_END);
+                long size = ftell(file);
+                rewind(file);
+                fread(buf, 1, size, file);
+                fclose(file);
+
+                menu->client->mode = Tess_Client_Mode_Game;
+                tess_load_map(&menu->client->gameSystem, (TessMapHeader*)buf, size);
+            }
+            free(buf);
         }
         if(nk_button_label(ctx, "Editor"))
         {
@@ -63,6 +77,9 @@ void draw_editor_connect_menu(struct TessMainMenu *menu, struct nk_context *ctx)
             nk_edit_string_zero_terminated(ctx, NK_EDIT_SIMPLE|NK_EDIT_NO_CURSOR, menu->portStrBuf, sizeof(menu->portStrBuf)-1, nk_filter_decimal);
             nk_layout_row_push(ctx, 0.03f);
         nk_layout_row_end(ctx);
+
+        strcpy(menu->client->editor.ipStr, menu->ipStrBuf);
+        menu->client->editor.port = atoi(menu->portStrBuf);
         
         nk_layout_row_static(ctx, 20, 100, 1);
             nk_layout_row_dynamic(ctx, 30, 2);
@@ -72,16 +89,8 @@ void draw_editor_connect_menu(struct TessMainMenu *menu, struct nk_context *ctx)
             }
             if(nk_button_label(ctx, "Connect"))
             {
-                uint16_t port = atoi(menu->portStrBuf);
-                bool result = editor_connect(&menu->client->editor, menu->ipStrBuf, port);
-                if(result)
-                {
-                    menu->mode = Tess_Main_Menu_Mode_Menu;
-                    menu->client->mode = Tess_Client_Mode_Editor;
-                    menu->statusStr = "";
-                }
-                else
-                    menu->statusStr = "Failed to connect!";
+                menu->client->mode = Tess_Client_Mode_Editor;
+                menu->mode = Tess_Main_Menu_Mode_Menu;
             }
 
         nk_layout_row_dynamic(ctx, 30, 1);

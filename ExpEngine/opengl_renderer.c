@@ -39,17 +39,9 @@ static const char *vertShaderSrc =  "#version 330 core\n"
 "attribute vec2 a_user0;\n"
 "attribute vec4 a_user1;\n"
 ""
-"layout (std140) uniform vectors\n"
-"{\n" 
-    "vec4 v[];\n"
-"};\n"
-"struct InstanceData { \n"
-    "vec2 v1; \n"
-    "vec2 v2; \n"
-"};\n"
 "layout (std140) uniform instanceBlock\n"
 "{\n"
-    "InstanceData idata[128];\n"
+    "vec4 instanceColors[128];\n"
 "};\n"
 "layout (std140) uniform matrixBlock\n"
 "{\n"
@@ -68,7 +60,7 @@ static const char *vertShaderSrc =  "#version 330 core\n"
    "int id = gl_InstanceID;"
    "gl_Position = matrices[id] * a_position;\n"
    "v_texcoord = vec2(a_user0.x, 1.0 - a_user0.y);\n"
-   "v_color = pow(a_user1, vec4(2.2));\n"
+   "v_color = pow(a_user1 * instanceColors[id], vec4(2.2));\n"
    "v_objectId = objectIds[id];\n"
 "}";
 			
@@ -161,21 +153,6 @@ static unsigned short glDefaultMeshIdx[] =
 
 static uint32_t frameId;
 internal GLMesh *get_mesh_safe(OpenGLRenderer *renderer, uint32_t meshId);
-
-internal GLenum shader_type_to_glenum(u32 type)
-{
-    switch(type)
-    {
-        case ShaderType_GLSL_Vert:
-            return GL_VERTEX_SHADER;
-        case ShaderType_GLSL_Frag:
-            return GL_FRAGMENT_SHADER;
-        default:
-            assert(false);
-            break;
-    }
-    return 0;
-}
 
 internal const char *opengl_type_to_str(GLint type)
 {
@@ -398,7 +375,6 @@ internal void opengl_flush_instances(OpenGLRenderer *renderer, GLMesh *mesh, GLM
     PROF_BLOCK();
     u32 bufIdx = renderer->curInstanceBufferIdx;
     glBindBuffer(GL_UNIFORM_BUFFER, renderer->instanceDataBuffers[bufIdx]);
-    CHECK_BUF_ALIGN(uniformDataSize);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, uniformDataSize, uniformData);
 
     // prepare mesh, program and uniforms
@@ -410,7 +386,6 @@ internal void opengl_flush_instances(OpenGLRenderer *renderer, GLMesh *mesh, GLM
 
     bufIdx = renderer->curMatrixBufferIdx;
     glBindBuffer(GL_UNIFORM_BUFFER, renderer->matrixBuffers[bufIdx]);
-    CHECK_BUF_ALIGN(instanceCount*sizeof(Mat4));
     glBufferSubData(GL_UNIFORM_BUFFER, 0, instanceCount*sizeof(Mat4), matData);
     blockIdx = glGetUniformBlockIndex(program, "matrixBlock");
     if(blockIdx != GL_INVALID_INDEX)
@@ -425,14 +400,6 @@ internal void opengl_flush_instances(OpenGLRenderer *renderer, GLMesh *mesh, GLM
             glUniformBlockBinding(program, blockIdx, UNIFORM_BUFFER_OBJECTID);
     }
 
-    // TODO
-    //assert(false);
-    
-    //if(mesh->tex != NULL)
-    {
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, renderer->textures[2].glTex);
-    }
     glBindVertexArray(mesh->glVao);
 
     glDrawElementsInstanced(GL_TRIANGLES, mesh->numIndices, GL_UNSIGNED_SHORT, 0, instanceCount);
@@ -531,12 +498,10 @@ internal void opengl_handle_mesh_query(OpenGLRenderer *renderer, MeshQuery *mq)
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     if(mesh->vertexBufferSize < vertBufSize)
     {
-        CHECK_BUF_ALIGN(vertBufSize);
         glBufferData(GL_ARRAY_BUFFER, vertBufSize, 0, GL_STATIC_DRAW);
         mesh->vertexBufferSize = vertBufSize;
     }
     // TODO: if the mesh is being draw we might need sync (defer this command)
-    CHECK_BUF_ALIGN(vertBufSize);
     void *vertPtr = glMapBufferRange(GL_ARRAY_BUFFER, 0, vertBufSize, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 
     GLuint ebo = (GLuint)mesh->glEbo;
@@ -634,34 +599,6 @@ internal void opengl_handle_mesh_update(OpenGLRenderer *renderer, MeshUpdate *mu
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
-/*internal void opengl_destroy_material(GLMaterial *material)
-{
-    GLuint glshader;
-    for(int i = 0; i < MATERIAL_MAX_SHADERS; i++)
-    {
-        uint32_t type = material->shaders[i].type;
-        switch(type)
-        {
-            case ShaderType_GLSL_Vert:
-            case ShaderType_GLSL_Frag:
-                glshader = material->shaders[i].glShader;
-                if(glshader != 0)
-                {
-                    glDeleteShader(glshader);
-                    material->shaders[i].glShader = 0;
-                }
-                break;
-            default:
-                break;
-        }
-    }
-    if(material->glProgram != 0)
-    {
-        glDeleteProgram((GLuint)material->glProgram);
-        material->glProgram = 0;
-    }
-}*/
-
 internal GLMaterial *get_material(OpenGLRenderer *renderer, uint32_t matId)
 {
     if(matId >= buf_len(renderer->materials))
@@ -693,13 +630,28 @@ internal void opengl_handle_material_query(OpenGLRenderer *renderer, MaterialQue
         fprintf(stderr, "material shaderId out of range, using Shader_Type_None!\n");
         mq->shaderId = Shader_Type_None;
     }
+    material->shaderId = mq->shaderId;
     material->glProgram = renderer->builtinPrograms[mq->shaderId];
+    switch(mq->shaderId)
+    {
+        case Shader_Type_Unlit_Textured:
+            material->perInstanceDataSize = sizeof(struct UnlitTexturedIData);
+            break;
+        case Shader_Type_Unlit_Color:
+            material->perInstanceDataSize = sizeof(struct UnlitColorIData);
+            break;
+        default:
+            material->perInstanceDataSize = 0;
+            break;
+    };
     material->userData = mq->userData;
+    material->iData = mq->iData; // @OPTIMIZE: dont have to copy full
 
     RenderMessage msg = {};
     msg.type = Render_Message_Material_Ready;
     msg.matR.materialId = material->id;
     msg.matR.userData = material->userData;
+    msg.matR.onComplete = mq->onComplete;
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
@@ -752,12 +704,10 @@ internal void opengl_handle_texture_query(OpenGLRenderer *renderer, TextureQuery
     uint32_t requiredSize = 4*tq->width*tq->height;
     if(tex->bufferSize < requiredSize)
     {
-        CHECK_BUF_ALIGN(requiredSize);
         glBufferData(GL_PIXEL_UNPACK_BUFFER, requiredSize, NULL, GL_STATIC_DRAW);
         tex->bufferSize = requiredSize;
     }
     // TODO: if the texture is being drawn then we might need sync
-    CHECK_BUF_ALIGN(requiredSize);
     void *dataPtr = glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, requiredSize, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
@@ -989,21 +939,40 @@ internal void opengl_render_view(OpenGLRenderer *renderer, RenderViewBuffer *rbu
         RenderMeshEntry *mentry = view->space->meshEntries[i];
         GLMaterial *material = get_material(renderer, mentry->materialId);
         GLMesh *mesh = get_mesh_safe(renderer, mentry->meshId);
+        GLTexture *tex;
 
         u32 instanceCount = mentry->numInstances;
         assert(instanceCount != 0);
 
         u32 instId = 0;
         u32 instRunId = 0;
+        void *idptr = NULL;
+        u32 idsize;
+        switch(material->shaderId)
+        {
+            case Shader_Type_None:
+                idsize = 0;
+                break;
+            case Shader_Type_Unlit_Textured:
+                idsize = 16;
+                idptr = &material->iData.unlitTextured.color;
+                tex = get_texture(renderer, material->iData.unlitTextured.textureId);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, tex->glTex);
+                break;
+            case Shader_Type_Unlit_Vertex_Color:
+            case Shader_Type_Unlit_Color:
+                idsize = 16;
+                idptr = &material->iData.unlitColor.color;
+                break;
+            default:
+                assert(0);
+        }
 
         for(instId = 0; instId < instanceCount; instId++, instRunId++)
         {
             RenderMeshInstance *minstance = &mentry->instances[instId];
-            u32 idsize = minstance->instanceDataSize;
-            void *idptr= minstance->instanceDataPtr;
-            // TODO: std140 rules
-            assert((idsize & 0xF) == 0);
-
+            
             // buffer limit reached, have to flush
             if((idofst + idsize) > renderer->uniBufSize
                     || (mofst + sizeof(Mat4)) > renderer->uniBufSize)
@@ -1013,10 +982,12 @@ internal void opengl_render_view(OpenGLRenderer *renderer, RenderViewBuffer *rbu
             }
 
             PROF_START_STR("Copy instance data");
-            memcpy(&idbuf[idofst], idptr, idsize);
+            if(idsize > 0)
+                memcpy(&idbuf[idofst], idptr, idsize);
             if(renderer->renderObjectId)
                 oidBuf[instRunId*4] = minstance->objectId;
             idofst += idsize;
+            assert((idsize & 0xF) == 0); // TODO: std140 proper
             static_assert(sizeof(Mat4) == 4*4*4, "Mat4 assumed to be packed, otherwise it won't match OpenGL layout!");
             //@OPTIMIZE: could we somehow get rid of this copy?
             memcpy(&mbuf[mofst], &matBuf[minstance->matrixIndex], sizeof(Mat4));
@@ -1171,14 +1142,22 @@ internal void opengl_init_builtin_shaders(OpenGLRenderer *renderer)
 {
    GLuint program;
    program = opengl_create_standard_program_noerror(fallbackVert, fallbackFrag);
-   renderer->builtinPrograms[ShaderType_None] = program;
+   renderer->builtinPrograms[Shader_Type_None] = program;
    program = opengl_create_standard_program_noerror(vertShaderSrc, fragShaderSrc);
-   renderer->builtinPrograms[Shader_Type_Textured_Unlit] = program;
+   renderer->builtinPrograms[Shader_Type_Unlit_Textured] = program;
    program = opengl_create_standard_program_noerror(vertShaderSrc, fragShaderSolidSrc);
-   renderer->builtinPrograms[Shader_Type_Vertex_Color_Unlit] = program;
-   renderer->builtinPrograms[Shader_Type_Color_Unlit] = program; // TODO?
+   renderer->builtinPrograms[Shader_Type_Unlit_Vertex_Color] = program;
+   renderer->builtinPrograms[Shader_Type_Unlit_Color] = program; // TODO?
    program = opengl_create_standard_program_noerror(uiVertSrc, uiFragSrc);
    renderer->uiProgram = program;
+}
+
+internal void opengl_destroy_builtin_shaders(OpenGLRenderer *renderer)
+{
+    glDeleteProgram(renderer->builtinPrograms[Shader_Type_None]);
+    glDeleteProgram(renderer->builtinPrograms[Shader_Type_Unlit_Textured]);
+    glDeleteProgram(renderer->builtinPrograms[Shader_Type_Unlit_Vertex_Color]);
+    glDeleteProgram(renderer->uiProgram);
 }
 
 internal void opengl_init(OpenGLRenderer *renderer)
@@ -1255,7 +1234,6 @@ internal void opengl_init(OpenGLRenderer *renderer)
     for(int i = 0; i < INSTANCE_BUFFER_COUNT; i++)
     {
         glBindBuffer(GL_UNIFORM_BUFFER, renderer->instanceDataBuffers[i]);
-        CHECK_BUF_ALIGN(renderer->uniBufSize);
         glBufferData(GL_UNIFORM_BUFFER, renderer->uniBufSize, 0, GL_DYNAMIC_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, UNIFORM_BUFFER_INSTANCEDATA+i, renderer->instanceDataBuffers[i]);
     }
@@ -1265,7 +1243,6 @@ internal void opengl_init(OpenGLRenderer *renderer)
     for(int i = 0; i < MATRIX_BUFFER_COUNT; i++)
     {
         glBindBuffer(GL_UNIFORM_BUFFER, renderer->matrixBuffers[i]);
-        CHECK_BUF_ALIGN(renderer->uniBufSize);
         glBufferData(GL_UNIFORM_BUFFER, renderer->uniBufSize, 0, GL_DYNAMIC_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, UNIFORM_BUFFER_MATRICES+i, renderer->matrixBuffers[i]);
     }
@@ -1281,11 +1258,9 @@ internal void opengl_init(OpenGLRenderer *renderer)
     renderer->immIndexBufSize = 512*1024;
     glGenBuffers(1, &renderer->immVertBuf);
     glBindBuffer(GL_ARRAY_BUFFER, renderer->immVertBuf);
-    CHECK_BUF_ALIGN(renderer->immVertBufSize);
     glBufferData(GL_ARRAY_BUFFER, renderer->immVertBufSize, 0, GL_DYNAMIC_DRAW);
     glGenBuffers(1, &renderer->immIndexBuf); 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->immIndexBuf);
-    CHECK_BUF_ALIGN(renderer->immIndexBufSize);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, renderer->immIndexBufSize, 0, GL_DYNAMIC_DRAW);
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
@@ -1476,6 +1451,8 @@ void destroy_opengl_renderer(Renderer *rend)
     glDeleteFramebuffers(1, &glrend->fbo);
     glDeleteTextures(1, &glrend->fboColorTex);
     glDeleteRenderbuffers(1, &glrend->fboDepthBuffer);
+
+    opengl_destroy_builtin_shaders(glrend);
 
     buf_free(glrend->meshes);
     buf_free(glrend->textures);

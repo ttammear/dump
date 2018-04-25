@@ -1,6 +1,7 @@
 
 typedef struct TessRoot
 {
+    coro_context mainctx;
     struct TessClient client;
     TessServer server;
     AikeMemoryBlock *rootBlock;
@@ -35,6 +36,7 @@ void aike_init(AikePlatform *platform)
 {
     DEBUG_INIT("Main thread");
 
+
     tess_reload_vtable();
 
     platform->init_async_io(platform);
@@ -54,8 +56,9 @@ void aike_init(AikePlatform *platform)
     root->rootBlock = rootBlock;
     root->loaded = false;
     platform->userData = root;
+    coro_create(&root->mainctx, NULL, NULL, NULL, 0);
 
-    tess_client_init(&root->client, platform, renderer);
+    tess_client_init(&root->client, platform, renderer, &root->mainctx);
 
     tess_server_init(&root->server, platform);
 
@@ -83,12 +86,16 @@ void aike_init(AikePlatform *platform)
     
     TStr *obj0I = tess_intern_string(&root->client.strings, "First/object0");
     tess_register_object(&root->client.gameSystem, 1, obj0I);
+
+    TStr *tex1 = tess_intern_string(&root->client.strings, "First/Screenshot");
+    tess_load_asset_if_not_loaded(&root->client.assetSystem, tex1);
 }
 
 void aike_deinit(AikePlatform *platform)
 {
     TessRoot *root = (TessRoot*)platform->userData;
 
+    coro_destroy(&root->mainctx);
     deinit_game();
 
     stop_renderer(root->client.renderSystem.renderer);
@@ -140,10 +147,12 @@ void aike_update(AikePlatform *platform)
                 tess_main_menu_update(&root->client.mainMenu);
                 break;
             case Tess_Client_Mode_Editor:
-                editor_update(&root->client.editor);
+                coro_transfer(&root->mainctx, &root->client.editor.coroCtx);
                 break;
             case Tess_Client_Mode_CrazyTown:
                 update_game(&root->gdata);
+                break;
+            case Tess_Client_Mode_Game:
                 break;
             default:
                 fprintf(stderr, "Invalid mode!\n");

@@ -90,8 +90,8 @@ void tess_ui_end(struct TessUISystem *ui)
     orthoM.m22 = -2.0f / height;
     orthoM.m33 = 1.0f;
     orthoM.m44 =  1.0f;
-    orthoM.m41 = -1.0f;
-    orthoM.m42 =  1.0f;
+    orthoM.m14 = -1.0f;
+    orthoM.m24 =  1.0f;
     ui->renderSystem->viewBuilder->orthoMatrix = orthoM;
     ui->renderSystem->viewBuilder->materialId = 3;
 

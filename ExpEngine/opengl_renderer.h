@@ -82,12 +82,13 @@ typedef struct GLShader
 typedef struct GLMaterial
 {
     uint32_t id;
-
+    uint32_t shaderId;
     GLuint glProgram;
 
     void *userData;
     
     uint32_t perInstanceDataSize;
+    union InstanceData iData;
 } GLMaterial;
 
 struct OpenGLRenderer;
@@ -158,9 +159,6 @@ typedef struct OpenGLRenderer
     struct RenderViewBuffer *curView;
 } OpenGLRenderer;
 
-#define BUF_ALIGN_MASK 0x3
-// nothing will blow up, but better have everything aligned!
-// TBH should use warning in stderr or something
 #ifdef _DEBUG
 #define CHECK_BUF_ALIGN(x) assert(((x) & BUF_ALIGN_MASK) == 0)
 #else

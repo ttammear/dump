@@ -90,21 +90,17 @@ void init_game(struct Renderer *renderer, struct GameData *gdata, struct TessCli
     msg.type = Render_Message_Material_Query;
     msg.matQ.userData = NULL;
     msg.matQ.materialId = 0;
-    msg.matQ.shaderId = Shader_Type_Textured_Unlit;
+    msg.matQ.shaderId = Shader_Type_Unlit_Textured;
+    msg.matQ.iData.unlitTextured.textureId = 4;
+    msg.matQ.iData.unlitTextured.color = make_v4(1.0f, 1.0f, 1.0f, 1.0f);
     renderer_queue_message(renderer, &msg);
 
     msg = (RenderMessage){};
     msg.type = Render_Message_Material_Query;
     msg.matQ.userData = NULL;
     msg.matQ.materialId = 0;
-    msg.matQ.shaderId = Shader_Type_Vertex_Color_Unlit;
-    renderer_queue_message(renderer, &msg);
-
-    msg = (RenderMessage){};
-    msg.type = Render_Message_Material_Query;
-    msg.matQ.userData = NULL;
-    msg.matQ.materialId = 0;
-    msg.matQ.shaderId = Shader_Type_UI_Textured_Vertex_Color;
+    msg.matQ.shaderId = Shader_Type_Unlit_Vertex_Color;
+    msg.matQ.iData.unlitVertexColor.color = make_v4(1.0f, 1.0f, 1.0f, 1.0f);
     renderer_queue_message(renderer, &msg);
 
     msg = (RenderMessage){};
@@ -154,6 +150,54 @@ struct CreateObjectsWindowState
     char assetNames[5][64];
 };
 
+void write_image()
+{
+    int w, h, comp;
+    void *data = stbi_load("./image.png", &w, &h, &comp, 4);
+
+    void *buf = malloc(10 * 1024 * 1024);
+    TTRHeader *header = (struct TTRHeader*)buf;
+    header->signature = TTR_4CHAR("TTR ");
+    uint8_t *stream = (uint8_t*)buf + sizeof(TTRHeader);
+    TTRDescTbl *dtbl = STREAM_PUSH_FLEX(stream, TTRDescTbl, entries, 1);
+    dtbl->entryCount = 1;
+    TTRImportTbl *itbl = STREAM_PUSH_FLEX(stream, TTRImportTbl, entries, 0);
+    itbl->entryCount = 0;
+
+    TTRTexture *ttex = STREAM_PUSH(stream, TTRTexture);
+    ttex->format = 1;
+    ttex->width = w;
+    ttex->height = h;
+
+    TTRBuffer *tbuf = STREAM_PUSH_FLEX(stream, TTRBuffer, data, w*h*4);
+    tbuf->size = w*h*4;
+    memcpy(tbuf->data, data, w*h*4);
+    TTR_SET_REF_TO_PTR(ttex->bufRef, tbuf);
+
+    header->majorVersion = 0;
+    header->minorVersion = 1;
+    TTR_SET_REF_TO_PTR(header->descTblRef, dtbl);
+    TTR_SET_REF_TO_PTR(header->importTblRef, itbl);
+
+    dtbl->entries[0].type = TTR_4CHAR("TEX ");
+    strcpy(dtbl->entries[0].assetName, "Screenshot");
+    TTR_SET_REF_TO_PTR(dtbl->entries[0].ref, ttex);
+
+    FILE *file = fopen("./image.ttr", "w+b");
+    if(file)
+    {
+        uint32_t size = stream - (uint8_t*)buf;
+        fwrite(buf, 1, size, file);
+        fclose(file);
+    }
+    else
+        fprintf(stderr, "Writing texture file failed!\n");
+
+
+    free(buf);
+    stbi_image_free(data);
+}
+
 void write_object(struct CreateObjectsWindowState *cws)
 {
     int count = 0;
@@ -177,6 +221,10 @@ void write_object(struct CreateObjectsWindowState *cws)
     for(int i = 0; i < count; i++)
     {
         struct TTRObject *obj = STREAM_PUSH(stream, struct TTRObject);
+        struct TTRMaterial *mat = STREAM_PUSH(stream, struct TTRMaterial);
+        TTR_SET_REF_TO_PTR(obj->materialRef, mat);
+        mat->shaderType = Shader_Type_Unlit_Vertex_Color;
+        mat->tintColor = make_v4(1.0f, 0.0f, 0.0f, 1.0f);
         obj->meshARef.tblIndex = i | TTR_AREF_EXTERN_MASK;
         dtbl->entries[i].type = TTR_4CHAR("OBJ ");
         TTR_SET_REF_TO_PTR(dtbl->entries[i].ref, obj);
@@ -224,13 +272,13 @@ void update_game(struct GameData *gdata)
     PROF_START();
     gdata->rotval += 0.01f;
 
-#pragma push(pack, 1)
+#pragma pack(push, 1)
     struct TestInstanceData
     {
         struct V4 v1;
         //struct V2 v2;
     };
-#pragma pop(pack)
+#pragma pack(pop)
 
     struct TestInstanceData data;
     data.v1 = (struct V4){1.0f, 1.0f, 0.0f, 0.0f};
@@ -255,7 +303,7 @@ void update_game(struct GameData *gdata)
         bool cube = j%2==0;
         //data.v1 = cols[rand() % ARRAY_COUNT(cols)];
         mat4_trs(&model, make_v3((float)i*2 - 100.0f, -5.0f, 10.0f + (float)j*2 - 17.0f), cube?rot:rot2, one);
-        add_mesh_instance(gdata->viewBuilder, cube?1:0, cube?pyMat:1, &model, &data, sizeof(data), -1);
+        add_mesh_instance(gdata->viewBuilder, cube?1:0, cube?pyMat:1, &model, -1);
     }
 
     PROF_END();
@@ -273,8 +321,8 @@ void update_game(struct GameData *gdata)
     orthoM.m22 = -2.0f / height;
     orthoM.m33 = 1.0f;
     orthoM.m44 =  1.0f;
-    orthoM.m41 = -1.0f;
-    orthoM.m42 =  1.0f;
+    orthoM.m14 = -1.0f;
+    orthoM.m24 =  1.0f;
     gdata->viewBuilder->orthoMatrix = orthoM;
 
     // ------------------------------------------------
@@ -359,6 +407,11 @@ void update_game(struct GameData *gdata)
         if(nk_begin(ctx, "Create object", nk_rect(400, 50, 350, 500),
                     NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE))
         {
+            nk_layout_row_dynamic(ctx, 30, 1);
+            if(nk_button_label(ctx, "Gen img"))
+            {
+                write_image();
+            }
             nk_layout_row_dynamic(ctx, 30, 1);
             if(nk_button_label(ctx, "Generate"))
             {

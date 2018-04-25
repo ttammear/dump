@@ -1,12 +1,15 @@
 void objectid_callback(Renderer *renderer, ObjectIDSamplesReady *tdr, void *userData);
+void editor_update(struct TessEditor *editor);
+void editor_destroy(struct TessEditor *editor);
+bool editor_connect(TessEditor *editor, const char *ipStr, uint16_t port);
 void editor_disconnect(TessEditor *editor);
 void editor_connected(TessEditor *editor);
 void editor_client_send_command(TessEditor *editor, uint8_t *data, uint32_t size);
+
 static inline void editor_client_send_stream(TessEditor *editor, ByteStream *stream)
 {
     editor_client_send_command(editor, stream->start, stream_get_offset(stream));
 }
-
 
 void query_objectid(TessEditor *editor)
 {
@@ -43,7 +46,28 @@ void editor_init(TessEditor *editor)
     editor->tcpCon = NULL;
 
     editor->objectSelected = false;
+    editor->moving = false;
     editor->init = true;
+
+    editor->cam = &editor->world->defaultCamera;
+    editor->camRot = (V2){0};
+    editor->camLocked = false;
+}
+
+void editor_coroutine(TessEditor *editor)
+{
+    editor_init(editor);
+
+    bool success = editor_connect(editor, editor->ipStr, editor->port);
+    assert(success);
+
+    while(1)
+    {
+        editor_update(editor);
+        coro_transfer(&editor->coroCtx, editor->client->mainctx);
+    }
+
+    editor_destroy(editor);
 }
 
 void editor_destroy(TessEditor *editor)
@@ -151,6 +175,53 @@ TessEditorEntity* editor_get_entity(TessEditor *editor, uint32_t entityId)
 
 void editor_send_debug_message(TessEditor *editor, char *msg);
 
+void editor_export_map(TessEditor *editor, const char *path)
+{
+    void *mem = malloc(1024 * 1024);
+
+    uint8_t *stream = (uint8_t*)mem;
+    TessMapHeader *map = STREAM_PUSH(stream, TessMapHeader);
+    map->signature = TTR_4CHAR("TESM");
+    map->majVer = 0;
+    map->minVer = 0;
+
+    STREAM_PUSH_ALIGN(stream, 8);
+    TessObjectTable *otbl = STREAM_PUSH_FLEX(stream, TessObjectTable, entries, 1);
+    otbl->numEntries = 1;
+    otbl->entries[0].objectId = 1;
+    strcpy(otbl->entries[0].assetId, "First/object0");
+
+    STREAM_PUSH_ALIGN(stream, 8);
+    uint32_t entityCount = buf_len(editor->edEntities);
+    TessEntityTable *etbl = STREAM_PUSH_FLEX(stream, TessEntityTable, entries, entityCount);
+    etbl->numEntries = entityCount;
+    for(int i = 0; i < entityCount; i++)
+    {
+        TessEditorEntity *edEnt = editor->edEntities[i];
+        etbl->entries[i].position = edEnt->position;
+        etbl->entries[i].scale = edEnt->scale;
+        TessEntity *ent = tess_get_entity(editor->world, edEnt->entityId);
+        assert(ent);
+        etbl->entries[i].objectId = ent->objectId;
+    }
+
+    TTR_SET_REF_TO_PTR(map->objectTableRef, otbl);
+    TTR_SET_REF_TO_PTR(map->entityTableRef, etbl);
+
+    FILE *file = fopen(path, "w+b");
+    if(file)
+    {
+        uint32_t size = stream - (uint8_t*)mem;
+        fwrite(mem, 1, size, file);
+        fclose(file);
+        printf("Exported map file with %d objects and %d entities\n", 1, entityCount);
+    }
+    else
+        fprintf(stderr, "Writing map file failed!\n");
+
+    free(mem);
+}
+
 void editor_draw_ui(TessEditor *editor)
 {
     PROF_BLOCK();
@@ -163,6 +234,10 @@ void editor_draw_ui(TessEditor *editor)
         if(nk_button_label(ctx, "Create object"))
         {
             editor_send_create_entity_command(editor, 1);
+        }
+        if(nk_button_label(ctx, "Export map"))
+        {
+            editor_export_map(editor, "map.ttm");
         }
         if(nk_button_label(ctx, "Exit"))
         {
@@ -180,7 +255,12 @@ void editor_draw_ui(TessEditor *editor)
     {
         if(editor->objectSelected)
         {
-            TessEditorEntity *edEnt = editor_get_entity(editor, editor->selectedObjectId);
+            TessEditorEntity *edEnt = editor_get_entity(editor, editor->selectedEditorEntityId);
+            if(edEnt == NULL)
+            {
+                nk_layout_row_dynamic(ctx, 30, 1);
+                nk_label(ctx, "Error", NK_TEXT_ALIGN_CENTERED);
+            }
             TessEditorEntity edEntCpy = *edEnt;
 
             assert(edEnt != NULL);
@@ -207,6 +287,45 @@ void editor_draw_ui(TessEditor *editor)
             {
                 edEnt->localDirty = true;
                 edEnt->remoteDirty = true;
+            }
+
+            uint32_t selObj = editor->selectedObjectId;
+
+            V3 translate, scale;
+            Quat rotate;
+            Mat4 trs;
+            translate = edEnt->position;
+            quat_euler_deg(&rotate, edEnt->eulerRotation);
+            scale = make_v3(0.2f, 0.2f, 5.0f);
+            mat4_trs(&trs, translate, rotate, scale);
+            render_system_render_mesh(editor->renderSystem, 0, 2, selObj|0x80000000, &trs);
+
+            Quat alignY;
+            Quat rotate2 = rotate;
+            quat_angle_axis(&rotate, 90.0f, make_v3(1.0f, 0.0f, 0.0f));
+            quat_mul(&alignY, rotate2, rotate);
+            mat4_trs(&trs, translate, alignY, scale);
+            render_system_render_mesh(editor->renderSystem, 0, 2, selObj|0x81000000, &trs);
+
+            Quat alignX;
+            quat_angle_axis(&rotate, 90.0f, make_v3(0.0f, 1.0f, 0.0f));
+            quat_mul(&alignX, rotate2, rotate);
+            mat4_trs(&trs, translate, alignX, scale);
+            render_system_render_mesh(editor->renderSystem, 0, 2, selObj|0x82000000, &trs);
+
+            if(editor->cursorObjectId != 0xFFFFFFFF 
+                    && (editor->cursorObjectId & 0x80000000) != 0)
+            {
+                if(mouse_left_down(editor->inputSystem) && !editor->moving)
+                {
+                    editor->moving = true;
+                    if((editor->cursorObjectId & 0x0F000000) == 0)
+                        editor->moveDirection = make_v3(0.0f, 0.0f, 1.0f);
+                    if((editor->cursorObjectId & 0x0F000000) == 0x01000000)
+                        editor->moveDirection = make_v3(0.0f, 1.0f, 0.0f);
+                    if((editor->cursorObjectId & 0x0F000000) == 0x02000000)
+                        editor->moveDirection = make_v3(1.0f, 0.0f, 0.0f);
+                }
             }
         }
         else
@@ -283,6 +402,38 @@ void editor_client_update(TessEditor *editor)
     }
 }
 
+void editor_camera_update(TessEditor *editor)
+{
+    V3 forward = make_v3(0.0f, 0.0f, 0.01f);
+    V3 right;
+    TessCamera *cam = editor->cam;
+    quat_v3_mul_dir(&forward, cam->rotation, make_v3(0.0f, 0.0f, 0.01f));
+    quat_v3_mul_dir(&right, cam->rotation, make_v3(0.01f, 0.0f, 0.0f));
+
+    if(key_down(editor->inputSystem, AIKE_KEY_SPACE))
+        editor->camLocked = !editor->camLocked;
+
+    if(!editor->camLocked)
+    {
+        if(key(editor->inputSystem, AIKE_KEY_W))
+            v3_add(&cam->position, cam->position, forward);
+        if(key(editor->inputSystem, AIKE_KEY_S))
+            v3_sub(&cam->position, cam->position, forward);
+        if(key(editor->inputSystem, AIKE_KEY_D))
+            v3_add(&cam->position, cam->position, right);
+        if(key(editor->inputSystem, AIKE_KEY_A))
+            v3_sub(&cam->position, cam->position, right);
+
+        v2_add(&editor->camRot, editor->camRot, editor->inputSystem->mouseDelta);
+        editor->camRot = make_v2(editor->camRot.x, MAX(editor->camRot.y, -90.0f));
+        editor->camRot = make_v2(editor->camRot.x, MIN(editor->camRot.y, 90.0f));
+    }
+
+    Quat xRot, yRot;
+    quat_euler_deg(&xRot, make_v3(0.0f, editor->camRot.y, editor->camRot.x));
+    cam->rotation = xRot;
+}
+
 void editor_update(TessEditor *editor)
 {
     PROF_BLOCK();
@@ -296,10 +447,13 @@ void editor_update(TessEditor *editor)
         if(k != kh_end(editor->entityMap))
         {
             editor->objectSelected = true;
-            editor->selectedObjectId = kh_val(editor->entityMap, k);
+            editor->selectedEditorEntityId = kh_val(editor->entityMap, k);
+            editor->selectedObjectId = editor->cursorObjectId;
             printf("select\n");
         }
     }
+
+    editor_camera_update(editor);
 
     int count = buf_len(editor->edEntities);
 
@@ -358,7 +512,54 @@ void editor_update(TessEditor *editor)
     if(editor->connected)
         editor_client_update(editor);
 
+
     editor_draw_ui(editor);
+
+    // object moving
+    if(editor->moving)
+    {
+        if(mouse_left_up(editor->inputSystem))
+        {
+            editor->moving = false;
+        }
+        else
+        {
+            TessEditorEntity *edEnt = editor_get_entity(editor, editor->selectedEditorEntityId);
+            if(edEnt != NULL)
+            {
+                float mouseDeltaLen = v2_len(editor->inputSystem->normMouseDelta);
+                if(mouseDeltaLen > 0.000001f)
+                {
+                    V3 startClip, endClip, end;
+                    V3 dir = editor->moveDirection;
+                    startClip = tess_world_to_clip_pos(editor->cam, edEnt->position);
+                    v3_add(&end, edEnt->position, dir);
+                    endClip = tess_world_to_clip_pos(editor->cam, end);
+
+                    V3 clipDir;
+                    v3_sub(&clipDir, endClip, startClip);
+                    V2 screenDir = make_v2(clipDir.x, clipDir.y);
+                    float screenDirLen = v2_len(screenDir);
+                    
+                    if(!v3_hasnan(startClip) && !v3_hasnan(endClip) && screenDirLen > 0.0000001f)
+                    {
+                        v2_normalize(&screenDir);
+
+                        V2 mouseDeltaNorm = editor->inputSystem->normMouseDelta;
+                        mouseDeltaNorm.y *= -1.0f; // TODO: directx wouldnt have this..
+                        v2_normalize(&mouseDeltaNorm);
+
+                        float amount = v2_dot(screenDir, mouseDeltaNorm);
+                        amount *= mouseDeltaLen * (2.0f/screenDirLen);
+
+                        v3_add(&edEnt->position, edEnt->position, make_v3(amount*dir.x, amount*dir.y, amount*dir.z));
+                        edEnt->localDirty = true;
+                        edEnt->remoteDirty = true;
+                    }
+                }
+            }
+        }
+    }
 }
 
 

@@ -1,9 +1,10 @@
-void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *renderer)
+void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *renderer, coro_context *mainctx)
 {
     memset(tess, 0, sizeof(TessClient));
     tess->platform = platform;
+    tess->mainctx = mainctx;
 
-    fixed_arena_init(platform, &tess->arena, 512 * 1024); 
+    fixed_arena_init(platform, &tess->arena, 4 * 1024 * 1024); 
 
     // Init strings
     //
@@ -37,6 +38,7 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess->gameSystem.activeEntities = NULL;
     tess->gameSystem.renderSystem = &tess->renderSystem;
     tess->gameSystem.activeCamera = &tess->gameSystem.defaultCamera;
+    tess->gameSystem.tstrings = &tess->strings;
 
     // Init input
     //
@@ -61,6 +63,8 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess_main_menu_init(&tess->mainMenu);
 
     // Init editor
+    void *mem = arena_push_size(&tess->arena, 1024 * 1024);
+    coro_create(&tess->editor.coroCtx, (void(*)(void*))editor_coroutine, &tess->editor, mem, 4096);
     tess->editor.init = false;
     tess->editor.renderSystem = &tess->renderSystem;
     tess->editor.platform = platform;
@@ -68,7 +72,6 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess->editor.client = tess;
     tess->editor.inputSystem = &tess->inputSystem;
     tess->editor.world = &tess->gameSystem;
-    editor_init(&tess->editor);
 }
 
 void tess_client_destroy(TessClient *tess)
@@ -92,9 +95,6 @@ void tess_client_destroy(TessClient *tess)
 
     // Destroy tess 
     fixed_arena_free(tess->platform, &tess->arena);
-
-    // Destroy editor
-    editor_destroy(&tess->editor);
 }
 
 void tess_client_begin_frame(TessClient *client)

@@ -1,4 +1,4 @@
-#pragma push(pack, 1)
+#pragma pack(push, 1)
 
 #define TTR_MAX_NAME_LEN 64
 
@@ -80,15 +80,30 @@ typedef struct TTRMesh
     struct TTRMeshSection sections[];
 } TTRMesh;
 
+typedef struct TTRTexture
+{
+    uint32_t format; // 1 = RGBA
+    uint32_t width;
+    uint32_t height;
+    TTRRef bufRef;
+} TTRTexture;
+
+typedef struct TTRMaterial
+{
+    uint32_t shaderType;
+    struct TTRAssetRef albedoTexARef;
+    V4 tintColor;
+} TTRMaterial;
+
 typedef struct TTRObject
 {
     struct TTRAssetRef meshARef;
-    // TODO: material?
+    TTRRef materialRef;
     // TODO: collider?
     // something else?
 } TTRObject;
 
-#pragma pop(pack)
+#pragma pack(pop)
 
 #define TTR_4CHAR(x) ((x[0]) | (x[1]<<8) | (x[2]<<16) | (x[3]<<24))
 #define TTR_REF_TO_PTR(type, ref) ((type*)(((uint8_t*)(&(ref))) + ((int32_t)(ref))))
@@ -98,7 +113,8 @@ typedef struct TTRObject
 #define TTR_GET_SIZE(type, arr, count) (sizeof(type) + sizeof(((type*)0)->arr[0])*(count))
 
 #define STREAM_PUSH(stream, type) ({type* rettval = (type*)stream; (stream) += sizeof(type); rettval;})
-#define STREAM_PUSH_FLEX(stream, type, arr, count) ({type* rettval = (type*)stream; (stream) += TTR_GET_SIZE(type, arr, count); rettval;})
+#define STREAM_PUSH_FLEX(stream, type, arr, count) ({type* rettval = (type*)stream; (stream) += TTR_GET_SIZE(type, arr, (count)); rettval;})
+#define STREAM_PUSH_ALIGN(stream, align) (stream = ALIGN_UP_PTR(stream, (align)))
 
 typedef struct LoadMeshData
 {
