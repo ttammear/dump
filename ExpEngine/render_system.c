@@ -8,6 +8,9 @@ void render_system_init(TessRenderSystem *rs)
 
     rs->viewBuilder = malloc(sizeof(RenderViewBuilder));
     rview_builder_init(rs->viewBuilder);
+
+    rs->rtW = 1024;
+    rs->rtH = 768;
 }
 
 void render_system_destroy(TessRenderSystem *rs)
@@ -76,6 +79,50 @@ void render_system_begin_update(TessRenderSystem *rs)
 {
     PROF_BLOCK();
     rview_builder_reset(rs->viewBuilder);
+
+    // letterboxing
+
+    float winW = rs->platform->mainWin.width;
+    float winH = rs->platform->mainWin.height;
+
+    float bW = 1024.0f;
+    float bH = 768.0f;
+
+    float w = MIN(bW, winW); // window width if winW < bW, otherwide bW
+    float h = MIN(bH, winH);
+    float aspect = bW / bH;
+
+    if(w > h)
+    {
+        float desiredH = (1.0f/aspect) * w;
+        if(desiredH > h)
+        {
+            w = aspect*h;
+            h = h;
+        }
+        else 
+            h = desiredH;
+    }
+    else
+    {
+        float desiredW = aspect * w;
+        if(desiredW > w)
+        {
+            h = (1.0f/aspect)*w;
+            w = w;
+        }
+        else
+            w = desiredW;
+    }
+
+    float x = (winW - w) / 2.0f; // offsets to center screen rect
+    float y = (winH - h) / 2.0f;
+
+    rs->renderOffset = make_v2(x, y);
+    rs->renderScale.x = 1024.0f / w;
+    rs->renderScale.y = 768.0f / h;
+
+    rs->viewBuilder->renderRect = make_v4(x, y, w, h);
 }
 
 void render_system_render_mesh(TessRenderSystem *rs, uint32_t meshId, uint32_t materialId, uint32_t objectId, Mat4 *objectToWorld)
@@ -88,5 +135,6 @@ void render_system_end_update(TessRenderSystem *rs)
     PROF_BLOCK();
     rs->viewBuilder->viewProjection = rs->worldToClip;
     build_view(rs->viewBuilder, rs->gameRenderView);
+
     rs->gameRenderView = swap_view_for_newer(rs->viewSwapBuffer, rs->gameRenderView);
 }

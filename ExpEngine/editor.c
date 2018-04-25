@@ -439,7 +439,7 @@ void editor_update(TessEditor *editor)
     PROF_BLOCK();
     uint32_t w = editor->platform->mainWin.width;
     uint32_t h = editor->platform->mainWin.height;
-    editor->normalizedCursorPos = make_v2((float)editor->platform->mouseX/(float)w, (float)editor->platform->mouseY/(float)h);
+    editor->normalizedCursorPos = editor->client->inputSystem.normMousePos;
 
     if(mouse_left_down(editor->inputSystem) && editor->cursorObjectId != -1)
     {

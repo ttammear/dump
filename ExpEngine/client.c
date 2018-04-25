@@ -43,16 +43,19 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     // Init input
     //
     tess->inputSystem.platform = platform;
+    tess->inputSystem.renderSystem = &tess->renderSystem;
     tess_input_init(&tess->inputSystem);
 
     // Init render system
     //
     render_system_init(&tess->renderSystem);
     tess->renderSystem.renderer = renderer;
+    tess->renderSystem.platform = platform;
 
     // Init UI
     //
     tess->uiSystem.renderSystem = &tess->renderSystem;
+    tess->uiSystem.inputSystem = &tess->inputSystem;
     tess->uiSystem.platform = platform;
     tess_ui_init(&tess->uiSystem);
 

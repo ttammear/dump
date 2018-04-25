@@ -256,9 +256,11 @@ typedef struct TessInputSystem
     V2 mouseDelta;
     V2 normMouseDelta; // mouse delta in range 0...1
     V2 mousePos;
+    V2 normMousePos;
     V2 mousePrev;
 
     AikePlatform *platform;
+    struct TessRenderSystem *renderSystem;
 } TessInputSystem;
 
 #define mouse_left_down(x) ((x)->keyStates[AIKE_BTN_LEFT] && !(x)->keyStatesPrev[AIKE_BTN_LEFT])
@@ -275,10 +277,17 @@ typedef struct TessInputSystem
 
 typedef struct TessRenderSystem
 {
+    V2 renderOffset;
+    V2 renderScale;
+
+    int rtW;
+    int rtH;
+
     struct SwapBuffer *viewSwapBuffer;
     struct RenderViewBuilder *viewBuilder;
     struct RenderViewBuffer *gameRenderView;
     struct Renderer *renderer;
+    AikePlatform *platform;
     Mat4 worldToClip;
 } TessRenderSystem;
 
@@ -300,6 +309,7 @@ typedef struct TessUISystem
     bool loaded;
 
     struct TessRenderSystem *renderSystem;
+    struct TessInputSystem *inputSystem;
     struct AikePlatform *platform;
 } TessUISystem;
 

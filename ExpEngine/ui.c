@@ -54,8 +54,8 @@ void tess_ui_begin(struct TessUISystem *ui)
 {
     struct nk_context *ctx = &ui->nk_ctx;
 
-    int mx = (int)ui->platform->mouseX;
-    int my = (int)ui->platform->mouseY;
+    int mx = (int)ui->inputSystem->mousePos.x;
+    int my = (int)ui->inputSystem->mousePos.y;
     uint16_t *akeys = ui->platform->keyStates;
 
     nk_input_begin(ctx);

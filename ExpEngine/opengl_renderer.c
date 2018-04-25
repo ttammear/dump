@@ -894,6 +894,7 @@ internal bool opengl_process_messages(OpenGLRenderer *renderer)
             case Render_Message_Screen_Resize:
                 renderer->windowWidth = msg.screenR.width;
                 renderer->windowHeight = msg.screenR.height;
+                glViewport(0, 0, 1024, 768);
                 //glViewport(0, 0, msg.screenR.width, msg.screenR.height);
                 break;
             default:
@@ -1495,7 +1496,7 @@ internal void *opengl_proc(void *data)
         // TODO: clear color ? skybox?
         glClearColor(0.325f, 0.029f, 0.07f, 1.0f);
         glClear(GL_DEPTH_BUFFER_BIT);
-        float cvalues[4] = {0.325f, 0.029f, 0.07f, 1.0f};
+        float cvalues[4] = {0.025f, 0.029f, 0.07f, 1.0f};
         int32_t values[4] = {-1, -1, -1, -1};
         glClearBufferfv(GL_COLOR, 0, cvalues);
         glClearBufferiv(GL_COLOR, 1, values);
@@ -1507,7 +1508,36 @@ internal void *opengl_proc(void *data)
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
         // NOTE: currently we never resize backbuffer, so it is whatever size the renderer
         // was started with
-        glBlitFramebuffer(0, 0, renderer->fboWidth, renderer->fboHeight, 0, 0, renderer->windowWidth, renderer->windowHeight, GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+        
+        int x = renderer->curView->view.renderRect.x;
+        int y = renderer->curView->view.renderRect.y;
+        int w = renderer->curView->view.renderRect.z;
+        int h = renderer->curView->view.renderRect.w;
+        glBlitFramebuffer(0, 0, renderer->fboWidth, renderer->fboHeight, x, y, x+w, y+h, GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+
+        // black bars
+        glViewport(0, 0, renderer->windowWidth, renderer->windowHeight);
+        glEnable(GL_SCISSOR_TEST);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        // black horizontal bars
+        if(y > 0)
+        {
+            glScissor(0, 0, renderer->windowWidth, y);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glScissor(0, y+h, renderer->windowWidth, y);
+            glClear(GL_COLOR_BUFFER_BIT);
+        }
+        // black vertical bars
+        if(x > 0)
+        {
+            glScissor(0, 0, x, renderer->windowHeight);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glScissor(x+w, 0, x, renderer->windowHeight);
+            glClear(GL_COLOR_BUFFER_BIT);
+        }
+        glDisable(GL_SCISSOR_TEST);
+        glViewport(0, 0, renderer->fboWidth, renderer->fboHeight);
+
         PROF_END();
 
         PROF_START_STR("present frame");

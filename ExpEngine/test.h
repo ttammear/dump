@@ -75,6 +75,8 @@ typedef struct RenderView
 
     Mat4_sse2 worldToClip;
 
+    V4 renderRect;
+
     // Render features
     struct RenderSpace *space;
     //RenderPostProc postProc[];
@@ -119,6 +121,8 @@ typedef struct RenderViewBuilder
     uint32_t materialId;
     Mat4 orthoMatrix;
     uint32_t indexBase;
+
+    V4 renderRect;
 
     struct UIBatch *batches;
     UIBatch curBatch;

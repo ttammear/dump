@@ -24,7 +24,9 @@ void aike_update_window(AikePlatform *platform, AikeWindow *win)
         // when we do, the main window will just be a render target
         // and when the width/height is changed it will be marked dirty
         // and all the cameras rendering to it will recalculate aspectRatio
-        root->client.gameSystem.defaultCamera.aspectRatio = platform->mainWin.width/platform->mainWin.height;
+        int w = root->client.renderSystem.rtW;
+        int h = root->client.renderSystem.rtH;
+        root->client.gameSystem.defaultCamera.aspectRatio = (float)w/(float)h;
         tess_update_camera_perspective(&root->client.gameSystem.defaultCamera);
     
 

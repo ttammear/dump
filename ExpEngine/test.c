@@ -244,6 +244,7 @@ void build_view(RenderViewBuilder *builder, RenderViewBuffer *buf)
     view->numVertices = buf_len(builder->vertices);
     view->numIndices = buf_len(builder->indices);
     view->orthoMatrix = builder->orthoMatrix;
+    view->renderRect = builder->renderRect;
 
     view->numUIBatches = buf_len(builder->batches);
     if(view->numUIBatches > 0)
