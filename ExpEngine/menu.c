@@ -15,17 +15,19 @@ void tess_main_menu_init(struct TessMainMenu *menu)
 
 void draw_main_menu(struct TessMainMenu *menu, struct nk_context *ctx)
 {
-    uint32_t width = 400;
-    uint32_t height = 500;
-    uint32_t winW = 1024; // TODO: real size
-    uint32_t winH = 768;
-    if(nk_begin(ctx, "Main menu", nk_rect(winW/2 - width/2, winH/2 - height/2, width, height), NK_WINDOW_NO_SCROLLBAR))
+    int32_t width = 400;
+    int32_t height = 500;
+    int32_t winW = menu->uiSystem->width; // TODO: real size
+    int32_t winH = menu->uiSystem->height;
+    float x = (winW-width)/2;
+    float y = (winH-height)/2;
+    if(nk_begin(ctx, "Main menu", nk_rect(x, y, width, height), NK_WINDOW_NO_SCROLLBAR))
     {
         nk_layout_row_dynamic(ctx, 60, 1);
         if(nk_button_label(ctx, "Play"))
         {
             void *buf = malloc(1024*1024);
-            FILE *file = fopen("map.ttm", "rb");
+            FILE *file = fopen("Packages/Sponza/map.ttm", "rb");
             if(file != NULL)
             {
                 fseek(file, 0, SEEK_END);
@@ -38,6 +40,7 @@ void draw_main_menu(struct TessMainMenu *menu, struct nk_context *ctx)
                 tess_load_map(&menu->client->gameSystem, (TessMapHeader*)buf, size);
             }
             free(buf);
+            menu->client->gameSystem.defaultCamera.position = make_v3(10.0f, 0.0f, -30.0f);
         }
         if(nk_button_label(ctx, "Editor"))
         {
@@ -54,11 +57,13 @@ void draw_main_menu(struct TessMainMenu *menu, struct nk_context *ctx)
 
 void draw_editor_connect_menu(struct TessMainMenu *menu, struct nk_context *ctx)
 {
-    uint32_t width = 400;
-    uint32_t height = 500;
-    uint32_t winW = 1024; // TODO: real size
-    uint32_t winH = 768;
-    if(nk_begin(ctx, "Connect Editor", nk_rect(winW/2 - width/2, winH/2 - height/2, width, height), NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_BORDER))
+    int32_t width = 400;
+    int32_t height = 500;
+    int32_t winW = menu->uiSystem->width; // TODO: real size
+    int32_t winH = menu->uiSystem->height;
+    float x = winW > width ? (winW-width)/2 : 0;
+    float y = winH > height ? (winH-height)/2 : 0;
+    if(nk_begin(ctx, "Connect Editor", nk_rect(x, y, width, height), NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_BORDER))
     {
         nk_layout_row_static(ctx, 15, 100, 1);
         nk_layout_row_static(ctx, 30, 200, 1);

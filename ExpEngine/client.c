@@ -67,7 +67,8 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
 
     // Init editor
     void *mem = arena_push_size(&tess->arena, 1024 * 1024);
-    coro_create(&tess->editor.coroCtx, (void(*)(void*))editor_coroutine, &tess->editor, mem, 4096);
+    tess->editor.coroStack = mem;
+    tess->editor.coroStackSize = 1024*1024;
     tess->editor.init = false;
     tess->editor.renderSystem = &tess->renderSystem;
     tess->editor.platform = platform;

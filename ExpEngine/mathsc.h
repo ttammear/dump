@@ -48,6 +48,25 @@ typedef struct Mat4
     };
 }Mat4;
 
+typedef struct Mat3
+{
+    union {
+        struct
+        {
+            float m[9];
+        };
+        struct 
+        {
+            float cr[3][3];
+        };
+        struct {
+            float m11, m21, m31;
+            float m12, m22, m32;
+            float m13, m23, m33;
+        };
+    };
+} Mat3;
+
 #ifdef AIKE_X86
 
 typedef struct Mat4_sse2
@@ -412,7 +431,7 @@ static inline void mat4_identity(struct Mat4 *m)
     m->m14 = 0.0f; m->m24 = 0.0f; m->m34 = 0.0f; m->m44 = 1.0f;
 }
 
-static inline void mat4_mul(struct Mat4 *m, struct Mat4 *l, struct Mat4 *r)
+static inline void mat4_mul(struct Mat4 *restrict m, struct Mat4 *restrict l, struct Mat4 *restrict r)
 {
 /*	
     memset(m, 0, sizeof(struct Mat4));
@@ -496,6 +515,7 @@ static inline void mat4_tr(struct Mat4 *res, struct V3 t, struct Quat r)
     res->m44 = 1.0f;
 }
 
+// rotate scale
 static inline void mat4_rt(struct Mat4 *res, struct Quat r, struct V3 t)
 {
     Mat4 translate, rotate;
@@ -505,6 +525,27 @@ static inline void mat4_rt(struct Mat4 *res, struct Quat r, struct V3 t)
     translate.m34 = t.z;
     mat4_rotation(&rotate, &r);
     mat4_mul(res, &rotate, &translate);
+}
+
+// translate scale
+static inline void mat3_ts(Mat3 *restrict m, V2 translate, V2 scale)
+{
+   m->m11 = scale.x;
+   m->m12 = 0.0f;
+   m->m13 = scale.x*translate.x;
+   m->m21 = 0.0f;
+   m->m22 = scale.y;
+   m->m23 = scale.y*translate.y;
+   m->m31 = 0.0f;
+   m->m32 = 0.0f;
+   m->m33 = 1.0f;
+}
+
+static inline void mat3_v3_mul(V3 *restrict res, Mat3 *restrict m, V3 v)
+{
+    res->x = v.x * m->m11 + v.y * m->m12 + v.z * m->m13;
+    res->y = v.x * m->m21 + v.y * m->m22 + v.z * m->m23;
+    res->z = v.x * m->m31 + v.y * m->m32 + v.z * m->m33;
 }
 
 static inline void quat_v3_mul_pos(V3 *restrict res, Quat q, V3 v)

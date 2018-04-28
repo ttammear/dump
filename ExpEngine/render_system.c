@@ -8,9 +8,6 @@ void render_system_init(TessRenderSystem *rs)
 
     rs->viewBuilder = malloc(sizeof(RenderViewBuilder));
     rview_builder_init(rs->viewBuilder);
-
-    rs->rtW = 1024;
-    rs->rtH = 768;
 }
 
 void render_system_destroy(TessRenderSystem *rs)
@@ -85,32 +82,32 @@ void render_system_begin_update(TessRenderSystem *rs)
     float winW = rs->platform->mainWin.width;
     float winH = rs->platform->mainWin.height;
 
-    float bW = 1024.0f;
-    float bH = 768.0f;
+    // back buffer width height
+    float bW = rs->rtW;
+    float bH = rs->rtH;
 
-    float w = MIN(bW, winW); // window width if winW < bW, otherwide bW
-    float h = MIN(bH, winH);
+    const bool allowUpscale = true;
+
+    float w = allowUpscale ? winW : MIN(bW, winW);
+    float h = allowUpscale ? winH : MIN(bH, winH);
     float aspect = bW / bH;
+    float invAspect = bH / bW;
 
+    // pick the largest width and height while keeping the aspect ratio of back buffer
+    // @optimize: this is what happens if you just change it until it works...
     if(w > h)
     {
-        float desiredH = (1.0f/aspect) * w;
+        float desiredH = invAspect * w;
         if(desiredH > h)
-        {
             w = aspect*h;
-            h = h;
-        }
         else 
             h = desiredH;
     }
     else
     {
-        float desiredW = aspect * w;
+        float desiredW = aspect * h;
         if(desiredW > w)
-        {
-            h = (1.0f/aspect)*w;
-            w = w;
-        }
+            h = invAspect*w;
         else
             w = desiredW;
     }
@@ -118,9 +115,8 @@ void render_system_begin_update(TessRenderSystem *rs)
     float x = (winW - w) / 2.0f; // offsets to center screen rect
     float y = (winH - h) / 2.0f;
 
-    rs->renderOffset = make_v2(x, y);
-    rs->renderScale.x = 1024.0f / w;
-    rs->renderScale.y = 768.0f / h;
+    // window coord to screen coord matrix
+    mat3_ts(&rs->windowToScreen, make_v2(-x, -y), make_v2(rs->rtW / w, rs->rtH / h));
 
     rs->viewBuilder->renderRect = make_v4(x, y, w, h);
 }

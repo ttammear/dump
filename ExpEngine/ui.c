@@ -82,8 +82,10 @@ void tess_ui_end(struct TessUISystem *ui)
     //float width = gdata->platform->mainWin.width;
     //float height = gdata->platform->mainWin.height;
     // NOTE: currently backbuffer isn't resized with window
-    float width = 1024;
-    float height = 768;
+    float width = ui->renderSystem->rtW;
+    float height = ui->renderSystem->rtH;
+    ui->width = width;
+    ui->height = height;
 
     struct Mat4 orthoM = {};
     orthoM.m11 =  2.0f / width;

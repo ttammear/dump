@@ -61,13 +61,14 @@ void editor_coroutine(TessEditor *editor)
     bool success = editor_connect(editor, editor->ipStr, editor->port);
     assert(success);
 
-    while(1)
+    while(editor->connected)
     {
         editor_update(editor);
         coro_transfer(&editor->coroCtx, editor->client->mainctx);
     }
 
     editor_destroy(editor);
+    coro_transfer(&editor->coroCtx, editor->client->mainctx);
 }
 
 void editor_destroy(TessEditor *editor)
@@ -80,6 +81,7 @@ void editor_destroy(TessEditor *editor)
     buf_free(editor->edEntities);
 
     fixed_arena_free(editor->platform, &editor->arena);
+    editor->init = false;
 }
 
 void editor_reset(TessEditor *editor)

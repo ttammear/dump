@@ -50,6 +50,9 @@ typedef struct GLMesh
     uint32_t vertexStride;
     uint32_t vertexBufferSize;
     uint32_t indexBufferSize;
+
+/*    uint32_t numMeshSections;
+    MeshSection sections[MAX_MESH_SECTIONS];*/
 } GLMesh;
 
 typedef struct GLTexture
@@ -102,7 +105,7 @@ typedef struct GLSyncPoint
     void *userData;
 } GLSyncPoint;
 
-#define GL_RENDERER_MAX_SYNC_POINTS 64
+#define GL_RENDERER_MAX_SYNC_POINTS 1000
 
 typedef struct OpenGLRenderer
 {

@@ -80,6 +80,7 @@ void tess_fill_mesh_data(Renderer *renderer, MeshQueryResult *mqr, void *userDat
     TTRBuffer *vbuf = TTR_REF_TO_PTR(TTRBuffer, tmesh->vertBufRef);
     TTRBuffer *ibuf = TTR_REF_TO_PTR(TTRBuffer, tmesh->indexBufRef);
     TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(TTRMeshDesc, tmesh->descRef);
+    // TODO: check if buffer sizes match
     memcpy(mqr->vertBufPtr, vbuf->data, vbuf->size);
     memcpy(mqr->idxBufPtr, ibuf->data, ibuf->size);
     RenderMessage msg = {};
@@ -88,7 +89,7 @@ void tess_fill_mesh_data(Renderer *renderer, MeshQueryResult *mqr, void *userDat
     msg.meshUpdate.onComplete = tess_finalize_mesh;
     msg.meshUpdate.userData = (void*)lasset;
     renderer_queue_message(renderer, &msg);
-    printf("FILL MESH\n");
+    printf("FILL MESH %d %d\n", tmesh->numVertices, tmesh->numIndices);
 }
 
 void tess_finalize_mesh(Renderer *renderer, MeshReady *mr, void *userData)
@@ -135,6 +136,7 @@ void tess_load_object(TessAssetSystem *as, TTRObject *tobject, TessLoadingAsset 
 
 void tess_load_object2(TessAssetSystem *as, TessLoadingAsset *lasset)
 {
+    printf("process %s\n", lasset->assetId->cstr);
     TTRObject *tobj = lasset->objectData.tobj;
     TTRMaterial *ttrMat = TTR_REF_TO_PTR(TTRMaterial, tobj->materialRef);
     RenderMessage msg = {};
@@ -169,6 +171,7 @@ void tess_finalize_object(Renderer *renderer, MaterialReady *mr, void *userData)
     TessLoadingAsset *lasset = (TessLoadingAsset*)userData;
     TessAssetSystem *as = lasset->objectData.as;
     TessObjectAsset *tessObj = pool_allocate(as->objectPool);
+    assert(tessObj);
     tessObj->asset.assetId = lasset->assetId;
     tessObj->asset.type = Tess_Asset_Object;
     tessObj->materialId = mr->materialId;
@@ -210,6 +213,7 @@ void tess_process_ttr_file(TessAssetSystem *as, TessFile *tfile)
         tess_replace_id_name_characters(nameBuf, entry->assetName, ARRAY_COUNT(nameBuf));
         TStr *internedName = tess_intern_string_s(as->tstrings, nameBuf, TTR_MAX_NAME_LEN);
 
+
         // NOTE: if there would be any dependencies they would also be kicked off here
 
         if(internedName == assetName)// TODO: should break if found
@@ -229,6 +233,7 @@ void tess_process_ttr_file(TessAssetSystem *as, TessFile *tfile)
                     {
                         TTRObject *tobject = TTR_REF_TO_PTR(TTRObject, tbl->entries[i].ref);
                         tess_load_object(as, tobject, lasset, tbl, imTbl);
+                        found = true;
                         /*lasset->status = Tess_Asset_Dependency_Status_Done;
                         TTRObject *tobject = TTR_REF_TO_PTR(TTRObject, tbl->entries[i].ref);
                         TTRMaterial *tmat = TTR_REF_TO_PTR(TTRMaterial, tobject->materialRef);
@@ -272,12 +277,14 @@ void tess_process_ttr_file(TessAssetSystem *as, TessFile *tfile)
                     break;
             }
         }
+        if(found)
+            break;
     }
     if(!found)
     {
         // nothing was loaded
         // TODO: log error or something??
-        fprintf(stderr, "TTR file loaded, but asset %s was not found in it!\n", lasset->assetId->cstr);
+        fprintf(stderr, "TTR file %s loaded, but asset %s was not found in it!\n", tfile->filePath, lasset->assetId->cstr);
     }
 }
 
@@ -368,6 +375,8 @@ void tess_load_asset_if_not_loaded(TessAssetSystem *as, TStr *assetId)
     if(get_asset_file(as, assetId, &fileName))
     {
         TessLoadingAsset *lasset = pool_allocate(as->loadingAssetPool);
+        // TODO: make a queue so this never fails
+        assert(lasset);
         lasset->file = NULL;
         lasset->asset = NULL;
         lasset->dependencies = NULL;
@@ -439,6 +448,7 @@ internal void tess_check_dependencies(TessAssetSystem *as, TessLoadingAsset *las
     {
         uint32_t status;
         status = tess_get_asset_status(as, dep->assetId);
+        printf("dep %s\n", dep->assetId->cstr);
         switch(status)
         {
             case Tess_Asset_Status_Loaded:
@@ -447,23 +457,23 @@ internal void tess_check_dependencies(TessAssetSystem *as, TessLoadingAsset *las
                 assert(dep->asset);
                 break;
             case Tess_Asset_Status_Fail:
-                tess_set_asset_status(as, dep->assetId, Tess_Asset_Status_Fail);
+                lasset->status = Tess_Asset_Dependency_Status_Fail;
                 printf("FFFFFFFFFFFFFFFFFFFFAIL\n");
                 return;
             case Tess_Asset_Status_Loading:
                 return;
             case Tess_Asset_Status_None:
                 tess_load_asset_if_not_loaded(as, dep->assetId);
-                break;
+                return;
             default:
                 assert(0);
-                tess_set_asset_status(as, dep->assetId, Tess_Asset_Status_Fail);
                 return;
         };
         dep = dep->next;
     }
     // only way to get here is if all were loaded
-    tess_set_asset_status(as, lasset->assetId, Tess_Asset_Dependency_Status_Loading);
+    printf("deps done %s\n", lasset->assetId->cstr);
+    lasset->status = Tess_Asset_Dependency_Status_Loading;
     if(lasset->onDependenciesLoaded != NULL)
         lasset->onDependenciesLoaded(as, lasset);
 }
@@ -497,21 +507,23 @@ internal void tess_check_complete(TessAssetSystem *as)
                         done = true;
                     break;
                 case Tess_Asset_Object:
-                    assert(lasset->status == Tess_Asset_Dependency_Status_Done);
-                    status = tess_get_asset_status(as, lasset->objectData.meshAssetId);
-                    if(status == Tess_Asset_Status_Loaded)
+                    if(lasset->status == Tess_Asset_Dependency_Status_Done)
                     {
-                        TessObjectAsset *obj = (TessObjectAsset*)lasset->asset;
-                        TessAsset *meshAsset = tess_get_asset(as, lasset->objectData.meshAssetId);
-                        assert(meshAsset);
-                        // TODO: object expected it to be mesh
-                        // but it wasnt, so load failed, unload whatever was loaded
-                        assert(meshAsset->type == Tess_Asset_Mesh);
-                        obj->mesh = (TessMeshAsset*)meshAsset;
-                        done = true;
+                        status = tess_get_asset_status(as, lasset->objectData.meshAssetId);
+                        if(status == Tess_Asset_Status_Loaded)
+                        {
+                            TessObjectAsset *obj = (TessObjectAsset*)lasset->asset;
+                            TessAsset *meshAsset = tess_get_asset(as, lasset->objectData.meshAssetId);
+                            assert(meshAsset);
+                            // TODO: object expected it to be mesh
+                            // but it wasnt, so load failed, unload whatever was loaded
+                            assert(meshAsset->type == Tess_Asset_Mesh);
+                            obj->mesh = (TessMeshAsset*)meshAsset;
+                            done = true;
+                        }
+                        else if(status == Tess_Asset_Status_Fail)
+                            fail = true;
                     }
-                    else if(status == Tess_Asset_Status_Fail)
-                        fail = true;
                     break;
                 case Tess_Asset_Unknown: // most likely file not loaded yet
                     break;
@@ -554,7 +566,9 @@ internal void tess_check_complete(TessAssetSystem *as)
 
 bool tess_are_all_loads_complete(TessAssetSystem *as)
 {
-    return buf_len(as->loadingAssets) == 0;
+    int cleft = buf_len(as->loadingAssets);
+    //printf("\x1B[31mLeft to load: %d\n\x1B[0m", cleft);
+    return cleft == 0;
 }
 
 #define STRUCT_IN_RANGE(start, size, ptr) ((uint8_t*)(ptr) >= (uint8_t*)(start) && ((uint8_t*)(ptr) + sizeof(*(ptr))) <= ((uint8_t*)(start)+(size)))
@@ -640,6 +654,7 @@ internal void tess_gen_lookup_cache_for_package(TessAssetSystem *as, TStr *packa
                     entry->packageName = packageName;
                     entry->fileName = tess_intern_string(as->tstrings, entries[i].name);
                     entry->assetName = tess_intern_string(as->tstrings, ebuf);
+                    printf("asset %s\n", ebuf);
                     entry->assetType = dtbl->entries[j].type;
                     buf_push(cache->entries, entry);
                 }

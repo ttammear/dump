@@ -53,6 +53,7 @@ void tess_asset_system_destroy(TessAssetSystem *as)
     buf_free(as->loadingAssets);
 }
 
+void tess_process_io_events(TessFileSystem *fs);
 bool tess_load_file(TessFileSystem *fs, const char* fileName, uint32_t pipeline, void *userData)
 {
     TessFile *tfile = pool_allocate(fs->loadedFilePool);
@@ -70,7 +71,19 @@ bool tess_load_file(TessFileSystem *fs, const char* fileName, uint32_t pipeline,
     req->fileOffset = 0;
     req->nBytes = file->size;
     bool success = true;
-    success = fs->platform->submit_io_request(fs->platform, req);
+    // TODO: temp hack
+    while(true)
+    {
+        success = fs->platform->submit_io_request(fs->platform, req);
+        if(success)
+            break;
+        else
+        {
+            tess_process_io_events(fs);
+            fs->platform->sleep(1000);
+            //break;
+        }
+    }
     assert(success);
     tfile->pipeline = pipeline;
     tfile->userData = userData;

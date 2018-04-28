@@ -140,15 +140,22 @@ union InstanceData
 // Renderer commands
 //
 
+typedef struct MeshSection
+{
+    uint32_t offset;
+    uint32_t count;
+    uint32_t materialId;
+}MeshSection;
+
+#define MAX_MESH_SECTIONS 4
+
 typedef struct MeshQuery
 {
     void *userData;
     MQComplete_A onComplete;
     uint32_t meshId;
     uint32_t vertexCount;
-    uint32_t indexCount;
-    b32 largeIndices;
-    uint32_t dataStorageSize;
+    uint32_t indexCount; // number of total indices
     uint8_t attributeTypes[MAX_ATTRIBUTE_BUFFERS];
 } MeshQuery;
 
@@ -167,6 +174,8 @@ typedef struct MeshUpdate
     uint32_t meshId;
     void *userData;
     MReady_A onComplete;
+/*    uint16_t numSections;
+    MeshSection sections[MAX_MESH_SECTIONS]; // TODO: this will make command union very large*/
 } MeshUpdate;
 
 typedef struct MeshReady

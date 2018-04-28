@@ -79,6 +79,7 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 #include "client.c"
 
 #include "menu.c"
+#include "play.c"
 
 #include "editor_server_client_shared.c"
 #include "server.c"

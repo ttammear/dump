@@ -40,6 +40,9 @@ typedef struct TessMapHeader
 #define T_STRUCT_IN_RANGE(x, range) CHECK_RANGE((x), sizeof(*(x)), range)
 #define T_ARRAY_IN_RANGE(x, count, range) CHECK_RANGE((x), sizeof(*(x)) * (count), range)
 
+// TODO: get rid of
+#ifndef MAP_NO_IMPLEMENTATION
+
 bool tess_map_check_name(char *name, uint32_t maxLen)
 {
     for(int i = 0; i < maxLen; i++)
@@ -116,7 +119,7 @@ void tess_load_map(TessGameSystem *world, TessMapHeader *map, uint32_t maxOffset
     {
        EXIT_IF_FAIL(tess_map_is_valid_asset_id(otbl->entries[i].assetId, sizeof(otbl->entries[0].assetId)));
        TStr *assetId = tess_intern_string_s(world->tstrings, otbl->entries[i].assetId, sizeof(otbl->entries[0].assetId));
-       //tess_register_object(world, otbl->entries[i].objectId, assetId);
+       tess_register_object(world, otbl->entries[i].objectId, assetId);
     }
 
     for(int i = 0; i < numEntEntries; i++)
@@ -143,3 +146,4 @@ map_load_failed:
     }
 #undef EXIT_IF_FAIL
 }
+#endif

@@ -130,9 +130,15 @@ void tess_render_entities(TessGameSystem *gs)
     {
         TessEntity *ent = gs->activeEntities[i];
         TessObject *obj = &gs->objectTable[ent->objectId];
-        assert(BIT_IS_SET(obj->flags, Tess_Object_Flag_Loaded));
-        uint32_t meshId = obj->asset->mesh->meshId;
-        uint32_t materialId = obj->asset->materialId;
+        //assert(BIT_IS_SET(obj->flags, Tess_Object_Flag_Loaded));
+        bool objLoaded = BIT_IS_SET(obj->flags, Tess_Object_Flag_Loaded);
+        uint32_t meshId = 0, materialId = 0;
+        if(objLoaded)
+        {
+            meshId = obj->asset->mesh->meshId;
+            materialId = obj->asset->materialId;
+        }
+
         render_system_render_mesh(gs->renderSystem, meshId, materialId, ent->id, &ent->objectToWorld);
     }
 }

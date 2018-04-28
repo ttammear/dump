@@ -1,9 +1,9 @@
 V2 calc_mouse_pos(struct TessInputSystem *input)
 {
-    V2 mouse = make_v2(input->platform->mouseX, input->platform->mouseY);
-    V2 offset = input->renderSystem->renderOffset;
-    V2 scale = input->renderSystem->renderScale;
-    return make_v2(scale.x * (mouse.x-offset.x), scale.y * (mouse.y-offset.y));
+    V3 mouse = make_v3(input->platform->mouseX, input->platform->mouseY, 1.0f);
+    V3 res;
+    mat3_v3_mul(&res, &input->renderSystem->windowToScreen, mouse);
+    return make_v2(res.x, res.y);
 }
 
 void tess_input_init(struct TessInputSystem *input)

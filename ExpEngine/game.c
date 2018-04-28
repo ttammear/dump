@@ -50,7 +50,7 @@ void fill_cat_texture(struct Renderer *renderer, struct TextureQueryResponse *tq
     renderer_queue_message(renderer, &response);
 }
 
-void loadDummyMesh(const char *path, struct Renderer *renderer)
+/*void loadDummyMesh(const char *path, struct Renderer *renderer)
 {
     static bool loaded;
     if(loaded)
@@ -76,7 +76,7 @@ void loadDummyMesh(const char *path, struct Renderer *renderer)
     }
     else
         fprintf(stderr, "Loading %s failed!\n", path);
-}
+}*/
 
 void init_game(struct Renderer *renderer, struct GameData *gdata, struct TessClient *tess)
 {

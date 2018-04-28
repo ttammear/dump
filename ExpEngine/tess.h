@@ -1,16 +1,16 @@
-#define TESS_LOADED_FILE_POOL_SIZE 100
-#define TESS_MESH_POOL_SIZE 100
+#define TESS_LOADED_FILE_POOL_SIZE 1000
+#define TESS_MESH_POOL_SIZE 500
 #define TESS_TEXTURE_POOL_SIZE 100
-#define TESS_OBJECT_POOL_SIZE 100
-#define TESS_LOADING_ASSET_POOL_SIZE 100
+#define TESS_OBJECT_POOL_SIZE 500
+#define TESS_LOADING_ASSET_POOL_SIZE 1000
 #define TESS_DEP_NODE_POOL_SIZE 1000
 #define TESS_ASSET_LOOKUP_ENTRY_POOL_SIZE 1000
 #define TESS_ASSET_LOOKUP_CACHE_POOL_SIZE 100
 
 #define POOL_FROM_ARENA(pool, arena, size) (pool_init_with_memory((pool), arena_push_size((arena), pool_calc_size((pool), (size))), (size)))
 
-#define TESS_MAX_OBJECTS 10
-#define TESS_MAX_ENTITIES 100
+#define TESS_MAX_OBJECTS 500
+#define TESS_MAX_ENTITIES 1000
 
 #define internal static
 #define global static
@@ -277,8 +277,7 @@ typedef struct TessInputSystem
 
 typedef struct TessRenderSystem
 {
-    V2 renderOffset;
-    V2 renderScale;
+    Mat3 windowToScreen;
 
     int rtW;
     int rtH;
@@ -295,6 +294,9 @@ typedef struct TessRenderSystem
 
 typedef struct TessUISystem
 {
+    uint32_t width;
+    uint32_t height;
+
     struct nk_context nk_ctx;
     struct nk_font_atlas nk_atlas;
     struct nk_font *nk_font;
@@ -395,6 +397,8 @@ typedef struct TessEditor
 
     struct nk_context *nk_ctx;
     coro_context coroCtx;
+    void *coroStack;
+    size_t coroStackSize;
 
     struct TessRenderSystem *renderSystem;
     struct TessUISystem *uiSystem;

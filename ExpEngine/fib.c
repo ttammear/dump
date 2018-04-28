@@ -43,7 +43,7 @@ void aike_init(AikePlatform *platform)
 
     platform->init_async_io(platform);
 
-    platform->create_opengl_context(&platform->mainWin);
+    platform->create_opengl_context(platform, &platform->mainWin);
     bool sinter = platform->swap_interval(&platform->mainWin, 0);
     if(!sinter)
     {
@@ -61,6 +61,10 @@ void aike_init(AikePlatform *platform)
     coro_create(&root->mainctx, NULL, NULL, NULL, 0);
 
     tess_client_init(&root->client, platform, renderer, &root->mainctx);
+
+    // TODO: ... no
+    root->client.renderSystem.rtW = platform->mainWin.width;
+    root->client.renderSystem.rtH = platform->mainWin.height;
 
     tess_server_init(&root->server, platform);
 
@@ -83,14 +87,19 @@ void aike_init(AikePlatform *platform)
     init_game(renderer, &root->gdata, &root->client);
 
     TStr *firstInterned = tess_intern_string(&root->client.strings, "First");
+    TStr *sponzaInterned = tess_intern_string(&root->client.strings, "Sponza");
 
     tess_gen_lookup_cache_for_package(&root->client.assetSystem, firstInterned);
+    tess_gen_lookup_cache_for_package(&root->client.assetSystem, sponzaInterned);
     
-    TStr *obj0I = tess_intern_string(&root->client.strings, "First/object0");
-    tess_register_object(&root->client.gameSystem, 1, obj0I);
+    //TStr *obj0I = tess_intern_string(&root->client.strings, "First/object0");
+    //tess_register_object(&root->client.gameSystem, 1, obj0I);
 
-    TStr *tex1 = tess_intern_string(&root->client.strings, "First/Screenshot");
-    tess_load_asset_if_not_loaded(&root->client.assetSystem, tex1);
+    //TStr *tex1 = tess_intern_string(&root->client.strings, "First/Screenshot");
+    //tess_load_asset_if_not_loaded(&root->client.assetSystem, tex1);
+    
+//    TStr *objS = tess_intern_string(&root->client.strings, "Sponza/sponza_381_o");
+//    tess_register_object(&root->client.gameSystem, 1, objS);
 }
 
 void aike_deinit(AikePlatform *platform)
@@ -143,18 +152,28 @@ void aike_update(AikePlatform *platform)
 
         tess_update_editor_server(&root->server.editorServer);
 
+        // TODO: NO!
+        if(tess_are_all_loads_complete(&root->client.assetSystem))
+            tess_temp_assign_all(&root->client.gameSystem);
+
+
         switch(root->client.mode)
         {
             case Tess_Client_Mode_Menu:
                 tess_main_menu_update(&root->client.mainMenu);
                 break;
             case Tess_Client_Mode_Editor:
+                if(!root->client.editor.init)
+                {
+                    coro_create(&root->client.editor.coroCtx, (void(*)(void*))editor_coroutine, &root->client.editor, root->client.editor.coroStack, root->client.editor.coroStackSize);
+                }
                 coro_transfer(&root->mainctx, &root->client.editor.coroCtx);
                 break;
             case Tess_Client_Mode_CrazyTown:
                 update_game(&root->gdata);
                 break;
             case Tess_Client_Mode_Game:
+                play_update(&root->client);
                 break;
             default:
                 fprintf(stderr, "Invalid mode!\n");

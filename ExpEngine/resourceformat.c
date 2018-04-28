@@ -61,6 +61,7 @@ typedef struct TTRMeshSection
 {
     uint32_t startIndex;
     uint32_t indexCount;
+    TTRRef materialRef;
 } TTRMeshSection;
 
 typedef struct TTRBuffer
@@ -114,9 +115,9 @@ typedef struct TTRObject
 
 #define STREAM_PUSH(stream, type) ({type* rettval = (type*)stream; (stream) += sizeof(type); rettval;})
 #define STREAM_PUSH_FLEX(stream, type, arr, count) ({type* rettval = (type*)stream; (stream) += TTR_GET_SIZE(type, arr, (count)); rettval;})
-#define STREAM_PUSH_ALIGN(stream, align) (stream = ALIGN_UP_PTR(stream, (align)))
+#define STREAM_PUSH_ALIGN(stream, align) (stream = (uint8_t*)ALIGN_UP_PTR(stream, (align)))
 
-typedef struct LoadMeshData
+/*typedef struct LoadMeshData
 {
     // stage 0 - get data layout
     struct Renderer *renderer;
@@ -204,4 +205,4 @@ void ttr_load_first_mesh(LoadMeshData *data, uint32_t stage)
         free(data);
         break;
     }
-}
+}*/

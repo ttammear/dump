@@ -459,13 +459,14 @@ internal void opengl_handle_mesh_query(OpenGLRenderer *renderer, MeshQuery *mq)
         meshId = buf_len(renderer->meshes);
         GLMesh mesh = {.id = meshId};
         buf_push(renderer->meshes, mesh);
+        assert(buf_len(renderer->meshes) < 1000); // TODO
         printf("new mesh %d\n", meshId);
     }
 
     uint32_t vertBufSize, vertexStride;
     uint32_t attribOffsets[MAX_ATTRIBUTE_BUFFERS];
     calculate_vertex_buffer_size(mq, &vertBufSize, &vertexStride, attribOffsets);
-    uint32_t indexBufSize = mq->indexCount * (mq->largeIndices?4:2);
+    uint32_t indexBufSize = mq->indexCount * sizeof(uint16_t);
     if(vertBufSize == 0 || indexBufSize == 0)
     {
         // TODO: log error
@@ -503,6 +504,7 @@ internal void opengl_handle_mesh_query(OpenGLRenderer *renderer, MeshQuery *mq)
     }
     // TODO: if the mesh is being draw we might need sync (defer this command)
     void *vertPtr = glMapBufferRange(GL_ARRAY_BUFFER, 0, vertBufSize, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+    printf("buf size %d\n", vertBufSize);
 
     GLuint ebo = (GLuint)mesh->glEbo;
     if(ebo == 0)
@@ -562,6 +564,28 @@ internal void opengl_handle_mesh_update(OpenGLRenderer *renderer, MeshUpdate *mu
         return;
     if(mesh->state != GL_Mesh_State_Dirty)
         return; // TODO log error
+
+/*    if(mu->numSections > MAX_MESH_SECTIONS)
+    {
+        fprintf(stderr, "Mesh had more sections than allowed! (%d vs %d)\n", mu->numSections, MAX_MESH_SECTIONS);
+        return;
+    }
+
+    for(int i = 0; i < mu->numSections; i++)
+    {
+        if(mu->sections[i].offset + mu->sections[i].count >= mesh->numIndices)
+        {
+            fprintf(stderr, "Mesh section out of range (%d-%d, but max %d)\n", mu->sections[i].offset, mu->sections[i].offset + mu->sections[i].count, mesh->numIndices);
+            mesh->sections[i].offset = 0;
+            mesh->sections[i].count = 0;
+        }
+        else
+        {
+           mesh->sections[i].offset = mu->sections[i].offset; 
+           mesh->sections[i].count = mu->sections[i].count; 
+        }
+    }*/
+
     assert(mesh->glVbo != 0);
     assert(mesh->glEbo != 0);
     assert(mesh->glVao != 0);
@@ -618,6 +642,7 @@ internal void opengl_handle_material_query(OpenGLRenderer *renderer, MaterialQue
         materialId = buf_len(renderer->materials);
         GLMaterial mat = {.id = materialId};
         buf_push(renderer->materials, mat);
+        assert(buf_len(renderer->materials) < 1000); //TODO
     }
     GLMaterial *material = get_material(renderer, materialId);
     if(material == NULL)
@@ -682,6 +707,7 @@ internal void opengl_handle_texture_query(OpenGLRenderer *renderer, TextureQuery
         textureId = buf_len(renderer->textures);
         GLTexture tex = {.id = textureId};
         buf_push(renderer->textures, tex);
+        assert(buf_len(renderer->textures)<1000);//TODO;
     }
     GLTexture *tex = get_texture(renderer, textureId);
     if(!tex)
@@ -894,7 +920,6 @@ internal bool opengl_process_messages(OpenGLRenderer *renderer)
             case Render_Message_Screen_Resize:
                 renderer->windowWidth = msg.screenR.width;
                 renderer->windowHeight = msg.screenR.height;
-                glViewport(0, 0, 1024, 768);
                 //glViewport(0, 0, msg.screenR.width, msg.screenR.height);
                 break;
             default:
@@ -1200,6 +1225,7 @@ internal void opengl_init(OpenGLRenderer *renderer)
     uint32_t height = renderer->renderer.platform->mainWin.height;
     renderer->fboWidth = width;
     renderer->fboHeight = height;
+    printf("fbo %d %d\n", renderer->fboWidth, renderer->fboHeight);
     glGenTextures(1, &renderer->fboColorTex);
     glBindTexture(GL_TEXTURE_2D, renderer->fboColorTex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -1311,9 +1337,9 @@ internal void opengl_init(OpenGLRenderer *renderer)
 
     // TODO: if any of these get reallocated we're screwed!!!!!!!!!!!!!!!!!!!!!!!!!!
     // USE A FUCKING POOL
-    buf_reserve(renderer->meshes, 100);
-    buf_reserve(renderer->textures, 100);
-    buf_reserve(renderer->materials, 100);
+    buf_reserve(renderer->meshes, 1000);
+    buf_reserve(renderer->textures, 1000);
+    buf_reserve(renderer->materials, 1000);
 
     GLMesh mesh = {
         .id = 0,
@@ -1493,6 +1519,7 @@ internal void *opengl_proc(void *data)
 
         PROF_START_STR("clear FBO");
         glBindFramebuffer(GL_FRAMEBUFFER, renderer->fbo);
+        glViewport(0, 0, renderer->fboWidth, renderer->fboHeight);
         // TODO: clear color ? skybox?
         glClearColor(0.325f, 0.029f, 0.07f, 1.0f);
         glClear(GL_DEPTH_BUFFER_BIT);
@@ -1536,7 +1563,6 @@ internal void *opengl_proc(void *data)
             glClear(GL_COLOR_BUFFER_BIT);
         }
         glDisable(GL_SCISSOR_TEST);
-        glViewport(0, 0, renderer->fboWidth, renderer->fboHeight);
 
         PROF_END();
 
