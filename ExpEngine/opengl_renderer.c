@@ -816,8 +816,8 @@ internal void opengl_handle_texture_update(OpenGLRenderer *renderer, TextureUpda
             assert(false);
             break;
     }
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     tex->state = GL_Texture_State_Wait_Sync;
     tex->fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -1366,9 +1366,11 @@ internal void opengl_init(OpenGLRenderer *renderer)
 
     GLMaterial mat = { 
         .id = 0,
-        .glProgram = renderer->builtinPrograms[Shader_Type_None],
+        .shaderId = Shader_Type_Unlit_Vertex_Color,
+        .glProgram = renderer->builtinPrograms[Shader_Type_Unlit_Vertex_Color],
         .userData = NULL,
-        .perInstanceDataSize = 0
+        .perInstanceDataSize = sizeof(struct UnlitVertexColor),
+        .iData.unlitVertexColor.color = (V4){1.0f, 1.0f, 1.0f, 1.0f},
     };
 
     buf_push(renderer->textures, tex);

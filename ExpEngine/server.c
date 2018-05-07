@@ -6,6 +6,8 @@ enum ClientEntityFlag
 
 void tess_create_editor_server(struct TessEditorServer *eserver, struct TessFixedArena *arena);
 void tess_destroy_editor_server(struct TessEditorServer *eserver);
+uint32_t tess_editor_server_create_entity(struct TessEditorServer *server, uint32_t objectId, struct V3 position);
+struct TessEditorServerEntity* tess_editor_server_get_entity(struct TessEditorServer *server, uint32_t entityId);
 
 void tess_server_init(struct TessServer *server, AikePlatform *platform)
 {
@@ -71,8 +73,46 @@ void tess_create_editor_server(struct TessEditorServer *eserver, struct TessFixe
     POOL_FROM_ARENA(eserver->entityPool, arena, TESS_MAX_ENTITIES);
     memset(&eserver->objectTable, 0, sizeof(eserver->objectTable));
 
-    TStr *intr = tess_intern_string(eserver->tstrings, "First/object0");
-    eserver->objectTable[1] = intr;
+//    TStr *intr = tess_intern_string(eserver->tstrings, "First/object0");
+//   eserver->objectTable[1] = intr;
+
+    void *buf = malloc(1024*1024);
+    FILE *file = fopen("Packages/Sponza/map.ttm", "rb");
+    if(file != NULL)
+    {
+        fseek(file, 0, SEEK_END);
+        long size = ftell(file);
+        rewind(file);
+        fread(buf, 1, size, file);
+        fclose(file);
+
+        MapReader reader;
+        bool res = map_reader_begin(&reader, buf, size);
+        if(!res)
+        {
+            fprintf(stderr, "Editor server: Loading map failed!\n");
+            goto load_done;
+        }
+        MapObject obj;
+        while(map_next_object(&reader, &obj) == Map_Error_Code_Success)
+        {
+            TStr *assetId = tess_intern_string_s(eserver->tstrings, obj.assetId, sizeof(obj.assetId));
+            eserver->objectTable[obj.objectId] = assetId;
+        }
+        MapEntity ent;
+        while(map_next_entity(&reader, &ent) == Map_Error_Code_Success)
+        {
+            Mat4 modelToWorld;
+            mat4_trs(&modelToWorld, ent.pos, ent.rot, ent.scale);
+            uint32_t eid = tess_editor_server_create_entity(eserver, ent.objectId, ent.pos);
+            auto sent = tess_editor_server_get_entity(eserver, eid);
+            //sent->eulerRotation ...
+            sent->scale = ent.scale;
+        }
+    }
+load_done:
+    free(buf);
+
 }
 
 void tess_destroy_editor_server(struct TessEditorServer *eserver)
@@ -91,18 +131,18 @@ void tess_destroy_editor_server(struct TessEditorServer *eserver)
         eserver->platform->tcp_close_server(eserver->platform, eserver->tcpServer);
 }
 
-void tess_editor_server_create_entity(struct TessEditorServer *server, uint32_t objectId, struct V3 position)
+uint32_t tess_editor_server_create_entity(struct TessEditorServer *server, uint32_t objectId, struct V3 position)
 {
     struct TessEditorServerEntity *edEnt = pool_allocate(server->entityPool);
     if(edEnt == NULL)
     {
         fprintf(stderr, "Entity pool full! Entity creation ignored!\n");
-        return;
+        return 0;
     } 
     if(objectId >= TESS_MAX_OBJECTS)
     {
         fprintf(stderr, "Can't create entity: objectId out of range!\n");
-        return;
+        return 0;
     }
     edEnt->position = position;
     edEnt->eulerRotation = make_v3(0.0f, 0.0f, 0.0f);
@@ -113,6 +153,7 @@ void tess_editor_server_create_entity(struct TessEditorServer *server, uint32_t 
 
     buf_push(server->activeEntities, edEnt);
     printf("Editor server: created new entity\n");
+    return edEnt->id;
 }
 
 struct TessEditorServerEntity* tess_editor_server_get_entity(struct TessEditorServer *server, uint32_t entityId)

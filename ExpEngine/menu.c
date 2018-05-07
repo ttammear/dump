@@ -13,6 +13,45 @@ void tess_main_menu_init(struct TessMainMenu *menu)
     menu->statusStr = "";
 }
 
+void load_map(TessClient *client)
+{
+    tess_reset_world(&client->gameSystem);
+    void *buf = malloc(1024*1024);
+    FILE *file = fopen("Packages/Sponza/map.ttm", "rb");
+    if(file != NULL)
+    {
+        fseek(file, 0, SEEK_END);
+        long size = ftell(file);
+        rewind(file);
+        fread(buf, 1, size, file);
+        fclose(file);
+
+        MapReader reader;
+        bool res = map_reader_begin(&reader, buf, size);
+        if(!res)
+        {
+            fprintf(stderr, "Loading map failed!\n");
+            goto load_done;
+        }
+        MapObject obj;
+        while(map_next_object(&reader, &obj) == Map_Error_Code_Success)
+        {
+            TStr *assetId = tess_intern_string_s(&client->strings, obj.assetId, sizeof(obj.assetId));
+            tess_register_object(&client->gameSystem, obj.objectId, assetId);
+        }
+        MapEntity ent;
+        while(map_next_entity(&reader, &ent) == Map_Error_Code_Success)
+        {
+            Mat4 modelToWorld;
+            mat4_trs(&modelToWorld, ent.pos, ent.rot, ent.scale);
+            tess_create_entity(&client->gameSystem, ent.objectId, &modelToWorld);
+            printf("create entity\n");
+        }
+    }
+load_done:
+    free(buf);
+}
+
 void draw_main_menu(struct TessMainMenu *menu, struct nk_context *ctx)
 {
     int32_t width = 400;
@@ -26,21 +65,9 @@ void draw_main_menu(struct TessMainMenu *menu, struct nk_context *ctx)
         nk_layout_row_dynamic(ctx, 60, 1);
         if(nk_button_label(ctx, "Play"))
         {
-            void *buf = malloc(1024*1024);
-            FILE *file = fopen("Packages/Sponza/map.ttm", "rb");
-            if(file != NULL)
-            {
-                fseek(file, 0, SEEK_END);
-                long size = ftell(file);
-                rewind(file);
-                fread(buf, 1, size, file);
-                fclose(file);
-
-                menu->client->mode = Tess_Client_Mode_Game;
-                tess_load_map(&menu->client->gameSystem, (TessMapHeader*)buf, size);
-            }
-            free(buf);
+            load_map(menu->client);
             menu->client->gameSystem.defaultCamera.position = make_v3(10.0f, 0.0f, -30.0f);
+            menu->client->mode = Tess_Client_Mode_Game;
         }
         if(nk_button_label(ctx, "Editor"))
         {

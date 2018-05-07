@@ -84,66 +84,101 @@ bool tess_map_is_valid_asset_id(char *name, uint32_t maxLen)
     return runCount == 1;
 }
 
-void tess_load_map(TessGameSystem *world, TessMapHeader *map, uint32_t maxOffset)
+typedef struct MapReader
 {
-    tess_reset_world(world);
+    TessObjectTable *otbl;
+    TessEntityTable *etbl;
+    uint32_t numObjEntries;
+    uint32_t numEntEntries;
 
+    uint32_t curObject;
+    uint32_t curEntity;
+} MapReader;
+
+typedef struct MapObject
+{
+    uint32_t objectId;
+    char assetId[128];        
+} MapObject;
+
+typedef struct MapEntity
+{
+    uint32_t objectId;
+    V3 pos;
+    Quat rot;
+    V3 scale;
+} MapEntity;
+
+enum MapErrorCode
+{
+    Map_Error_Code_Success,
+    Map_Error_Code_End,
+    Map_Error_Code_Parse_Failed,
+};
+
+
+bool map_reader_begin(MapReader *reader, void *data, size_t size)
+{
+#define EXIT_IF_FAIL(x) if(!(x)) { loadFailed = true; goto map_load_failed;}
+    TessMapHeader *map = (TessMapHeader*)data;
     struct ByteRange
     {
         uint8_t *start;
-        uint8_t *end;;
-    } mapRange = {(uint8_t*)map, ((uint8_t*)map) + maxOffset};
-
+        uint8_t *end;
+    } mapRange = {(uint8_t*)data, ((uint8_t*)data) + size};
     bool loadFailed = false;
-
-#define EXIT_IF_FAIL(x) if(!(x)) { loadFailed = true; goto map_load_failed;}
-
-    // check if header is safe to read and correct
     EXIT_IF_FAIL(T_STRUCT_IN_RANGE(map, mapRange));
     EXIT_IF_FAIL(TTR_4CHAR("TESM") == map->signature);
-    // TODO: check version
 
-    // check if object table is safe to read
-    TessObjectTable *otbl = TTR_REF_TO_PTR(TessObjectTable, map->objectTableRef);
-    EXIT_IF_FAIL(T_STRUCT_IN_RANGE(otbl, mapRange));
-    uint32_t numObjEntries = otbl->numEntries;
-    EXIT_IF_FAIL(T_ARRAY_IN_RANGE(otbl->entries, numObjEntries, mapRange));
+    reader->otbl = TTR_REF_TO_PTR(TessObjectTable, map->objectTableRef);
+    EXIT_IF_FAIL(T_STRUCT_IN_RANGE(reader->otbl, mapRange));
+    reader->numObjEntries = reader->otbl->numEntries;
+    EXIT_IF_FAIL(T_ARRAY_IN_RANGE(reader->otbl->entries, reader->numObjEntries, mapRange));
 
-    // check if entity table is safe to read
-    TessEntityTable *etbl = TTR_REF_TO_PTR(TessEntityTable, map->entityTableRef);
-    EXIT_IF_FAIL(T_STRUCT_IN_RANGE(etbl, mapRange));
-    uint32_t numEntEntries = etbl->numEntries;
-    EXIT_IF_FAIL(T_ARRAY_IN_RANGE(etbl->entries, numEntEntries, mapRange));
+    reader->etbl = TTR_REF_TO_PTR(TessEntityTable, map->entityTableRef);
+    EXIT_IF_FAIL(T_STRUCT_IN_RANGE(reader->etbl, mapRange));
+    reader->numEntEntries = reader->etbl->numEntries;
+    EXIT_IF_FAIL(T_ARRAY_IN_RANGE(reader->etbl->entries, reader->numEntEntries, mapRange));
 
-    for(int i = 0; i < numObjEntries; i++)
-    {
-       EXIT_IF_FAIL(tess_map_is_valid_asset_id(otbl->entries[i].assetId, sizeof(otbl->entries[0].assetId)));
-       TStr *assetId = tess_intern_string_s(world->tstrings, otbl->entries[i].assetId, sizeof(otbl->entries[0].assetId));
-       tess_register_object(world, otbl->entries[i].objectId, assetId);
-    }
-
-    for(int i = 0; i < numEntEntries; i++)
-    {
-        V3 pos, scale;
-        Quat rot;
-        uint32_t objectId;
-        pos = etbl->entries[i].position;
-        rot = etbl->entries[i].rotation;
-        scale = etbl->entries[i].scale;
-        objectId = etbl->entries[i].objectId;
-
-        Mat4 modelToWorld;
-        mat4_trs(&modelToWorld, pos, rot, scale);
-
-        tess_create_entity(world, objectId, &modelToWorld);
-    }
-
+    reader->curObject = 0;
+    reader->curEntity = 0;
 map_load_failed: 
     if(loadFailed)
     {
         fprintf(stderr, "Failed to load map\n");
-        return;
+        return false;
     }
+    return true;
 #undef EXIT_IF_FAIL
 }
+
+uint32_t map_next_object(MapReader *reader, MapObject *entity)
+{
+    auto otbl = reader->otbl; 
+    auto i = reader->curObject;
+    if(i >= reader->numObjEntries)
+        return Map_Error_Code_End;
+    if(!tess_map_is_valid_asset_id(otbl->entries[i].assetId, 
+               sizeof(otbl->entries[0].assetId)))
+        return Map_Error_Code_Parse_Failed;
+    strncpy(entity->assetId, otbl->entries[i].assetId, sizeof(entity->assetId));
+    entity->objectId = otbl->entries[i].objectId;
+    reader->curObject++;
+    return Map_Error_Code_Success;
+}
+
+uint32_t map_next_entity(MapReader *reader, MapEntity *entity)
+{
+    auto etbl = reader->etbl;
+    auto i = reader->curEntity;
+    if(i >= reader->numEntEntries)
+        return Map_Error_Code_End;
+    entity->pos = etbl->entries[i].position;
+    entity->rot = etbl->entries[i].rotation;
+    entity->scale = etbl->entries[i].scale;
+    entity->objectId = etbl->entries[i].objectId;
+    reader->curEntity++;
+    return Map_Error_Code_Success;
+}
+
 #endif

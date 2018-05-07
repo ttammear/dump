@@ -38,13 +38,12 @@ void aike_init(AikePlatform *platform)
 {
     DEBUG_INIT("Main thread");
 
-
     tess_reload_vtable();
 
     platform->init_async_io(platform);
 
     platform->create_opengl_context(platform, &platform->mainWin);
-    bool sinter = platform->swap_interval(&platform->mainWin, 0);
+    bool sinter = platform->swap_interval(&platform->mainWin, 1);
     if(!sinter)
     {
         fprintf(stderr, "Failed to set swap interval!\n");
@@ -81,8 +80,8 @@ void aike_init(AikePlatform *platform)
     renderer->swapBuffer = root->client.renderSystem.viewSwapBuffer;
     start_renderer(renderer);
 
-    stop_renderer(renderer);
-    start_renderer(renderer);
+    //stop_renderer(renderer);
+    //start_renderer(renderer);
 
     init_game(renderer, &root->gdata, &root->client);
 
@@ -95,7 +94,7 @@ void aike_init(AikePlatform *platform)
     //TStr *obj0I = tess_intern_string(&root->client.strings, "First/object0");
     //tess_register_object(&root->client.gameSystem, 1, obj0I);
 
-    //TStr *tex1 = tess_intern_string(&root->client.strings, "First/Screenshot");
+    //TStr *tex1 = tess_intern_string(&root->client.strings, "Sponza/sponza_arch_diff");
     //tess_load_asset_if_not_loaded(&root->client.assetSystem, tex1);
     
 //    TStr *objS = tess_intern_string(&root->client.strings, "Sponza/sponza_381_o");
@@ -134,7 +133,6 @@ void aike_update(AikePlatform *platform)
 
     if(!root->loaded && tess_are_all_loads_complete(&root->client.assetSystem))
     {
-        tess_temp_assign_all(&root->client.gameSystem);
         root->loaded = true;
 
         Mat4 objectToWorld;
@@ -151,11 +149,6 @@ void aike_update(AikePlatform *platform)
         tess_client_begin_frame(&root->client);
 
         tess_update_editor_server(&root->server.editorServer);
-
-        // TODO: NO!
-        if(tess_are_all_loads_complete(&root->client.assetSystem))
-            tess_temp_assign_all(&root->client.gameSystem);
-
 
         switch(root->client.mode)
         {

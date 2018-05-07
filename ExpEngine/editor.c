@@ -235,7 +235,7 @@ void editor_draw_ui(TessEditor *editor)
         nk_layout_row_dynamic(ctx, 30, 1);
         if(nk_button_label(ctx, "Create object"))
         {
-            editor_send_create_entity_command(editor, 1);
+            editor_send_create_entity_command(editor, 0);
         }
         if(nk_button_label(ctx, "Export map"))
         {
@@ -593,6 +593,8 @@ void editor_client_process_command(TessEditor *editor, uint16_t cmd, uint8_t *da
                     // TODO: escape string and make sure it has proper length
                     buf[len] = 0;
                     printf(" def %u %s\n", objectId, buf);
+                    TStr *str = tess_intern_string_s(editor->tstrings, buf, sizeof(buf));
+                    tess_register_object(editor->world, objectId, str);
                 }
             }
             break;
@@ -623,7 +625,7 @@ void editor_client_process_command(TessEditor *editor, uint16_t cmd, uint8_t *da
                     if(!stream_read_v3(&stream, &rot)) return;
                     if(!stream_read_v3(&stream, &scale)) return;
                     TessEditorEntity *edEnt;
-                    edEnt = editor_create_object(editor, 1);
+                    edEnt = editor_create_object(editor, objectId);
                     if(edEnt == NULL)
                     {
                         fprintf(stderr, "Editor could not create entity: editorEntity pool full!\n");
@@ -635,6 +637,8 @@ void editor_client_process_command(TessEditor *editor, uint16_t cmd, uint8_t *da
                     khiter_t k = kh_put(uint32, editor->serverEntityMap, serverId, &dummy);
                     assert(dummy > 0); // key should not be already present in table
                     kh_val(editor->serverEntityMap, k) = edEnt->id;
+
+                    printf("create %d\n", objectId);
 
                     edEnt->position = pos;
                     edEnt->eulerRotation = rot;

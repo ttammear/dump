@@ -341,7 +341,7 @@ void editor_append_cmd_data(struct TessEditorCommandBuf *cmdbuf, uint8_t *data, 
         {
             // why am I doing this
             static_assert(TESS_EDITOR_SERVER_MAX_COMMAND_SIZE > 2, "you are dumb!");
-            memcpy(cmdbuf->currentCommand, data, nBytes);
+            memcpy(cmdbuf->currentCommand + cmdbuf->currentCommandBytes, data, nBytes);
             cmdbuf->currentCommandBytes += nBytes;
             return;
         }
@@ -358,12 +358,12 @@ void editor_append_cmd_data(struct TessEditorCommandBuf *cmdbuf, uint8_t *data, 
     assert(bytesLeft != 0);
     if(bytesLeft > nBytes) // still not the whole command
     {
-        memcpy(cmdbuf->currentCommand, data, nBytes);
+        memcpy(cmdbuf->currentCommand + cmdbuf->currentCommandBytes, data, nBytes);
         cmdbuf->currentCommandBytes += nBytes;
     }
     else
     {
-        memcpy(cmdbuf->currentCommand, data, bytesLeft);
+        memcpy(cmdbuf->currentCommand + cmdbuf->currentCommandBytes, data, bytesLeft);
         cmdbuf->currentCommandBytes += bytesLeft;
         // as side effect this will reset currentCommandBytes
         editor_flush_command(cmdbuf);

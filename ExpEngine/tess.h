@@ -7,7 +7,7 @@
 #define TESS_ASSET_LOOKUP_ENTRY_POOL_SIZE 1000
 #define TESS_ASSET_LOOKUP_CACHE_POOL_SIZE 100
 
-#define POOL_FROM_ARENA(pool, arena, size) (pool_init_with_memory((pool), arena_push_size((arena), pool_calc_size((pool), (size))), (size)))
+#define POOL_FROM_ARENA(pool, arena, size) (pool_init_with_memory((pool), arena_push_size((arena), pool_calc_size((pool), (size)), 8), (size)))
 
 #define TESS_MAX_OBJECTS 500
 #define TESS_MAX_ENTITIES 1000
@@ -26,7 +26,7 @@ enum TessFilePipeline
 typedef struct TStr // interned string
 {
     uint32_t len;
-    char cstr[];
+    char cstr[0];
 } TStr;
 
 typedef struct TessFile
@@ -88,7 +88,6 @@ enum TessAssetStatus
 
 enum TessObjectFlags
 {
-    Tess_Object_Flag_Registered = 1<<0,
     Tess_Object_Flag_Loaded     = 1<<1,
 };
 
@@ -175,8 +174,16 @@ typedef struct AssetLookupCache
     struct AssetLookupEntry **entries;
 } AssetLookupCache;
 
+typedef void (*OnAssetLoaded_t) (void *, struct TessAssetSystem *, struct TessAsset *);
+
 typedef struct TessAssetSystem
 {
+    TessAsset nullAsset;
+    TessObjectAsset nullObject;
+    TessMeshAsset nullMesh;
+
+    DELEGATE(onAssetLoaded, OnAssetLoaded_t, 4);
+
     struct TessFileSystem *fileSystem;
     struct TessAsset **loadedAssets;
     struct TessMeshAsset *meshPool;
@@ -200,6 +207,7 @@ typedef struct TessStrings
 {
     TessFixedArena stringArena;
     TStr **internedStrings;
+    TStr *empty;
 } TessStrings;
 
 // --------------- GAME WORLD --------
@@ -411,6 +419,7 @@ typedef struct TessEditor
     TessEditorCommandBuf cmdBuf;
 
     TessFixedArena arena;
+    TessStrings *tstrings;
 } TessEditor;
 
 // --------------- STATE --------------
@@ -503,11 +512,12 @@ void tess_process_ttr_file(struct TessAssetSystem *as, struct TessFile *tfile);
 TStr* tess_intern_string_s(struct TessStrings *tstrings, const char *string, uint32_t maxlen);
 TStr* tess_intern_string(struct TessStrings *tstrings, const char *string);
 bool get_asset_file(struct TessAssetSystem *as, TStr *assetId, TStr **result);
-void tess_load_asset_if_not_loaded(struct TessAssetSystem *as, TStr *assetId);
+bool tess_load_asset_if_not_loaded(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_id(struct TessAssetSystem *as, TStr *package, TStr *asset);
 TStr *tess_get_asset_name_from_id(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_package_from_id(struct TessAssetSystem *as, TStr *assetId);
 
+void tess_world_init(TessGameSystem *gs);
 void tess_register_object(TessGameSystem *gs, uint32_t id, TStr *assetId);
 uint32_t tess_create_entity(TessGameSystem *gs, uint32_t id, Mat4 *modelMatrix);
 void tess_reset_world(TessGameSystem *gs);
@@ -526,5 +536,7 @@ void tess_render_entities(struct TessGameSystem *gs);
 
 void tess_main_menu_init(struct TessMainMenu *menu);
 void tess_main_menu_update(struct TessMainMenu *menu);
+
+void editor_reset(TessEditor *editor);
 
 extern struct TessVtable *g_tessVtbl;

@@ -1,44 +1,69 @@
+void world_asset_loaded(TessGameSystem *gs, TessAssetSystem *as, TessAsset *asset);
+
+void tess_world_init(TessGameSystem *gs)
+{
+    // seed null object
+    TessObject *obj = &gs->objectTable[0];
+    SET_BIT(obj->flags, Tess_Object_Flag_Loaded);
+    obj->assetId = gs->tstrings->empty;
+    obj->id = 0;
+    obj->asset = &gs->assetSystem->nullObject;
+
+    for(int i = 0; i < ARRAY_COUNT(gs->objectTable); i++)
+    {
+        obj = &gs->objectTable[i];
+        obj->assetId = gs->tstrings->empty;
+        obj->id = i;
+        obj->asset = &gs->assetSystem->nullObject;
+        SET_BIT(obj->flags, Tess_Object_Flag_Loaded);
+    }
+
+    DELEGATE_LISTEN(gs->assetSystem->onAssetLoaded, (OnAssetLoaded_t) world_asset_loaded, gs);
+}
 
 // define new object
 void tess_register_object(TessGameSystem *gs, uint32_t id, TStr *assetId)
 {
-    assert(id > 0 && id < ARRAY_COUNT(gs->objectTable));
+    if(id == 0) // id 0 is unset object and can not be overriden
+        return;
+    assert(id < ARRAY_COUNT(gs->objectTable));
     TessObject *obj = &gs->objectTable[id];
-    if(BIT_IS_SET(obj->flags, Tess_Object_Flag_Registered))
-    {
-        fprintf(stderr, "Overriding previous object ID: %d old: %s new: %s\n", id, obj->assetId->cstr, assetId->cstr);
-    }
     obj->assetId = assetId;
     obj->id = id;
-    obj->asset = NULL;
-    SET_BIT(obj->flags, Tess_Object_Flag_Registered);
-    CLEAR_BIT(obj->flags, Tess_Object_Flag_Loaded);
     
     // TODO: remove once you can load assets on demand
-    tess_load_asset_if_not_loaded(gs->assetSystem, assetId);
+    bool loaded = tess_load_asset_if_not_loaded(gs->assetSystem, assetId);
+    if(loaded)
+    {
+        auto asset = tess_get_asset(gs->assetSystem, assetId);
+        if(asset->type == Tess_Asset_Object)
+        {
+            SET_BIT(obj->flags, Tess_Object_Flag_Loaded);
+            obj->asset = (TessObjectAsset*)asset;
+        }
+        else
+            loaded = false;
+    }
+    if(!loaded)
+    {
+        CLEAR_BIT(obj->flags, Tess_Object_Flag_Loaded);
+        obj->asset = &gs->assetSystem->nullObject;
+    }
 }
 
-// set all defined object assets
-void tess_temp_assign_all(TessGameSystem *gs)
+void world_asset_loaded(TessGameSystem *gs, TessAssetSystem *as, TessAsset *asset)
 {
-    printf("FIXME: tess_temp_assign_all\n");
+    // @OPTIMIZE (create mapping assetId -> objectids)
     int count = ARRAY_COUNT(gs->objectTable);
-    for(int i = 0; i < count; i++)
+    for(int i = 0; i < count; i ++)
     {
         TessObject *obj = &gs->objectTable[i];
-        if(BIT_IS_SET(obj->flags, Tess_Object_Flag_Registered) &&
-                !BIT_IS_SET(obj->flags, Tess_Object_Flag_Loaded))
+        if(!BIT_IS_SET(obj->flags, Tess_Object_Flag_Loaded) 
+                && asset->type == Tess_Asset_Object
+                && obj->assetId == asset->assetId)
         {
-            TessAsset *asset = tess_get_asset(gs->assetSystem, obj->assetId);
-            if(asset != NULL && asset->type == Tess_Asset_Object)
-            {
-                gs->objectTable[i].asset = (TessObjectAsset*)asset;
-                SET_BIT(obj->flags, Tess_Object_Flag_Loaded);
-            }
-            else if(asset == NULL)
-                fprintf(stderr, "Asset %s was not loaded!\n", obj->assetId->cstr);
-            else
-                fprintf(stderr, "Asset %s was not an object!\n", obj->assetId->cstr);
+            gs->objectTable[i].asset = (TessObjectAsset*)asset;
+            SET_BIT(obj->flags, Tess_Object_Flag_Loaded);
         }
     }
 }
@@ -47,15 +72,15 @@ void tess_unregister_object(TessGameSystem *gs, uint32_t id)
 {
     TessObject *obj = &gs->objectTable[id];
     assert(obj->id == id);
-    obj->assetId = NULL;
-    CLEAR_BIT(obj->flags, Tess_Object_Flag_Registered);
+    obj->assetId = gs->tstrings->empty;
+    obj->asset = &gs->assetSystem->nullObject;
+    SET_BIT(obj->flags, Tess_Object_Flag_Loaded); // the null object is loaded
 }
 
 uint32_t tess_create_entity(TessGameSystem *gs, uint32_t id, Mat4 *modelMatrix)
 {
-    assert(id > 0 && id < ARRAY_COUNT(gs->objectTable));
+    assert(id < ARRAY_COUNT(gs->objectTable));
     TessObject *obj = &gs->objectTable[id];
-    assert(BIT_IS_SET(obj->flags, Tess_Object_Flag_Registered));
     TessEntity *entity = pool_allocate(gs->entityPool);
     assert(entity); // TODO: ??
     entity->id = entity - gs->entityPool;
@@ -85,18 +110,6 @@ void tess_update_camera_perspective(TessCamera *cam)
 {
     mat4_perspective(&cam->viewToClip, cam->FOV, cam->aspectRatio, cam->nearPlane, cam->farPlane);
 }
-
-/*void tess_clip_to_world_pos(TessCamera *cam, V3 clipPos, V3 screenPos)
-{
-    Mat4 clipToView;
-    inverse_perspective(&inv_persp, &cam->viewToClip);
-
-    Mat4 viewToWorld;
-    mat4_tr(&viewToWorld, cam->position, cam->rotation);
-
-    Mat4 worldToClip;
-    mat4_mul(&worldToClip, &viewToWorld, &clipToView);
-}*/
 
 V3 tess_world_to_clip_pos(TessCamera *cam, V3 worldPos)
 {
@@ -130,14 +143,12 @@ void tess_render_entities(TessGameSystem *gs)
     {
         TessEntity *ent = gs->activeEntities[i];
         TessObject *obj = &gs->objectTable[ent->objectId];
-        //assert(BIT_IS_SET(obj->flags, Tess_Object_Flag_Loaded));
         bool objLoaded = BIT_IS_SET(obj->flags, Tess_Object_Flag_Loaded);
-        uint32_t meshId = 0, materialId = 0;
-        if(objLoaded)
-        {
-            meshId = obj->asset->mesh->meshId;
-            materialId = obj->asset->materialId;
-        }
+        if(!objLoaded) // use null object if not loaded
+            obj = &gs->objectTable[0];
+        uint32_t meshId, materialId;
+        meshId = obj->asset->mesh->meshId;
+        materialId = obj->asset->materialId;
 
         render_system_render_mesh(gs->renderSystem, meshId, materialId, ent->id, &ent->objectToWorld);
     }

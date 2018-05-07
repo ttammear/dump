@@ -9,7 +9,7 @@ void play_update(TessClient *client)
 
     V3 forward = make_v3(0.0f, 0.0f, 0.1f);
     V3 right;
-    quat_v3_mul_dir(&forward, cam->rotation, make_v3(0.0f, 0.0f, 0.1f));
+    quat_v3_mul_dir(&forward, cam->rotation, make_v3(0.0f, 0.0f, 0.01f));
     quat_v3_mul_dir(&right, cam->rotation, make_v3(0.01f, 0.0f, 0.0f));
 
         if(key(input, AIKE_KEY_W))
@@ -31,7 +31,3 @@ void play_update(TessClient *client)
 
 }
 
-void mostdumm(void)
-{
-
-}

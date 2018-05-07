@@ -2,6 +2,7 @@ void tess_strings_init(TessStrings *tstrings, TessFixedArena *arena)
 {
     fixed_arena_init_from_arena(&tstrings->stringArena, arena, 64 * 1024);
     tstrings->internedStrings = NULL;
+    tstrings->empty = tess_intern_string(tstrings, "");
 }
 
 void tess_strings_destroy(TessStrings *tstrings)
@@ -28,10 +29,31 @@ void tess_asset_system_init(TessAssetSystem *as, TessFixedArena *arena)
     as->loadedAssetMap = kh_init(64);
     as->loadingAssetMap = kh_init(64);
     as->assetStatusMap = kh_init(uint32);
+
+    TStr *emptyStr = tess_intern_string(as->tstrings, "");
+    as->nullAsset = (TessAsset){
+        .assetId = emptyStr, 
+        .type = Tess_Asset_Unknown
+    };
+    as->nullMesh = (TessMeshAsset){
+        .asset.assetId = emptyStr, 
+        .asset.type = Tess_Asset_Mesh, 
+        .meshId = 0
+    };
+    as->nullObject = (TessObjectAsset){
+        .asset.assetId = emptyStr, 
+        .asset.type = Tess_Asset_Object, 
+        .mesh = &as->nullMesh, // TODO: everything should use ids not pointers?
+        .materialId = 0 // TODO: this material might not exist!
+    };
+
+    DELEGATE_INIT(as->onAssetLoaded);
 }
 
 void tess_asset_system_destroy(TessAssetSystem *as)
 {
+    DELEGATE_CLEAR(as->onAssetLoaded);
+
     // TODO: loadedAssets deinit?
     // free AssetLookupCahce entry buf and map
     khiter_t k;
@@ -71,7 +93,7 @@ bool tess_load_file(TessFileSystem *fs, const char* fileName, uint32_t pipeline,
     req->fileOffset = 0;
     req->nBytes = file->size;
     bool success = true;
-    // TODO: temp hack
+    // TODO: temp hack (fix if linux returns EAGAIN)
     while(true)
     {
         success = fs->platform->submit_io_request(fs->platform, req);
@@ -136,7 +158,7 @@ TStr* tess_intern_string(TessStrings *tstrings, const char *string)
     }
     // if not found create new
     uint32_t strZLen = strlen(string) + 1;
-    TStr* newstr = (TStr*)arena_push_size(&tstrings->stringArena, sizeof(TStr) + strZLen);
+    TStr* newstr = (TStr*)fixed_arena_push_size(&tstrings->stringArena, sizeof(TStr) + strZLen, 8);
     newstr->len = strZLen - 1;
     memcpy(newstr->cstr, string, strZLen);
     buf_push(tstrings->internedStrings, newstr);
@@ -156,7 +178,7 @@ TStr* tess_intern_string_s(TessStrings *tstrings, const char *string, uint32_t m
     }
     // if not found create new
     uint32_t strZLen = MIN(strlen(string)+1, maxlen+1);
-    TStr *newstr = (TStr*)arena_push_size(&tstrings->stringArena, sizeof(TStr) + strZLen);
+    TStr *newstr = (TStr*)fixed_arena_push_size(&tstrings->stringArena, sizeof(TStr) + strZLen, 8);
     newstr->len = strZLen - 1;
     memcpy(newstr->cstr, string, strZLen-1);
     newstr->cstr[strZLen-1] = 0; // always null terminate

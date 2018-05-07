@@ -19,6 +19,8 @@
 #include <x86intrin.h>
 #endif
 
+#define auto __auto_type
+
 // TODO: tt_simd?
 #define TT_SIMD_32_WIDTH   4
 
@@ -26,6 +28,7 @@
 #include "libs/tt_helpers.h"
 #include "libs/tt_types.h"
 #include "libs/tt_mt_ring_queue.h"
+#include "libs/delegate.h"
 
 // the implementations I don't plan to change go into libs_static.c
 // and they aren't recompiled to keep iteration times fast

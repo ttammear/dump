@@ -39,6 +39,7 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess->gameSystem.renderSystem = &tess->renderSystem;
     tess->gameSystem.activeCamera = &tess->gameSystem.defaultCamera;
     tess->gameSystem.tstrings = &tess->strings;
+    tess_world_init(&tess->gameSystem);
 
     // Init input
     //
@@ -66,7 +67,7 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess_main_menu_init(&tess->mainMenu);
 
     // Init editor
-    void *mem = arena_push_size(&tess->arena, 1024 * 1024);
+    void *mem = fixed_arena_push_size(&tess->arena, 1024 * 1024, 64);
     tess->editor.coroStack = mem;
     tess->editor.coroStackSize = 1024*1024;
     tess->editor.init = false;
@@ -76,6 +77,7 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess->editor.client = tess;
     tess->editor.inputSystem = &tess->inputSystem;
     tess->editor.world = &tess->gameSystem;
+    tess->editor.tstrings = &tess->strings;
 }
 
 void tess_client_destroy(TessClient *tess)
