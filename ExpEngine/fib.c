@@ -90,6 +90,12 @@ void aike_init(AikePlatform *platform)
 
     tess_gen_lookup_cache_for_package(&root->client.assetSystem, firstInterned);
     tess_gen_lookup_cache_for_package(&root->client.assetSystem, sponzaInterned);
+
+    if (enet_initialize () != 0)
+    {
+        fprintf (stderr, "An error occurred while initializing ENet.\n");
+        assert(0);
+    }
     
     //TStr *obj0I = tess_intern_string(&root->client.strings, "First/object0");
     //tess_register_object(&root->client.gameSystem, 1, obj0I);
@@ -104,6 +110,8 @@ void aike_init(AikePlatform *platform)
 void aike_deinit(AikePlatform *platform)
 {
     TessRoot *root = (TessRoot*)platform->userData;
+
+    enet_deinitialize();
 
     coro_destroy(&root->mainctx);
     deinit_game();
@@ -149,6 +157,7 @@ void aike_update(AikePlatform *platform)
         tess_client_begin_frame(&root->client);
 
         tess_update_editor_server(&root->server.editorServer);
+        game_server_update(&root->server.gameServer);
 
         switch(root->client.mode)
         {
@@ -166,7 +175,11 @@ void aike_update(AikePlatform *platform)
                 update_game(&root->gdata);
                 break;
             case Tess_Client_Mode_Game:
-                play_update(&root->client);
+                if(!root->client.gameClient.init)
+                {
+                    coro_create(&root->client.gameClient.coroCtx, (void(*)(void*))game_client_coroutine, &root->client.gameClient, root->client.gameClient.coroStack, root->client.gameClient.coroStackSize);
+                }
+                coro_transfer(&root->mainctx, &root->client.gameClient.coroCtx);
                 break;
             default:
                 fprintf(stderr, "Invalid mode!\n");

@@ -78,6 +78,14 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess->editor.inputSystem = &tess->inputSystem;
     tess->editor.world = &tess->gameSystem;
     tess->editor.tstrings = &tess->strings;
+
+    // Init game client
+    mem = fixed_arena_push_size(&tess->arena, 1024 * 1024, 64);
+    tess->gameClient.coroStack = mem;
+    tess->gameClient.coroStackSize = 1024*1024;
+    tess->gameClient.init = false;
+    tess->gameClient.client = tess;
+
 }
 
 void tess_client_destroy(TessClient *tess)

@@ -232,7 +232,7 @@ void tess_process_ttr_file(TessAssetSystem *as, TessFile *tfile)
         {
             switch(entry->type) 
             {
-                case 'HSEM': // MESH
+                case 'HSEM': // MESH // TODO: multi byte characters are endianness sensitive
                     {
                         lasset->meshData.as = as;
                         TTRMesh *tmesh = TTR_REF_TO_PTR(TTRMesh, tbl->entries[i].ref);
@@ -246,33 +246,6 @@ void tess_process_ttr_file(TessAssetSystem *as, TessFile *tfile)
                         TTRObject *tobject = TTR_REF_TO_PTR(TTRObject, tbl->entries[i].ref);
                         tess_load_object(as, tobject, lasset, tbl, imTbl);
                         found = true;
-                        /*lasset->status = Tess_Asset_Dependency_Status_Done;
-                        TTRObject *tobject = TTR_REF_TO_PTR(TTRObject, tbl->entries[i].ref);
-                        TTRMaterial *tmat = TTR_REF_TO_PTR(TTRMaterial, tobject->materialRef);
-                        TTRAssetRef aref = tobject->meshARef;
-                        uint32_t meshEntryIdx = (aref.tblIndex & ~TTR_AREF_EXTERN_MASK);
-                        TStr *meshAssetName, *meshPackageName;
-                        if(TTR_IS_EXTERN_AREF(aref))
-                        {
-                            TTRImportTblEntry *imEnt = &imTbl->entries[meshEntryIdx];
-                            meshAssetName = tess_intern_string_s(as->tstrings, imEnt->assetName, TTR_MAX_NAME_LEN);
-                            meshPackageName = tess_intern_string_s(as->tstrings, imEnt->packageName, TTR_MAX_NAME_LEN);
-                        }
-                        else
-                        {
-                            meshAssetName = tess_intern_string_s(as->tstrings, tbl->entries[meshEntryIdx].assetName, TTR_MAX_NAME_LEN);
-                            meshPackageName = packageName;
-                        }
-
-                        TessObjectAsset *tessObj = pool_allocate(as->objectPool);
-                        tessObj->asset.assetId = lasset->assetId;
-                        tessObj->asset.type = Tess_Asset_Object;
-                        lasset->asset = &tessObj->asset;
-
-                        lasset->objectData.meshAssetId = tess_get_asset_id(as, meshPackageName, meshAssetName);
-                        tess_load_asset_if_not_loaded(as, lasset->objectData.meshAssetId);
-                        lasset->type = Tess_Asset_Object;
-                        found = true;*/
                     }break;
                 case ' XET':
                     {

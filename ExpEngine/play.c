@@ -1,3 +1,69 @@
+void play_update(TessClient *client);
+
+void game_client_coroutine(GameClient *gclient)
+{
+    gclient->init = true;
+    gclient->connected = false;
+
+    gclient->eClient = enet_host_create(NULL, 1, 2, 0, 0);
+    if(NULL == gclient->eClient)
+    {
+        fprintf(stderr, "Failed to create eNet client for gameClient!\n");
+        goto game_client_done;
+    }
+
+    ENetAddress address;
+    ENetEvent event;
+    ENetPeer *peer;
+
+    enet_address_set_host(&address, "127.0.0.1");
+    address.port = 7777;
+    peer = enet_host_connect(gclient->eClient, &address, 2, 0);
+    assert(NULL != peer);
+
+    bool connecting = true;
+    while(connecting)
+    {
+        int res = enet_host_service(gclient->eClient, &event, 0);
+        if(res > 0 && event.type == ENET_EVENT_TYPE_CONNECT)
+        {
+            printf("Game client connected to localhost:7777\n");
+            gclient->connected = true;
+            connecting = false;
+        }
+        else if(res > 0)
+        {
+            printf("Connection to localhost:7777 failed... Retrying\n");
+            connecting = false;
+        }
+        coro_transfer(&gclient->coroCtx, gclient->client->mainctx);
+    }
+
+    while(gclient->connected)
+    {
+        while(enet_host_service(gclient->eClient, &event, 0) > 0)
+        {
+            switch(event.type)
+            {
+                case ENET_EVENT_TYPE_DISCONNECT:
+                    gclient->connected = false;
+                    printf("Disconnected!\n");
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if(gclient->connected)
+            play_update(gclient->client);
+        coro_transfer(&gclient->coroCtx, gclient->client->mainctx);
+    }
+
+    enet_host_destroy(gclient->eClient);
+game_client_done:
+    gclient->init = false;
+    coro_transfer(&gclient->coroCtx, gclient->client->mainctx);
+}
 
 
 void play_update(TessClient *client)
@@ -29,5 +95,9 @@ void play_update(TessClient *client)
     quat_euler_deg(&xRot, make_v3(0.0f, camRot.y, camRot.x));
     cam->rotation = xRot;
 
+    if(key(input, AIKE_KEY_ESC))
+    {
+        client->mode = Tess_Client_Mode_Menu;
+    }
 }
 

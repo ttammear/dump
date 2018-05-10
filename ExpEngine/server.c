@@ -41,10 +41,14 @@ void tess_server_init(struct TessServer *server, AikePlatform *platform)
     server->editorServer.tstrings = &server->strings;
     server->editorServer.platform = platform;
     tess_create_editor_server(&server->editorServer, &server->arena);
+
+    game_server_init(&server->gameServer);
 }
 
 void tess_server_destroy(struct TessServer *server)
 {
+    game_server_destroy(&server->gameServer);
+
     tess_destroy_editor_server(&server->editorServer);
 
     // Destroy file system
@@ -152,7 +156,6 @@ uint32_t tess_editor_server_create_entity(struct TessEditorServer *server, uint3
     edEnt->version = 0;
 
     buf_push(server->activeEntities, edEnt);
-    printf("Editor server: created new entity\n");
     return edEnt->id;
 }
 

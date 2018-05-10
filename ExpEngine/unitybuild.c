@@ -41,6 +41,8 @@
 //#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "libs/stb_image_write.h"
 
+#include <enet/enet.h>
+
 
 //#define NK_IMPLEMENTATION
 #define NK_INCLUDE_FONT_BAKING 
@@ -85,6 +87,7 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 #include "play.c"
 
 #include "editor_server_client_shared.c"
+#include "gameserver.c"
 #include "server.c"
 
 #include "asset.c"

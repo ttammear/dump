@@ -422,6 +422,22 @@ typedef struct TessEditor
     TessStrings *tstrings;
 } TessEditor;
 
+// Game client
+//
+
+typedef struct GameClient
+{
+    ENetHost *eClient;
+    bool init;
+    bool connected;
+
+    coro_context coroCtx;
+    void *coroStack;
+    size_t coroStackSize;
+
+    struct TessClient *client;
+} GameClient;
+
 // --------------- STATE --------------
 
 enum TessClientMode
@@ -440,6 +456,8 @@ typedef struct TessClient
     TessRenderSystem renderSystem;
     TessUISystem uiSystem;
     TessInputSystem inputSystem;
+
+    GameClient gameClient;
 
     TessMainMenu mainMenu;
     TessEditor editor;
@@ -493,6 +511,14 @@ typedef struct TessEditorServer
     struct TessEditorServerEntity *entityPool;
 } TessEditorServer;
 
+
+// Game server
+typedef struct GameServer
+{
+    ENetHost *eServer;
+} GameServer;
+
+
 typedef struct TessServer
 {
     TessFileSystem fileSystem;
@@ -500,6 +526,7 @@ typedef struct TessServer
     TessGameSystem gameSystem;
 
     TessEditorServer editorServer;
+    GameServer gameServer;
 
     TessStrings strings;
 

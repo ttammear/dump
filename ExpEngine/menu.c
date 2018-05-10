@@ -45,7 +45,6 @@ void load_map(TessClient *client)
             Mat4 modelToWorld;
             mat4_trs(&modelToWorld, ent.pos, ent.rot, ent.scale);
             tess_create_entity(&client->gameSystem, ent.objectId, &modelToWorld);
-            printf("create entity\n");
         }
     }
 load_done:
