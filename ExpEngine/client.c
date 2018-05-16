@@ -85,7 +85,9 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess->gameClient.coroStackSize = 1024*1024;
     tess->gameClient.init = false;
     tess->gameClient.client = tess;
-
+    tess->gameClient.world = &tess->gameSystem;
+    tess->gameClient.platform = platform;
+    POOL_FROM_ARENA(tess->gameClient.dynEntityPool, &tess->arena, TESS_CLIENT_MAX_DYN_ENTITIES);
 }
 
 void tess_client_destroy(TessClient *tess)

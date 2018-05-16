@@ -170,6 +170,17 @@ static inline bool stream_write_v3(struct ByteStream *stream, struct V3 vec)
     return true;
 }
 
+static inline bool stream_write_quat(struct ByteStream *stream, struct Quat vec)
+{
+    if(stream->cur + 16 > stream->end)
+        return false;
+    uint8_t *vdata = (uint8_t*)&vec;
+    for(int i = 0; i < 16; i++)
+        stream->cur[i] = vdata[i];
+    stream->cur += 16;
+    return true;
+}
+
 static inline bool stream_write_uint32(struct ByteStream *stream, uint32_t value)
 {
     if(stream->cur + 4 > stream->end)
@@ -221,6 +232,19 @@ static inline bool stream_read_v3(struct ByteStream *stream, struct V3 *value)
     for(int i = 0; i < 12; i++)
         valB[i] = stream->cur[i];
     stream->cur += 12;
+    return true;
+}
+
+static inline bool stream_read_quat(struct ByteStream *stream, struct Quat *value)
+{
+    static_assert(sizeof(struct Quat) == 16, "Quat assumed to have size 16!");
+    if(stream->cur + 16 > stream->end)
+        return false;
+    // TODO: is this safe on all platforms?
+    uint8_t *valB = (uint8_t*)value;
+    for(int i = 0; i < 16; i++)
+        valB[i] = stream->cur[i];
+    stream->cur += 16;
     return true;
 }
 

@@ -4,6 +4,7 @@ void editor_destroy(struct TessEditor *editor);
 bool editor_connect(TessEditor *editor, const char *ipStr, uint16_t port);
 void editor_disconnect(TessEditor *editor);
 void editor_connected(TessEditor *editor);
+void editor_exit(TessEditor *editor);
 void editor_client_send_command(TessEditor *editor, uint8_t *data, uint32_t size);
 
 static inline void editor_client_send_stream(TessEditor *editor, ByteStream *stream)
@@ -59,7 +60,7 @@ void editor_coroutine(TessEditor *editor)
     editor_init(editor);
 
     bool success = editor_connect(editor, editor->ipStr, editor->port);
-    assert(success);
+    printf("Editor connected: %d\n", success);
 
     while(editor->connected)
     {
@@ -67,6 +68,7 @@ void editor_coroutine(TessEditor *editor)
         coro_transfer(&editor->coroCtx, editor->client->mainctx);
     }
 
+    editor_exit(editor);
     editor_destroy(editor);
     coro_transfer(&editor->coroCtx, editor->client->mainctx);
 }
@@ -224,6 +226,13 @@ void editor_export_map(TessEditor *editor, const char *path)
     free(mem);
 }
 
+void editor_exit(TessEditor *editor)
+{
+    if(editor->connected)
+        editor_disconnect(editor);
+    editor->client->mode = Tess_Client_Mode_Menu;
+}
+
 void editor_draw_ui(TessEditor *editor)
 {
     PROF_BLOCK();
@@ -243,9 +252,7 @@ void editor_draw_ui(TessEditor *editor)
         }
         if(nk_button_label(ctx, "Exit"))
         {
-            if(editor->connected)
-                editor_disconnect(editor);
-            editor->client->mode = Tess_Client_Mode_Menu;
+            editor_exit(editor);
         }
         nk_property_int(ctx, "Mode", 0, (int*)&editor->client->mode, INT_MAX, 1, 1);
         nk_value_int(ctx, "Hover object:", editor->cursorObjectId);
@@ -637,8 +644,6 @@ void editor_client_process_command(TessEditor *editor, uint16_t cmd, uint8_t *da
                     khiter_t k = kh_put(uint32, editor->serverEntityMap, serverId, &dummy);
                     assert(dummy > 0); // key should not be already present in table
                     kh_val(editor->serverEntityMap, k) = edEnt->id;
-
-                    printf("create %d\n", objectId);
 
                     edEnt->position = pos;
                     edEnt->eulerRotation = rot;

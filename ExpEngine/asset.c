@@ -447,7 +447,6 @@ internal void tess_check_dependencies(TessAssetSystem *as, TessLoadingAsset *las
     {
         uint32_t status;
         status = tess_get_asset_status(as, dep->assetId);
-        printf("dep %s\n", dep->assetId->cstr);
         switch(status)
         {
             case Tess_Asset_Status_Loaded:

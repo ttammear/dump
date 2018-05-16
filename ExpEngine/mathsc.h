@@ -263,6 +263,11 @@ static inline bool v3_hasnan(V3 v)
     return isnan(v.x) || isnan(v.y) || isnan(v.z);
 }
 
+static inline V3 v3_lerp(V3 a, V3 b, float t)
+{
+    return (V3){a.x + t*(b.x-a.x), a.y + t*(b.y-a.y), a.z + t*(b.z-a.z)};
+}
+
 static inline void quat_identity(struct Quat *q)
 {
     q->w = 1.0f;

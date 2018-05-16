@@ -157,7 +157,7 @@ void aike_update(AikePlatform *platform)
         tess_client_begin_frame(&root->client);
 
         tess_update_editor_server(&root->server.editorServer);
-        game_server_update(&root->server.gameServer);
+        game_server_update(&root->server.gameServer, platform->dt);
 
         switch(root->client.mode)
         {

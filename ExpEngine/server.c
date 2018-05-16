@@ -14,7 +14,10 @@ void tess_server_init(struct TessServer *server, AikePlatform *platform)
     memset(server, 0, sizeof(struct TessServer));
     server->platform = platform;
 
-    fixed_arena_init(platform, &server->arena, 2 * 1024 * 1024); 
+    fixed_arena_init(platform, &server->arena, 3 * 1024 * 1024); 
+    // init tempstack
+    void *stackMem = arena_push_size(&server->arena, 1024*1024, 1);
+    stack_init(&server->tempStack, stackMem, 1024*1024);
 
     // Init strings
     //
@@ -42,6 +45,11 @@ void tess_server_init(struct TessServer *server, AikePlatform *platform)
     server->editorServer.platform = platform;
     tess_create_editor_server(&server->editorServer, &server->arena);
 
+    // Init game server
+    //
+    POOL_FROM_ARENA(server->gameServer.peerPool, &server->arena, TESS_SERVER_MAX_PEERS);
+    POOL_FROM_ARENA(server->gameServer.dynEntityPool, &server->arena, TESS_SERVER_MAX_DYN_ENTITIES);
+    server->gameServer.tempStack = &server->tempStack;
     game_server_init(&server->gameServer);
 }
 
@@ -58,6 +66,8 @@ void tess_server_destroy(struct TessServer *server)
 
     // Destroy strings
     tess_strings_destroy(&server->strings);
+
+    assert(server->tempStack.start == server->tempStack.cur); // something was not freed on temp stack
 }
 
 void tess_create_editor_server(struct TessEditorServer *eserver, struct TessFixedArena *arena)
@@ -77,8 +87,8 @@ void tess_create_editor_server(struct TessEditorServer *eserver, struct TessFixe
     POOL_FROM_ARENA(eserver->entityPool, arena, TESS_MAX_ENTITIES);
     memset(&eserver->objectTable, 0, sizeof(eserver->objectTable));
 
-//    TStr *intr = tess_intern_string(eserver->tstrings, "First/object0");
-//   eserver->objectTable[1] = intr;
+    //    TStr *intr = tess_intern_string(eserver->tstrings, "First/object0");
+    //   eserver->objectTable[1] = intr;
 
     void *buf = malloc(1024*1024);
     FILE *file = fopen("Packages/Sponza/map.ttm", "rb");

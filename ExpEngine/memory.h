@@ -25,6 +25,13 @@ typedef struct TessArena
     size_t allocated;
 } TessArena;
 
+typedef struct TessStack
+{
+    uint8_t *start;
+    uint8_t *cur;
+    size_t size;
+} TessStack;
+
 // allocates memory from platform
 void fixed_arena_init(AikePlatform *platform, TessFixedArena *arena, size_t size);
 // init with memory from another arena
@@ -47,3 +54,27 @@ void* d_arena_push_size(TessArena *arena, size_t size, uint32_t alignment);
 #define arena_push_size(arena, size, alignment) _Generic((arena), TessFixedArena*: fixed_arena_push_size, TessArena*: d_arena_push_size)((arena), (size), alignment)
 #define arena_push_struct(arena, type) arena_push_size(arena, sizeof(type), _Alignof(type))
 
+
+static inline void stack_init(TessStack *stack, void *mem, size_t size)
+{
+    stack->start = (uint8_t*)mem;
+    stack->cur = stack->start;
+    stack->size = size;
+}
+
+static inline void* stack_push(TessStack *stack, size_t size, uint32_t alignment)
+{
+    uint8_t *aligned = ALIGN_UP_PTR(stack->cur, alignment);
+    uint8_t **ptr = (uint8_t**)(stack->cur + (aligned - stack->cur) + size);
+    *ptr = stack->cur;
+    stack->cur = ((uint8_t*)ptr) + sizeof(uint8_t**);
+    assert(stack->cur >= stack->start && stack->cur < stack->start + stack->size);
+    return aligned;
+}
+
+static inline void stack_pop(TessStack *stack)
+{
+    uint8_t **popPtr = (uint8_t**)(stack->cur - sizeof(uint8_t**));
+    stack->cur = *popPtr;
+    assert(stack->cur >= stack->start && stack->cur < stack->start + stack->size);
+}

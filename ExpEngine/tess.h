@@ -12,6 +12,11 @@
 #define TESS_MAX_OBJECTS 500
 #define TESS_MAX_ENTITIES 1000
 
+#define TESS_SERVER_MAX_PEERS 64
+#define TESS_SERVER_MAX_DYN_ENTITIES 128
+
+#define TESS_CLIENT_MAX_DYN_ENTITIES 128
+
 #define internal static
 #define global static
 
@@ -425,17 +430,47 @@ typedef struct TessEditor
 // Game client
 //
 
+#define NTRANS_BUF_SIZE 4
+
+typedef struct NetworkedTransform
+{
+    V3 positions[NTRANS_BUF_SIZE];
+    Quat rotations[NTRANS_BUF_SIZE];
+    uint16_t seqs[NTRANS_BUF_SIZE];
+    double progress;
+    uint16_t fromSeq;
+} NetworkedTransform;
+
+typedef struct GameClientDynEntity
+{
+    uint32_t id;
+    uint32_t entityId;
+    uint32_t serverId;
+    NetworkedTransform ntransform;
+} GameClientDynEntity;
+
 typedef struct GameClient
 {
     ENetHost *eClient;
+    ENetPeer *eServerPeer;
     bool init;
     bool connected;
+
+    char ipStr[256];
+    uint16_t port;
 
     coro_context coroCtx;
     void *coroStack;
     size_t coroStackSize;
 
+    GameClientDynEntity **dynEntities;
+    GameClientDynEntity *dynEntityPool;
+
+    khash_t(uint32) *serverDynEntityMap; // serverId -> dynEntityId
+
     struct TessClient *client;
+    struct TessGameSystem *world;
+    struct AikePlatform *platform;
 } GameClient;
 
 // --------------- STATE --------------
@@ -511,11 +546,42 @@ typedef struct TessEditorServer
     struct TessEditorServerEntity *entityPool;
 } TessEditorServer;
 
+enum GameServerCommand
+{
+    Game_Server_Command_Nop,
+    Game_Server_Command_Create_DynEntities,
+    Game_Server_Command_Destroy_DynEntities,
+    Game_Server_Command_Update_DynEntities,
+};
+
+typedef struct ServerPeer
+{
+    ENetPeer *ePeer;
+    uint32_t seq;
+} ServerPeer;
+
+typedef struct GameServerDynEntity
+{
+    uint32_t id;
+    uint32_t objectId;
+    uint32_t updateSeq;
+    V3 position;
+    Quat rotation;
+} GameServerDynEntity;
 
 // Game server
 typedef struct GameServer
 {
     ENetHost *eServer;
+
+    ServerPeer **connectedPeers;
+    ServerPeer *peerPool;
+
+    GameServerDynEntity **dynEntities;
+    GameServerDynEntity *dynEntityPool;
+
+    double updateProgress;
+    TessStack *tempStack;
 } GameServer;
 
 
@@ -531,6 +597,7 @@ typedef struct TessServer
     TessStrings strings;
 
     TessFixedArena arena;
+    TessStack tempStack;
 
     AikePlatform *platform;
 } TessServer;
@@ -545,6 +612,7 @@ TStr *tess_get_asset_name_from_id(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_package_from_id(struct TessAssetSystem *as, TStr *assetId);
 
 void tess_world_init(TessGameSystem *gs);
+TessEntity* tess_get_entity(TessGameSystem *gs, uint32_t id);
 void tess_register_object(TessGameSystem *gs, uint32_t id, TStr *assetId);
 uint32_t tess_create_entity(TessGameSystem *gs, uint32_t id, Mat4 *modelMatrix);
 void tess_reset_world(TessGameSystem *gs);

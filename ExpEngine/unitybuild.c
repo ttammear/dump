@@ -83,10 +83,13 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 #include "tess.c"
 #include "client.c"
 
+#include "ntransform.c"
+
 #include "menu.c"
-#include "play.c"
 
 #include "editor_server_client_shared.c"
+#include "play.c"
+
 #include "gameserver.c"
 #include "server.c"
 
