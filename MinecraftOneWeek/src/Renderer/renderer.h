@@ -12,7 +12,7 @@ class Renderer
 public:
     Renderer(float width, float height);
     ~Renderer();
-    void presentFrame(sf::Window *window);
+    void presentFrame(struct SDL_Renderer* sdlRenderer);
     void clearScreen(Vec4 color);
     void checkTexture(class Texture *texture);
     void checkTextureArray(TextureArray *texarr);

@@ -10,9 +10,7 @@ class Chunk
 public:
     enum Flags
     {
-        Dirty           = 1 << 0,
-        HasMesh         = 1 << 1,
-        HasWaterMesh    = 1 << 2
+        Dirty           = 1 << 0
     };
 
     Chunk(class BlockStore *blockStore, class World *world, IVec3 offset, int size);

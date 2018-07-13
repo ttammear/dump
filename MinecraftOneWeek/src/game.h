@@ -3,7 +3,7 @@
 #include "Player/player.h"
 #include "GameWorld/blockstore.h"
 
-#include <SFML/Window.hpp>
+#include <SDL2/SDL.h>
 
 class Game
 {
@@ -20,8 +20,9 @@ public:
     void simulate(class Renderer* renderer, float dt);
     void updateAndRender(class Renderer *renderer, float dt);
     void mouseClick(int button);
-    void keyPress(sf::Keyboard::Key key);
+    void keyPress(SDL_Keycode key);
     void setMode(uint32_t mode);
+    void mouseMotion(float x, float y);
     void mouseScroll(int delta);
 
     bool initialized = false;
@@ -31,14 +32,13 @@ public:
     Player player;
     Camera freeCam;
 
-    Vec2 mousePosLast;
     Vec2 mouseDelta;
     Vec2 camRot;
 
     BlockStore blockStore;
 
     // TODO: TEMPORARY
-    sf::Window* window;
+    SDL_Window* window;
     class Gui *gui = nullptr;
     class World* world;
     class TextureArray *atlas; // texture atlas

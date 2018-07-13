@@ -2,6 +2,7 @@
 #include <cstring>
 #include <cstdio>
 #include <algorithm>
+#include <string>
 #include "texture.h"
 
 Shader::Shader()

@@ -58,8 +58,6 @@ void Game::simulate(Renderer *renderer, float dt)
 
         player.transform.position = Vec3(0.0f, 10.0f, 0.0f);
 
-        sf::Vector2i globalPosition = sf::Mouse::getPosition();
-        mousePosLast = Vec2((float)globalPosition.x, (float)globalPosition.y);
         camRot = Vec2(0.0f, 0.0f);
 
         // texture
@@ -70,6 +68,11 @@ void Game::simulate(Renderer *renderer, float dt)
         unsigned char *data;
 
         data = stbi_load("Resources/mcatlas.png", &width, &height, &comps, 0);
+        if(!data)
+        {
+            printf("Failed to load Resources/mcatlas.png\n");
+            assert(0);
+        }
         uint8_t texData[16*16*4];
         memset(texData, 0xFF, 16*16*4);
         atlas->copyLayer(texData, 16, 16, 4, 0); // first layer white
@@ -104,41 +107,30 @@ void Game::simulate(Renderer *renderer, float dt)
         this->gui = new Gui(renderer, &this->player, &blockStore);
     }
 
-    // get the global mouse position (relative to the desktop)
-    sf::Vector2i globalPosition = sf::Mouse::getPosition();
-    this->mouseDelta = Vec2(globalPosition.x - mousePosLast.x, globalPosition.y - mousePosLast.y);
+    const Uint8 *kbState = SDL_GetKeyboardState(NULL);
     
-    if (!sf::Keyboard::isKeyPressed(sf::Keyboard::LControl))
-    {
-        sf::Mouse::setPosition(sf::Vector2i(renderer->width / 2.0f, renderer->height / 2.0f), *window);
-        globalPosition = sf::Mouse::getPosition();
-    }
-    mousePosLast = Vec2((float)globalPosition.x, (float)globalPosition.y);
-
     // TODO: move somewhere else
     if(mode == Mode::Mode_FreeView)
     {
         // TODO: input system
         const float moveSpeed = 30.0f;
         const float rotSpeed = 0.4f;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
+        if (kbState[SDL_SCANCODE_W])
         {
             this->freeCam.transform.position += dt*moveSpeed*freeCam.transform.forward();
         }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
+        if (kbState[SDL_SCANCODE_S])
         {
             this->freeCam.transform.position -= dt*moveSpeed*freeCam.transform.forward();
         }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+        if (kbState[SDL_SCANCODE_A])
         {
             this->freeCam.transform.position -= dt*moveSpeed*freeCam.transform.right();
         }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
+        if (kbState[SDL_SCANCODE_D])
         {
             this->freeCam.transform.position += dt*moveSpeed*freeCam.transform.right();
         }
-
-        camRot += this->mouseDelta;
 
         Quaternion rotX = Quaternion::AngleAxis(rotSpeed * camRot.x, Vec3(0.0f, 1.0f, 0.0f));
         Quaternion rotY = Quaternion::AngleAxis(rotSpeed * camRot.y, Vec3(1.0f, 0.0f, 0.0f));
@@ -152,13 +144,19 @@ void Game::simulate(Renderer *renderer, float dt)
     world->update();
 }
 
-void Game::keyPress(sf::Keyboard::Key key)
+void Game::mouseMotion(float x, float y)
 {
-    if(key == sf::Keyboard::F1)
+    camRot += Vec2(x, y);
+    this->mouseDelta = Vec2(x, y);
+}
+
+void Game::keyPress(SDL_Keycode key)
+{
+    if(key == SDLK_F1)
         setMode(Mode::Mode_Player);
-    else if(key == sf::Keyboard::F2)
+    else if(key == SDLK_F2)
         setMode(Mode::Mode_FreeView);
-    else if(key == sf::Keyboard::E)
+    else if(key == SDLK_e)
     {
         for(int i = 0; i < ARRAY_COUNT(player.inventory.mainSlots); i++)
         {
@@ -169,11 +167,11 @@ void Game::keyPress(sf::Keyboard::Key key)
             }
         }
     }
-    else if(key == sf::Keyboard::Add)
+    else if(key == SDLK_PLUS)
     {
         player.inventory.nextSlot();
     }
-    else if(key == sf::Keyboard::Subtract)
+    else if(key == SDLK_MINUS)
     {
         player.inventory.prevSlot();
     }

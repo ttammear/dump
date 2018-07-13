@@ -5,6 +5,8 @@
 #include "../Renderer/renderer.h"
 #include "../camera.h"
 
+#include <stdio.h>
+
 ChunkManager::ChunkManager(Renderer *renderer, Camera *camera, BlockStore *bs, World *world)
 {
     this->renderer = renderer;
@@ -23,6 +25,8 @@ ChunkManager::~ChunkManager()
     loadedChunks.clear();
 }
 
+#include <SDL2/SDL.h>
+
 bool ChunkManager::loadChunk(IVec3 chunkId)
 {
     auto fchunk = loadedChunks.find(chunkId);
@@ -30,9 +34,16 @@ bool ChunkManager::loadChunk(IVec3 chunkId)
     {
         Chunk *chunk;
         chunk = new Chunk(blockStore, world, chunkId, 16);
+        //unsigned int start = SDL_GetTicks();
+        //static unsigned int sum;
+        //static unsigned int count;
         chunk->regenerateMesh();
+        //unsigned int dif = SDL_GetTicks()-start;
+        //sum+=dif;
+        //count++;
+        //printf("regenerate %dms (avg %d)\n", dif, sum/count);
         loadedChunks.insert({chunkId, chunk});
-        printf("Load chunk %d %d %d\n", chunkId.x, chunkId.y, chunkId.z);
+        //printf("Load chunk %d %d %d\n", chunkId.x, chunkId.y, chunkId.z);
         return true;
     }
     return false;
@@ -44,7 +55,7 @@ void ChunkManager::unloadChunk(IVec3 chunkId)
     if(fchunk != loadedChunks.end())
     {
         delete fchunk->second;
-        printf("Unload chunk %d %d %d\n", chunkId.x, chunkId.y, chunkId.z);
+        //printf("Unload chunk %d %d %d\n", chunkId.x, chunkId.y, chunkId.z);
         loadedChunks.erase(fchunk);
     }
 }
@@ -124,7 +135,7 @@ void ChunkManager::update()
         if(FLAGSET(chunk->flags, Chunk::Flags::Dirty))
         {
             chunk->regenerateMesh();
-            printf("Reload chunk %d %d %d\n",chunkId.x, chunkId.y, chunkId.z); 
+            //printf("Reload chunk %d %d %d\n",chunkId.x, chunkId.y, chunkId.z); 
         }
     }
 

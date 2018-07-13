@@ -1,8 +1,3 @@
-
-namespace sf {
-    class Window;
-};
-
 class Application
 {
 public:
@@ -14,9 +9,12 @@ public:
     void exit();
     bool isRunning();
 
-    sf::Window* window;
+    struct SDL_Renderer* displayRenderer;
+    struct SDL_Window* displayWindow;
 private:
     bool initialized;
+    bool running;
+    unsigned int startTime;
     class Renderer *mainRenderer;
     class Game *game;
 };

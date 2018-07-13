@@ -11,7 +11,7 @@
 #include "../../macros.h"
 
 const char* vertex_shader_str = 
-R"foo(#version 130
+R"foo(#version 300 es
 in vec4 position; 
 in vec3 uv;
 in vec3 normal;
@@ -38,7 +38,11 @@ void main() {
 })foo";
 
 const char* frag_shader_str = 
-R"foo(#version 130
+R"foo(#version 300 es
+
+precision highp float;
+precision highp sampler2DArray;
+
 out vec4 outColor;
 
 in vec3 fragUv;
@@ -73,7 +77,7 @@ void main() {
 })foo";
 
 const char* solid_vertex_shader_str = 
-R"foo(#version 130
+R"foo(#version 300 es
 in vec4 position; 
 in vec4 color;
 in vec3 uv;
@@ -94,7 +98,11 @@ void main() {
 })foo";
 
 const char* solid_frag_shader_str = 
-R"foo(#version 130
+R"foo(#version 300 es
+
+precision highp float;
+precision highp sampler2DArray;
+
 out vec4 outColor;
 
 in vec4 fragPos;
@@ -140,7 +148,7 @@ Renderer::Renderer(float width, float height)
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     //glAlphaFunc(GL_GREATER, 0.1f);
-    glEnable(GL_ALPHA_TEST);
+    //glEnable(GL_ALPHA_TEST);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_BLEND);
     glFrontFace(GL_CCW);
@@ -300,47 +308,51 @@ void Renderer::meshLoadData(Mesh *mesh)
         vbufsize += mesh->numVertices*sizeof(Vec4);
     }
 
-    // TODO: replace assert with logging an error?
-    assert(FLAGSET(mesh->flags, Mesh::Flags::HasVertices));
-    assert(FLAGSET(mesh->flags, Mesh::Flags::HasIndices));
-   
-    glBindVertexArray((GLuint)mesh->rendererHandle);
-    glBindBuffer(GL_ARRAY_BUFFER, (GLuint)mesh->rendererHandle2);
-    glBufferData(GL_ARRAY_BUFFER, vbufsize, 0, GL_STATIC_DRAW);
-
-    // copy vertices
-    glBufferSubData(GL_ARRAY_BUFFER, offset, mesh->numVertices*sizeof(Vec3), (GLvoid*)mesh->vertices);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)offset);
-    offset += mesh->numVertices*sizeof(Vec3);
-
-    // copy texture coordinates 
-    if(FLAGSET(mesh->flags, Mesh::Flags::HasTexCoords))
+    if(vbufsize != 0)
     {
-        glBufferSubData(GL_ARRAY_BUFFER, offset, mesh->numVertices*sizeof(Vec3), (GLvoid*)mesh->texCoords);
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)offset);
+        // TODO: replace assert with logging an error?
+        assert(FLAGSET(mesh->flags, Mesh::Flags::HasVertices));
+        assert(FLAGSET(mesh->flags, Mesh::Flags::HasIndices));
+       
+        glBindVertexArray((GLuint)mesh->rendererHandle);
+        glBindBuffer(GL_ARRAY_BUFFER, (GLuint)mesh->rendererHandle2);
+        glBufferData(GL_ARRAY_BUFFER, vbufsize, 0, GL_STATIC_DRAW);
+
+        // copy vertices
+        glBufferSubData(GL_ARRAY_BUFFER, offset, mesh->numVertices*sizeof(Vec3), (GLvoid*)mesh->vertices);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)offset);
         offset += mesh->numVertices*sizeof(Vec3);
-    }
 
-    if(FLAGSET(mesh->flags, Mesh::Flags::HasNormals))
-    {
-        glBufferSubData(GL_ARRAY_BUFFER, offset, mesh->numVertices*sizeof(Vec3), (GLvoid*)mesh->normals);
-        glEnableVertexAttribArray(2);
-        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)offset);
-        offset += mesh->numVertices*sizeof(Vec3);
-    }
+        // copy texture coordinates 
+        if(FLAGSET(mesh->flags, Mesh::Flags::HasTexCoords))
+        {
+            glBufferSubData(GL_ARRAY_BUFFER, offset, mesh->numVertices*sizeof(Vec3), (GLvoid*)mesh->texCoords);
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)offset);
+            offset += mesh->numVertices*sizeof(Vec3);
+        }
 
-    if(FLAGSET(mesh->flags, Mesh::Flags::HasColors))
-    {
-        glBufferSubData(GL_ARRAY_BUFFER, offset, mesh->numVertices*sizeof(Vec4), (GLvoid*)mesh->colors);
-        glEnableVertexAttribArray(3);
-        glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, (GLvoid*)offset);
-        offset += mesh->numVertices * sizeof(Vec4);
+        if(FLAGSET(mesh->flags, Mesh::Flags::HasNormals))
+        {
+            glBufferSubData(GL_ARRAY_BUFFER, offset, mesh->numVertices*sizeof(Vec3), (GLvoid*)mesh->normals);
+            glEnableVertexAttribArray(2);
+            glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (GLvoid*)offset);
+            offset += mesh->numVertices*sizeof(Vec3);
+        }
+
+        if(FLAGSET(mesh->flags, Mesh::Flags::HasColors))
+        {
+            glBufferSubData(GL_ARRAY_BUFFER, offset, mesh->numVertices*sizeof(Vec4), (GLvoid*)mesh->colors);
+            glEnableVertexAttribArray(3);
+            glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, (GLvoid*)offset);
+            offset += mesh->numVertices * sizeof(Vec4);
+        }
     }
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, (GLuint)mesh->rendererHandle3);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh->numIndices*sizeof(mesh->indices[0]), mesh->indices, GL_STATIC_DRAW);
+
     mesh->flags |= Mesh::Flags::Uploaded;
     mesh->flags &= ~Mesh::Flags::Dirty;
 }
@@ -440,7 +452,8 @@ void Renderer::renderMesh(Mesh *mesh, Material *material, Mat4 *model_to_world, 
 
 
     glBindVertexArray((GLuint)mesh->rendererHandle);
-    glDrawElements(GL_TRIANGLES, mesh->numIndices, GL_UNSIGNED_SHORT, 0);
+    if(mesh->numIndices > 0)
+        glDrawElements(GL_TRIANGLES, mesh->numIndices, GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
     glUseProgram(0);
 }
