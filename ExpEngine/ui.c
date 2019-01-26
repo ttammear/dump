@@ -100,8 +100,9 @@ void tess_ui_end(struct TessUISystem *ui)
     builder_new_vertex_stream(ui->renderSystem->viewBuilder);
 
     uint32_t maxVerts = 20000;
-    uint32_t maxIndices = 12000;
+    uint32_t maxIndices = 40000;
 
+    // TODO: don't allocate so much on stack!
     struct UIVertex vertBuf[maxVerts];
     uint16_t indexBuf[maxIndices];
 
@@ -138,7 +139,7 @@ void tess_ui_end(struct TessUISystem *ui)
             nk_convert(ctx, &ui->nk_cmds, &vbuf, &ebuf, &config);
 
             uint32_t vertCount = vbuf.allocated / sizeof(struct UIVertex);
-            assert(vertCount < maxVerts);
+            assert(vertCount < maxVerts); // vertex pool full!
             add_vertices(ui->renderSystem->viewBuilder, vertBuf, vertCount);
         }
 
@@ -163,6 +164,8 @@ void tess_ui_end(struct TessUISystem *ui)
             builder_end_batch(ui->renderSystem->viewBuilder);
             curIdxBase += cmd->elem_count;
         }
+        if(curIdxBase + 10 >= maxIndices)
+            printf("UI index pool exceeded!\n");
     }
 
     nk_clear(ctx);
@@ -191,9 +194,9 @@ void profile_entry_recursive(struct nk_context *ctx, struct ProfileEntry *entry,
     }
 }
 
-void render_profiler(struct nk_context *ctx)
+void render_profiler(struct nk_context *ctx, bool *wasClosed)
 {
-    if(nk_begin(ctx, "Profile", nk_rect(400, 350, 300, 400),
+    if(nk_begin(ctx, "Profiler", nk_rect(400, 350, 300, 400),
                 NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE|NK_WINDOW_SCALABLE))
     {
         for(int j = 0; j < ARRAY_COUNT(g_profStates); j++)
@@ -221,7 +224,238 @@ void render_profiler(struct nk_context *ctx)
                 }
             }
         }
+        *wasClosed = false;
+    }
+    else 
+    { 
+        *wasClosed = true;
+        nk_window_show(ctx, "Profiler", NK_SHOWN);
     }
     nk_end(ctx);
 }
+
+void asset_picker_init(AssetPickerState *assetPicker)
+{
+    assetPicker->state = 0;
+    assetPicker->packageName = NULL;
+    assetPicker->assetName = NULL;
+    assetPicker->result = NULL;
+    assetPicker->show = false;
+}
+
+bool render_asset_picker(struct nk_context *ctx, TessAssetSystem *as, uint32_t assetType, AssetPickerState *state)
+{
+    bool ret = false;
+    if(!state->show)
+        return ret;
+    nk_popup_begin(ctx, NK_POPUP_DYNAMIC, "Asset picker", NK_WINDOW_BORDER|NK_WINDOW_TITLE, nk_rect(10, 10, 400, 600));
+    {
+        struct nk_list_view view;
+
+        nk_menubar_begin(ctx);
+        nk_layout_row_dynamic(ctx, 25, 4);
+        if(nk_button_label(ctx, "Packages"))
+            state->state = 0;
+        if(state->state >= 1)
+            nk_button_label(ctx, state->packageName->cstr);
+        if(state->assetName != NULL)
+            nk_button_label(ctx, state->assetName->cstr);
+        nk_menubar_end(ctx);
+
+        nk_layout_row_dynamic(ctx, 400, 1);
+        if(state->state == 0)
+        {
+            if(nk_group_begin(ctx, "ppickerlist", NK_WINDOW_BORDER))
+            {
+                int count = buf_len(as->packageList);
+                for (int i = 0; i < count; i++) 
+                {
+                    nk_layout_row_dynamic(ctx, 25, 1);
+                    if(nk_button_label(ctx, as->packageList[i]->cstr))
+                    {
+                        state->state = 1;
+                        state->packageName = as->packageList[i];
+                    }
+                }
+                nk_group_end(ctx);
+            }
+        }
+        else
+        {
+            if(nk_group_begin(ctx, "apickerlist", NK_WINDOW_BORDER))
+            {
+                khiter_t key = kh_get(str, as->packageAssetMap, state->packageName->cstr);
+                if(key != kh_end(as->packageAssetMap))
+                {
+                    AssetLookupCache *cache = kh_val(as->packageAssetMap, key);
+                    int count = buf_len(cache->entries); 
+                    for(int i = 0; i < count; i++)
+                    {
+                        if(cache->entries[i]->assetType != assetType)
+                            continue;
+                        nk_layout_row_dynamic(ctx, 20, 1);
+                        TStr *assetName = cache->entries[i]->assetName;
+                        if(nk_button_label(ctx, assetName->cstr))
+                        {
+                            state->assetName = assetName;
+                            char buf[128];
+                            strcpy(buf, state->packageName->cstr);
+                            int clen = strlen(buf);
+                            buf[clen] = TTR_DELIM;
+                            buf[clen+1] = '\0';
+                            assert(strlen(buf) + strlen(state->assetName->cstr) < ARRAY_COUNT(buf));
+                            strcat(buf, state->assetName->cstr);
+                            state->result = tess_intern_string_s(as->tstrings, buf, ARRAY_COUNT(buf));
+                            ret = true;
+                        }
+                    }
+                }
+                nk_group_end(ctx);
+            }
+        }
+    }
+    if(ret) 
+        nk_popup_close(ctx);
+    nk_popup_end(ctx);
+
+    return ret;
+}
+
+void init_create_asset_state(struct CreateAssetState *cas)
+{
+    cas->showAddWindow = false;
+    cas->createType = 0;
+    cas->assetNameBuf[0] = 0;
+    cas->objectAssetNameBuf[0] = 0;
+    asset_picker_init(&cas->pickerState);
+}
+
+void render_asset_window(struct nk_context *ctx, TessAssetSystem *as, bool *wasClosed, CreateAssetState *cas)
+{
+    if(cas->showAddWindow)
+    {
+        if(nk_begin(ctx, "Add asset", nk_rect(10, 10, 600, 400),
+                    NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE|NK_WINDOW_SCALABLE))
+        {
+            nk_layout_row_dynamic(ctx, 30, 3);
+            if(nk_option_label(ctx, "texture", cas->createType == 0)) cas->createType = 0;
+            if(nk_option_label(ctx, "mesh", cas->createType == 1)) cas->createType = 1;
+            if(nk_option_label(ctx, "object", cas->createType == 2)) cas->createType = 2;
+
+            nk_layout_row_dynamic(ctx, 10, 1);
+            //nk_spacing(ctx, 1);
+
+            switch(cas->createType)
+            {
+                case 0: // texture
+                    break;
+                case 1: // mesh
+                    break;
+                case 2: // object
+                    nk_layout_row_begin(ctx, NK_STATIC, 30, 2);
+                    nk_layout_row_push(ctx, 120);
+                    nk_label(ctx, "Name:", NK_TEXT_LEFT);
+                    nk_layout_row_push(ctx, 200);
+                    static_assert(TTR_MAX_NAME_LEN <= ARRAY_COUNT(cas->assetNameBuf), "..");
+                    nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD, cas->assetNameBuf, TTR_MAX_NAME_LEN, 0);
+                    nk_layout_row_end(ctx);
+
+                    nk_layout_row_begin(ctx, NK_STATIC, 30, 3);
+                    nk_layout_row_push(ctx, 120);
+                    nk_label(ctx, "Mesh asset:", NK_TEXT_LEFT);
+                    nk_layout_row_push(ctx, 200);
+                    nk_label(ctx, cas->objectAssetNameBuf, NK_TEXT_LEFT);
+                    nk_layout_row_push(ctx, 80);
+                    if(nk_button_label(ctx, "Pick"))
+                    {
+                        asset_picker_init(&cas->pickerState);
+                        cas->pickerState.show = true;
+                    }
+                    if(render_asset_picker(ctx, as, TTR_4CHAR("MESH"), &cas->pickerState))
+                    {
+                        strcpy(cas->objectAssetNameBuf, cas->pickerState.result->cstr);
+                        cas->pickerState.show = false;
+                    }
+                    nk_layout_row_end(ctx);
+
+                    nk_layout_row_begin(ctx, NK_STATIC, 30, 2);
+                    nk_layout_row_push(ctx, 120);
+                    nk_label(ctx, "Material:", NK_TEXT_LEFT);
+                    nk_layout_row_push(ctx, 200);
+                    static int current_material;
+                    static const char *materials[] = {"None","Unlit color","Unlit Vertex color","Unlit textured","Unlit fade","Gizmo"};
+                    current_material = nk_combo(ctx, materials, ARRAY_COUNT(materials), current_material, 25, nk_vec2(nk_widget_width(ctx),200));
+                    nk_layout_row_end(ctx);
+                    break;
+            };
+
+            nk_layout_row_dynamic(ctx, 30, 1);
+
+            nk_spacing(ctx, 1);
+
+            if(nk_button_label(ctx, "Create"))
+            {
+                cas->showAddWindow = false;
+            }
+        }
+        else
+        {
+            cas->showAddWindow = false;
+            nk_window_show(ctx, "Add asset", NK_SHOWN);
+        }
+        nk_end(ctx);
+    }
+
+    if(nk_begin(ctx, "Create asset", nk_rect(10, 10, 800, 600),
+                NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE|NK_WINDOW_SCALABLE))
+    {
+        struct nk_list_view view;
+        nk_layout_row_static(ctx, 30, 200, 1);
+        if(nk_button_label(ctx, "Add asset"))
+        {
+            init_create_asset_state(cas);
+            cas->showAddWindow = true;
+        }
+        if(nk_button_label(ctx, "Import asset"))
+        {
+            // TODO: gui to import asset from existing package
+        }
+        nk_layout_row_dynamic(ctx, 400, 1);
+        if(nk_group_begin(ctx, "cassets", NK_WINDOW_BORDER))
+        {
+            for (int i = 0; i < 100; i++) 
+            {
+                char buf[512];
+                stbsp_sprintf(buf, "testings %d", i);
+                nk_layout_row_dynamic(ctx, 20, 3);
+                nk_label(ctx, buf, NK_TEXT_LEFT);
+                nk_label(ctx, "image", NK_TEXT_LEFT);
+                nk_label(ctx, "reference", NK_TEXT_LEFT);
+            }
+            nk_group_end(ctx);
+        }
+
+        *wasClosed = false;
+    }
+    else
+    {
+        *wasClosed = true;
+        nk_window_show(ctx, "Create asset", NK_SHOWN);
+    }
+    nk_end(ctx);
+}
+
+void render_command_box(struct TessUISystem *ui, struct nk_context *ctx, char *buf, uint32_t bufSize)
+{
+    if(nk_begin(ctx, "CommandBox", nk_rect(0, 0, ui->width, 40), NK_WINDOW_NO_SCROLLBAR))
+    {
+        nk_layout_row_dynamic(ctx, 30, 1);
+        nk_edit_focus(ctx, NK_EDIT_FIELD|NK_EDIT_GOTO_END_ON_ACTIVATE);
+        nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD, buf, bufSize, 0);
+    }
+    nk_end(ctx);
+    nk_window_set_focus(ctx, "CommandBox");
+}
+
+
 

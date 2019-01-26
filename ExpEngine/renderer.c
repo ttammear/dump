@@ -76,3 +76,15 @@ void stop_renderer(struct Renderer *renderer)
             break;
     }
 }
+
+
+//#define renderer_queue_message(r, m) ring_queue_enqueue(RenderMessage, &r->ch.toRenderer, m)
+
+
+void renderer_async_message(struct Renderer *r, AsyncTask *task, RenderMessage *msg) {
+    msg->usrData = task;
+    // for now, async stuff can only be done in tasks!
+    assert(g_scheduler->state == SCHEDULER_STATE_TASK);
+    task->ctx = g_scheduler->curTaskCtx;
+    renderer_queue_message(r, msg); 
+}

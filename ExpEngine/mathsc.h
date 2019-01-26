@@ -520,7 +520,7 @@ static inline void mat4_tr(struct Mat4 *res, struct V3 t, struct Quat r)
     res->m44 = 1.0f;
 }
 
-// rotate scale
+// rotate translate
 static inline void mat4_rt(struct Mat4 *res, struct Quat r, struct V3 t)
 {
     Mat4 translate, rotate;

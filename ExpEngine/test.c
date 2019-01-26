@@ -198,7 +198,7 @@ void build_view(RenderViewBuilder *builder, RenderViewBuffer *buf)
 
     count = buf_len(builder->instanceBuf);
     u32 matCount = ALIGN_UP(count, TT_SIMD_32_WIDTH);
-    Mat4_sse2 *tmatBuf = rview_buffer_allocate_from(buf, sizeof(Mat4) * matCount);
+    struct Mat4_sse2 *tmatBuf = rview_buffer_allocate_from(buf, sizeof(Mat4) * matCount);
     view->tmatrixBuf = tmatBuf;
     view->matrixCount = matCount;
 
@@ -223,7 +223,7 @@ void build_view(RenderViewBuilder *builder, RenderViewBuffer *buf)
         Mat4 *m3 = &builder->instanceBuf[i*4+2].modelM;
         Mat4 *m4 = &builder->instanceBuf[i*4+3].modelM;
 
-        Mat4_sse2 modelMatrices;
+        struct Mat4_sse2 modelMatrices;
         mat4_load_sse2(&modelMatrices, m1, m2, m3, m4);
         mat4_mul_sse2(&tmatBuf[i], &view->worldToClip, &modelMatrices);
     }

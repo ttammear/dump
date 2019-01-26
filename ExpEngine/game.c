@@ -104,6 +104,14 @@ void init_game(struct Renderer *renderer, struct GameData *gdata, struct TessCli
     renderer_queue_message(renderer, &msg);
 
     msg = (RenderMessage){};
+    msg.type = Render_Message_Material_Query;
+    msg.matQ.userData = NULL;
+    msg.matQ.materialId = 0;
+    msg.matQ.shaderId = Shader_Type_Gizmo;
+    msg.matQ.iData.gizmoMat.color = make_v4(1.0f, 1.0f, 1.0f, 1.0f);
+    renderer_queue_message(renderer, &msg);
+
+    msg = (RenderMessage){};
     msg.type = Render_Message_Texture_Query;
     msg.texQ.userData = gdata;
     msg.texQ.onComplete = fill_cat_texture;
@@ -435,7 +443,8 @@ void update_game(struct GameData *gdata)
         }
         nk_end(ctx);
 
-        render_profiler(ctx);
+        bool wasClosed;
+        render_profiler(ctx, &wasClosed);
     }
 
     // draw commands

@@ -42,6 +42,7 @@ load_done:
 
 void game_client_coroutine(GameClient *gclient)
 {
+game_client_start:
     gclient->init = true;
     gclient->connected = false;
     gclient->dynEntities = NULL;
@@ -92,7 +93,7 @@ void game_client_coroutine(GameClient *gclient)
                 connecting = false;
                 retries --;
             }
-            coro_transfer(&gclient->coroCtx, gclient->client->mainctx);
+            scheduler_yield();
         }
     }
 
@@ -136,7 +137,7 @@ void game_client_coroutine(GameClient *gclient)
         if(gclient->connected)
             play_update(gclient->client, dt, frameId);
         frameId++;
-        coro_transfer(&gclient->coroCtx, gclient->client->mainctx);
+        scheduler_yield();
     }
 
     enet_host_destroy(gclient->eClient);
@@ -144,8 +145,10 @@ game_client_done:
     gclient->init = false;
     buf_free(gclient->dynEntities);
     kh_destroy(uint32, gclient->serverDynEntityMap);
-    gclient->client->mode = Tess_Client_Mode_Menu;
-    coro_transfer(&gclient->coroCtx, gclient->client->mainctx);
+    scheduler_set_mode(Tess_Client_Mode_Menu);
+    scheduler_yield();
+    goto game_client_start;
+    assert(0); // returning to coroutine after final yield
 }
 
 void game_exit(GameClient *gclient)
@@ -161,6 +164,18 @@ GameClientDynEntity* game_client_get_dynamic_entity(GameClient *gc, uint32_t id)
 {
     assert(id >= 0 && id < TESS_CLIENT_MAX_DYN_ENTITIES);
     return &gc->dynEntityPool[id];
+}
+
+void game_client_destroy_dyn_ent(GameClient *gc, uint32_t id)
+{
+    auto dent = game_client_get_dynamic_entity(gc, id);
+    int index = buf_find_idx(gc->dynEntities, dent);
+    if(index != -1)
+    {
+        tess_destroy_entity(&gc->client->gameSystem, dent->entityId);
+        buf_remove_at(gc->dynEntities, index);
+        pool_free(gc->dynEntityPool, dent);
+    }
 }
 
 void process_packet(GameClient *gc, void *data, size_t dataLen)
@@ -197,7 +212,7 @@ void process_packet(GameClient *gc, void *data, size_t dataLen)
                     dynEnt->serverId = entityId;
                     dynEnt->entityId = tess_create_entity(gc->world, objectId, &mat);
                     assert(dynEnt->entityId != 0);
-                    transform_init(&dynEnt->ntransform);
+                    transform_init(&dynEnt->ntransform, pos, rot);
                     buf_push(gc->dynEntities, dynEnt);
 
                     int dummy;
@@ -233,6 +248,20 @@ void process_packet(GameClient *gc, void *data, size_t dataLen)
                     auto dynEnt = game_client_get_dynamic_entity(gc, dynEntId);
                     assert(dynEnt);
                     transform_update(&dynEnt->ntransform, seq, 0, pos, rot);
+                }
+            } break;
+        case Game_Server_Command_Destroy_DynEntities:
+            {
+                uint16_t count;
+                success &= stream_read_uint16(&stream, &count);
+                if(!success) break;
+                uint32_t entityId;
+                for(int i = 0; i < count; i++)
+                {
+                    success &= stream_read_uint32(&stream, &entityId);
+                    if(!success) break;
+                    game_client_destroy_dyn_ent(gc, entityId);
+                    printf("destroy %d\n", entityId);
                 }
             } break;
         default:

@@ -25,6 +25,8 @@ void process_render_messages(TessRenderSystem *rs)
     RenderMessage msg;
     while(renderer_next_message(renderer, &msg))
     {
+        if(msg.usrData)
+            scheduler_event(SCHEDULER_EVENT_RENDER_MESSAGE, &msg, msg.usrData);
         switch(msg.type)
         {
             case Render_Message_Mesh_Query_Result:

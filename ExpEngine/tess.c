@@ -25,6 +25,7 @@ void tess_asset_system_init(TessAssetSystem *as, TessFixedArena *arena)
     POOL_FROM_ARENA(as->assetLookupEntryPool, arena, TESS_ASSET_LOOKUP_ENTRY_POOL_SIZE);
     as->loadedAssets = NULL;
     as->loadingAssets = NULL;
+    as->packageList = NULL;
     as->packageAssetMap = kh_init(str);
     as->loadedAssetMap = kh_init(64);
     as->loadingAssetMap = kh_init(64);
@@ -73,6 +74,7 @@ void tess_asset_system_destroy(TessAssetSystem *as)
     kh_destroy(uint32, as->assetStatusMap);
     buf_free(as->loadedAssets);
     buf_free(as->loadingAssets);
+    buf_free(as->packageList);
 }
 
 void tess_process_io_events(TessFileSystem *fs);

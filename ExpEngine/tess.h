@@ -60,6 +60,64 @@ typedef struct TessFileSystem
     void *pipeline_ptrs[Tess_File_Pipeline_Count];
 } TessFileSystem;
 
+// --------- SCHEDULER --------
+
+extern struct TessScheduler *g_scheduler;
+
+typedef void (*TaskFunc)(void*);
+
+typedef enum SchedulerState {
+    SCHEDULER_STATE_MAIN,
+    SCHEDULER_STATE_EDITOR,
+    SCHEDULER_STATE_GAME,
+    SCHEDULER_STATE_TASK,
+} SchedulerState;
+
+typedef enum SchedulerEvent {
+    SCHEDULER_EVENT_NONE,
+    SCHEDULER_EVENT_RENDER_MESSAGE,
+} SchedulerEvent;
+
+typedef struct SchedulerTask {
+    TaskFunc func;
+    void *data;
+    uint8_t datas[512];
+} SchedulerTask;
+
+typedef struct AsyncTask {
+   coro_context *ctx;
+   union {
+       struct RenderMessage *renderMsg;
+   }; 
+} AsyncTask;
+
+typedef struct TessScheduler {
+    u32 mode;
+    SchedulerState state;
+
+    coro_context *curTaskCtx;
+    khash_t(64) *waitingTaskSet; // hashmap used as a set
+
+    SchedulerTask *tasks;
+    coro_context *ctxPool;
+    uint8_t *taskMemory;
+    u32 taskMemorySize;
+
+    struct TessClient *client;
+
+    // three contexts: editor, game, menu(mainCtx)
+    coro_context mainCtx;
+    coro_context editorCtx;
+    coro_context gameCtx;
+
+    void *mainStack;
+    size_t mainStackSize;
+    void *editorStack;
+    size_t editorStackSize;
+    void *gameStack;
+    size_t gameStackSize;
+} TessScheduler;
+
 // --------- ASSET SYSTEM ----------
 
 enum TessAssetType
@@ -204,6 +262,8 @@ typedef struct TessAssetSystem
     khash_t(64) *loadingAssetMap; // TStr assetId, TessLoadingAsset*
     khash_t(uint32) *assetStatusMap; // TStr assetId, uint32
 
+    TStr **packageList;
+
     struct TessStrings *tstrings;
     struct Renderer *renderer;
 } TessAssetSystem;
@@ -305,6 +365,14 @@ typedef struct TessRenderSystem
 
 // --------------- UI ---------------------
 
+typedef struct {
+    uint32_t state; // 0 - nothing selected, 1 - package selected, 2 - asset selected no confirm
+    TStr *packageName;
+    TStr *assetName;
+    TStr *result;
+    b32 show;
+} AssetPickerState;
+
 typedef struct TessUISystem
 {
     uint32_t width;
@@ -376,6 +444,15 @@ typedef struct TessEditorEntity
     uint32_t remoteDirty;
 } TessEditorEntity;
 
+typedef struct CreateAssetState
+{
+    bool showAddWindow;
+    int createType;
+    char assetNameBuf[64];
+    char objectAssetNameBuf[128];
+    AssetPickerState pickerState;
+} CreateAssetState;
+
 typedef struct TessEditor
 {
     b32 init;
@@ -399,6 +476,12 @@ typedef struct TessEditor
     bool moving;
     V3 moveDirection;
 
+    bool enteringCommand;
+    char cmdStr[256];
+    bool profilerOpen;
+    bool assetWinOpen;
+    CreateAssetState createAssetState;
+
     struct TessCamera *cam;
     V2 camRot;
     bool camLocked;
@@ -409,9 +492,6 @@ typedef struct TessEditor
     struct TessEditorEntity **edEntities;
 
     struct nk_context *nk_ctx;
-    coro_context coroCtx;
-    void *coroStack;
-    size_t coroStackSize;
 
     struct TessRenderSystem *renderSystem;
     struct TessUISystem *uiSystem;
@@ -459,10 +539,6 @@ typedef struct GameClient
     char ipStr[256];
     uint16_t port;
 
-    coro_context coroCtx;
-    void *coroStack;
-    size_t coroStackSize;
-
     GameClientDynEntity **dynEntities;
     GameClientDynEntity *dynEntityPool;
 
@@ -501,10 +577,7 @@ typedef struct TessClient
 
     TessFixedArena arena;
 
-    uint32_t mode;
-
     AikePlatform *platform;
-    coro_context *mainctx;
 } TessClient;
 
 // Server
@@ -557,7 +630,6 @@ enum GameServerCommand
 typedef struct ServerPeer
 {
     ENetPeer *ePeer;
-    uint32_t seq;
 } ServerPeer;
 
 typedef struct GameServerDynEntity
@@ -615,6 +687,7 @@ void tess_world_init(TessGameSystem *gs);
 TessEntity* tess_get_entity(TessGameSystem *gs, uint32_t id);
 void tess_register_object(TessGameSystem *gs, uint32_t id, TStr *assetId);
 uint32_t tess_create_entity(TessGameSystem *gs, uint32_t id, Mat4 *modelMatrix);
+void tess_destroy_entity(TessGameSystem *gs, uint32_t id);
 void tess_reset_world(TessGameSystem *gs);
 
 void tess_input_init(struct TessInputSystem *input);
@@ -633,5 +706,13 @@ void tess_main_menu_init(struct TessMainMenu *menu);
 void tess_main_menu_update(struct TessMainMenu *menu);
 
 void editor_reset(TessEditor *editor);
+
+void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *client);
+void scheduler_yield();
+void scheduler_set_mode(u32 mode);
+void scheduler_event(u32 type, void *data, void *usrPtr);
+void scheduler_wait_for(struct AsyncTask *task);
+void scheduler_task_end();
+void scheduler_queue_task(TaskFunc func, void *usrData);
 
 extern struct TessVtable *g_tessVtbl;

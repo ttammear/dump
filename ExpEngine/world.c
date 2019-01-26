@@ -90,6 +90,15 @@ uint32_t tess_create_entity(TessGameSystem *gs, uint32_t id, Mat4 *modelMatrix)
     return entity->id;
 }
 
+void tess_destroy_entity(TessGameSystem *gs, uint32_t id)
+{
+    auto entity = tess_get_entity(gs, id);
+    int index = buf_find_idx(gs->activeEntities, entity);
+    assert(index != -1);
+    buf_remove_at(gs->activeEntities, index);
+    pool_free(gs->entityPool, entity);
+}
+
 TessEntity* tess_get_entity(TessGameSystem *gs, uint32_t id)
 {
     if(id < pool_cap(gs->entityPool))

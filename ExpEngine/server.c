@@ -145,6 +145,17 @@ void tess_destroy_editor_server(struct TessEditorServer *eserver)
         eserver->platform->tcp_close_server(eserver->platform, eserver->tcpServer);
 }
 
+void tess_editor_server_send_command(struct TessEditorServer *server, struct TessEditorServerClient *client, uint8_t *data, uint32_t size)
+{
+    assert(size > 0 && size < TESS_EDITOR_SERVER_MAX_COMMAND_SIZE);
+    server->platform->tcp_send(server->platform, client->connection, data, size); 
+}
+
+static inline void tess_editor_server_send_stream(struct TessEditorServer *server, struct TessEditorServerClient *client, struct ByteStream *stream)
+{
+    tess_editor_server_send_command(server, client, stream->start, stream_get_offset(stream));
+}
+
 uint32_t tess_editor_server_create_entity(struct TessEditorServer *server, uint32_t objectId, struct V3 position)
 {
     struct TessEditorServerEntity *edEnt = pool_allocate(server->entityPool);
@@ -169,22 +180,37 @@ uint32_t tess_editor_server_create_entity(struct TessEditorServer *server, uint3
     return edEnt->id;
 }
 
+void tess_editor_server_destroy_entity(struct TessEditorServer *server, uint32_t entityId)
+{
+    struct TessEditorServerEntity *edEnt = tess_editor_server_get_entity(server, entityId);
+    int idx;
+    if(edEnt != NULL && (idx = buf_find_idx(server->activeEntities, edEnt)) != -1)
+    { 
+        buf_remove_at(server->activeEntities, idx);
+        pool_free(server->entityPool, edEnt);
+
+        ARRAY_COMMAND_START(stream);
+        ARRAY_COMMAND_HEADER_END(stream);
+        bool written = true;
+        written &= stream_write_uint32(&stream, entityId);
+        ARRAY_COMMAND_INC(stream);
+        ARRAY_COMMAND_WRITE_HEADER(stream, Editor_Server_Command_Destroy_Entities, 1);
+
+        int count = buf_len(server->activeClients);
+        for(int i = 0 ; i < count; i++)
+        {
+            auto client = server->activeClients[i];
+            tess_editor_server_send_stream(server, client, &stream);
+            CLEAR_BIT(client->entityFlags[entityId], Client_Entity_Flag_Created);
+        }
+    }
+}
+
 struct TessEditorServerEntity* tess_editor_server_get_entity(struct TessEditorServer *server, uint32_t entityId)
 {
     if(entityId >= pool_cap(server->entityPool))
         return NULL;
     return server->entityPool + entityId;
-}
-
-void tess_editor_server_send_command(struct TessEditorServer *server, struct TessEditorServerClient *client, uint8_t *data, uint32_t size)
-{
-    assert(size > 0 && size < TESS_EDITOR_SERVER_MAX_COMMAND_SIZE);
-    server->platform->tcp_send(server->platform, client->connection, data, size); 
-}
-
-static inline void tess_editor_server_send_stream(struct TessEditorServer *server, struct TessEditorServerClient *client, struct ByteStream *stream)
-{
-    tess_editor_server_send_command(server, client, stream->start, stream_get_offset(stream));
 }
 
 void editor_server_send_debug_message(struct TessEditorServer *server, struct TessEditorServerClient *client, char *msg)
@@ -374,11 +400,25 @@ void editor_server_process_client_command(struct TessEditorServer *server, struc
                     dataRead &= stream_read_v3(&stream, &rot);
                     dataRead &= stream_read_v3(&stream, &scale);
                     if(!dataRead) return;
-                    printf("create entity obj: %d pos: %f %f %f rot %f %f %f sc %f %f %f\n", objectId, pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, scale.x, scale.y, scale.z);
+                    //printf("create entity obj: %d pos: %f %f %f rot %f %f %f sc %f %f %f\n", objectId, pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, scale.x, scale.y, scale.z);
                     tess_editor_server_create_entity(server, objectId, pos);
                 }
             }
             break;
+        case Editor_Server_Command_Destroy_Entities:
+            {
+                uint16_t numEntries = 0;
+                uint32_t entityId;
+                bool dataRead = true;
+                dataRead &= stream_read_uint16(&stream, &numEntries);
+                if(!dataRead) return;
+                for(int i = 0; i < numEntries; i++)
+                {
+                    dataRead &= stream_read_uint32(&stream, &entityId);
+                    if(!dataRead) return;
+                    tess_editor_server_destroy_entity(server, entityId);
+                }
+            } break;
         case Editor_Server_Command_Debug_Message:
             {
                 char buf[4096];

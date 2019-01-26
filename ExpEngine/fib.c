@@ -1,7 +1,7 @@
 
 typedef struct TessRoot
 {
-    coro_context mainctx;
+    TessScheduler scheduler;
     struct TessClient client;
     TessServer server;
     AikeMemoryBlock *rootBlock;
@@ -34,6 +34,29 @@ void aike_update_window(AikePlatform *platform, AikeWindow *win)
     }
 }
 
+void test_task(void *data) {
+    printf("Hello from task %p\n", data);
+    scheduler_task_end();
+}
+
+void test_task2(void *data) {
+    static_assert(sizeof(AsyncTask) < 2048, "Does not fit in this tiny taskstack!");
+    AsyncTask task;
+    RenderMessage msg;
+    msg.type = Render_Message_Material_Query;
+    msg.matQ.onComplete = NULL;
+    msg.matQ.materialId = 0;
+    msg.matQ.shaderId = Shader_Type_Unlit_Color;
+    msg.matQ.iData.unlitColor.color = make_v4(1.0, 0.0, 0.0, 1.0);
+    // TODO: fill msg
+    renderer_async_message((struct Renderer*)data, &task, &msg);
+    printf("Waiting for render command to complete!\n");
+    scheduler_wait_for(&task);
+    printf("Render command should be done! mat id: %d\n", task.renderMsg->matR.materialId);
+
+    scheduler_task_end();
+}
+
 void aike_init(AikePlatform *platform)
 {
     DEBUG_INIT("Main thread");
@@ -50,6 +73,7 @@ void aike_init(AikePlatform *platform)
         assert(false);
     }
 
+
     Renderer *renderer = create_renderer(RENDERER_TYPE_OPENGL, platform);
 
     AikeMemoryBlock *rootBlock = platform->allocate_memory(platform, sizeof(TessRoot), 0);
@@ -57,9 +81,8 @@ void aike_init(AikePlatform *platform)
     root->rootBlock = rootBlock;
     root->loaded = false;
     platform->userData = root;
-    coro_create(&root->mainctx, NULL, NULL, NULL, 0);
 
-    tess_client_init(&root->client, platform, renderer, &root->mainctx);
+    tess_client_init(&root->client, platform, renderer);
 
     // TODO: ... no
     root->client.renderSystem.rtW = platform->mainWin.width;
@@ -67,8 +90,10 @@ void aike_init(AikePlatform *platform)
 
     tess_server_init(&root->server, platform);
 
+    scheduler_init(&root->scheduler, &root->client.arena, &root->client);
+
     root->client.gameSystem.defaultCamera.aspectRatio = platform->mainWin.width/platform->mainWin.height;
-    root->client.gameSystem.defaultCamera.FOV = 90;
+    root->client.gameSystem.defaultCamera.FOV = 75.0f;
     root->client.gameSystem.defaultCamera.nearPlane = 0.1f;
     root->client.gameSystem.defaultCamera.farPlane = 1000.0f;
     tess_update_camera_perspective(&root->client.gameSystem.defaultCamera);
@@ -80,31 +105,27 @@ void aike_init(AikePlatform *platform)
     renderer->swapBuffer = root->client.renderSystem.viewSwapBuffer;
     start_renderer(renderer);
 
-    //stop_renderer(renderer);
-    //start_renderer(renderer);
-
     init_game(renderer, &root->gdata, &root->client);
 
-    TStr *firstInterned = tess_intern_string(&root->client.strings, "First");
-    TStr *sponzaInterned = tess_intern_string(&root->client.strings, "Sponza");
-
-    tess_gen_lookup_cache_for_package(&root->client.assetSystem, firstInterned);
-    tess_gen_lookup_cache_for_package(&root->client.assetSystem, sponzaInterned);
+    tess_refresh_package_list(&root->client.assetSystem);
+    int count = buf_len(root->client.assetSystem.packageList);
+    for(int i = 0; i < count; i++)
+    {
+        TStr *packageName = root->client.assetSystem.packageList[i];
+        printf("Generating lookup cache for package '%s'\n", packageName->cstr);
+        tess_gen_lookup_cache_for_package(&root->client.assetSystem, packageName);
+    }
 
     if (enet_initialize () != 0)
     {
         fprintf (stderr, "An error occurred while initializing ENet.\n");
         assert(0);
     }
-    
-    //TStr *obj0I = tess_intern_string(&root->client.strings, "First/object0");
-    //tess_register_object(&root->client.gameSystem, 1, obj0I);
 
-    //TStr *tex1 = tess_intern_string(&root->client.strings, "Sponza/sponza_arch_diff");
-    //tess_load_asset_if_not_loaded(&root->client.assetSystem, tex1);
-    
-//    TStr *objS = tess_intern_string(&root->client.strings, "Sponza/sponza_381_o");
-//    tess_register_object(&root->client.gameSystem, 1, objS);
+    scheduler_queue_task(test_task2, (void*)renderer);
+    scheduler_queue_task(test_task2, (void*)renderer);
+    for(int i = 0; i < 100; i++)
+        scheduler_queue_task(test_task, (void*)0xFACEFEED5+i);
 }
 
 void aike_deinit(AikePlatform *platform)
@@ -113,7 +134,6 @@ void aike_deinit(AikePlatform *platform)
 
     enet_deinitialize();
 
-    coro_destroy(&root->mainctx);
     deinit_game();
 
     stop_renderer(root->client.renderSystem.renderer);
@@ -149,7 +169,7 @@ void aike_update(AikePlatform *platform)
         mat4_trs(&objectToWorld, make_v3(0.0f, 0.0f, 10.0f), q, make_v3(1.0f, 1.0f, 1.0f));
         //tess_create_entity(&root->client.gameSystem, 1, &objectToWorld);
 
-        root->client.mode = Tess_Client_Mode_Menu;
+        scheduler_set_mode(Tess_Client_Mode_Menu);
     }
     if(root->loaded)
     {
@@ -159,7 +179,8 @@ void aike_update(AikePlatform *platform)
         tess_update_editor_server(&root->server.editorServer);
         game_server_update(&root->server.gameServer, platform->dt);
 
-        switch(root->client.mode)
+        scheduler_yield();
+        /*switch(root->client.mode)
         {
             case Tess_Client_Mode_Menu:
                 tess_main_menu_update(&root->client.mainMenu);
@@ -184,7 +205,7 @@ void aike_update(AikePlatform *platform)
             default:
                 fprintf(stderr, "Invalid mode!\n");
                 break;
-        };
+        };*/
 
         tess_client_end_frame(&root->client);
     }

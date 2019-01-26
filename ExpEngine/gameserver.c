@@ -21,11 +21,11 @@ Command create dynamic entities
     } entities[];
 
 Command destroy dynamic entities
-    uint8_t destroyCount;
+    uint16_t destroyCount;
     uint32_t entityIds[];
     
 Command update dynamic entities
-   uint8_t updateCount;
+   uint16_t updateCount;
    struct
    {
         uint32_t entityId;
@@ -59,9 +59,15 @@ void game_server_init(GameServer *gs)
     gs->updateProgress = 0.0;
 
     __auto_type ent = pool_allocate(gs->dynEntityPool);
-    ent->id = 333;
+    ent->id = 0;
     ent->objectId = 2;
-    ent->position = (V3){1.0f, 2.0f, 3.0f};
+    ent->position = (V3){0.0f, 0.0f, 0.0f};
+    ent->rotation = (Quat){1.0f, 0.0f, 0.0f, 0.0f};
+    buf_push(gs->dynEntities, ent);
+    ent = pool_allocate(gs->dynEntityPool);
+    ent->id = 1;
+    ent->objectId = 2;
+    ent->position = (V3){0.0f, 0.0f, 0.0f};
     ent->rotation = (Quat){1.0f, 0.0f, 0.0f, 0.0f};
     buf_push(gs->dynEntities, ent);
 }
@@ -77,7 +83,7 @@ void game_server_destroy(GameServer *gs)
     buf_free(gs->dynEntities);
 }
 
-void game_server_create_dynamic_objects(GameServer *gs, ServerPeer *speer)
+void game_server_send_all_dyn_create(GameServer *gs, ServerPeer *speer)
 {
     uint8_t *mem = stack_push(gs->tempStack, 65536, 4); 
         
@@ -110,7 +116,6 @@ void game_server_create_dynamic_objects(GameServer *gs, ServerPeer *speer)
             stream_write_uint16(&stream, writtenCount);
 
             ENetPacket *packet = enet_packet_create(stream.start, size, ENET_PACKET_FLAG_RELIABLE);
-            printf("send pfff %d %d\n", writtenCount, size);
             enet_peer_send(speer->ePeer, 1, packet);
 
             writtenCount = 0;
@@ -121,7 +126,71 @@ void game_server_create_dynamic_objects(GameServer *gs, ServerPeer *speer)
     stack_pop(gs->tempStack);
 }
 
-void game_server_update_dynamic_objects(GameServer *gs, ServerPeer *speer)
+void game_server_send_dyn_create(GameServer *gs, ServerPeer *speer, GameServerDynEntity *entity)
+{
+    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
+
+    ByteStream stream;
+    init_byte_stream(&stream, mem, 65536);
+    stream_write_uint16(&stream, Game_Server_Command_Create_DynEntities);
+    stream_write_uint16(&stream, 1);
+    stream_write_uint32(&stream, entity->objectId);
+    stream_write_uint32(&stream, entity->id);
+    stream_write_v3(&stream, entity->position);
+    stream_write_quat(&stream, entity->rotation);
+    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), ENET_PACKET_FLAG_RELIABLE);
+    enet_peer_send(speer->ePeer, 1, packet);
+
+    stack_pop(gs->tempStack);
+}
+
+void game_server_send_dyn_destroy(GameServer *gs, ServerPeer *speer, GameServerDynEntity *entity)
+{
+    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
+
+    ByteStream stream;
+    init_byte_stream(&stream, mem, 65536);
+    stream_write_uint16(&stream, Game_Server_Command_Destroy_DynEntities);
+    stream_write_uint16(&stream, 1);
+    stream_write_uint32(&stream, entity->id);
+    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), ENET_PACKET_FLAG_RELIABLE);
+    enet_peer_send(speer->ePeer, 1, packet);
+
+    stack_pop(gs->tempStack); 
+}
+
+GameServerDynEntity* game_server_create_dyn(GameServer *gs, uint32_t objectId, V3 pos, Quat rot)
+{
+    auto ent = pool_allocate(gs->dynEntityPool);
+    assert(ent);
+    ent->id = ent - gs->dynEntityPool;
+    ent->objectId = objectId;
+    ent->position = pos;
+    ent->rotation = rot;
+    ent->updateSeq = 0;
+    buf_push(gs->dynEntities, ent);
+    int count = buf_len(gs->connectedPeers);
+    for(int i = 0; i < count; i++)
+    {
+        game_server_send_dyn_create(gs, gs->connectedPeers[i], ent);
+    }
+    return ent;
+}
+
+void game_server_destroy_dyn(GameServer *gs, GameServerDynEntity *entity)
+{
+    int count = buf_len(gs->connectedPeers);
+    for(int i = 0; i < count; i++)
+    {
+        game_server_send_dyn_destroy(gs, gs->connectedPeers[i], entity);
+    }
+    int index = buf_find_idx(gs->dynEntities, entity);
+    assert(index != -1);
+    buf_remove_at(gs->dynEntities, index);
+    pool_free(gs->dynEntityPool, entity);
+}
+
+void game_server_send_dyn_updates(GameServer *gs, ServerPeer *speer)
 {
     uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
 
@@ -183,10 +252,9 @@ void game_server_update(GameServer *gs, double dt)
                         printf("New game client from %x:%u\n", event.peer->address.host, event.peer->address.port);
                         event.peer->data = speer;
                         speer->ePeer = event.peer;
-                        speer->seq = 0;
                         buf_push(gs->connectedPeers, speer);
 
-                        game_server_create_dynamic_objects(gs, speer);
+                        game_server_send_all_dyn_create(gs, speer);
                     }
                     else
                     {
@@ -222,29 +290,17 @@ void game_server_update(GameServer *gs, double dt)
     elapsed += dt;
     while(gs->updateProgress >= rate)
     {
-        //printf("update\n");
         int count = buf_len(gs->connectedPeers);
         for(int i = 0; i < count; i++)
         {
             ServerPeer *speer = gs->connectedPeers[i];
-#pragma pack(push, 1)
-            struct {
-                uint16_t seq;
-                V3 pos;
-                Quat rot;
-            } data;
-#pragma pack(pop)
-            memset(&data, 0, sizeof(data));
-            data.seq = (uint16_t)speer->seq;
-            data.pos.x = sinf(elapsed) * 10.0f;
-            //ENetPacket *packet = enet_packet_create(&data, sizeof(data), 0);
-            //enet_peer_send(speer->ePeer, 0, packet);
-            gs->dynEntities[0]->position.x = data.pos.x;
 
-            game_server_update_dynamic_objects(gs, speer);
+            gs->dynEntities[0]->position.x = sinf(elapsed)*10.0f;
+            gs->dynEntities[1]->position.z = cosf(elapsed)*10.0f;
+
+            game_server_send_dyn_updates(gs, speer);
 
             enet_host_flush(gs->eServer);
-            speer->seq++;
         }
 
         count = buf_len(gs->dynEntities);

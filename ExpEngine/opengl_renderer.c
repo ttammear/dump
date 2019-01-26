@@ -63,6 +63,52 @@ static const char *vertShaderSrc =  "#version 330 core\n"
    "v_color = pow(a_user1 * instanceColors[id], vec4(2.2));\n"
    "v_objectId = objectIds[id];\n"
 "}";
+
+static const char *gizmoVertSrc = "#version 330 core\n"
+"attribute vec4 a_position;\n"
+"attribute vec2 a_user0;\n"
+"attribute vec4 a_user1;\n"
+""
+"layout (std140) uniform instanceBlock\n"
+"{\n"
+    "vec4 instanceColors[128];\n"
+"};\n"
+"layout (std140) uniform matrixBlock\n"
+"{\n"
+    "mat4 matrices[128];\n"
+"};\n"
+"layout (std140) uniform objectIdBlock\n"
+"{\n"
+    "int objectIds[128]; // waste of space sucks but shift and mask with ivec4 is too hard for old AMD drivers\n"
+"};\n"
+""
+"varying vec2 v_texcoord;\n"
+"varying vec4 v_color;\n"
+"flat out int v_objectId;\n"
+"uniform int instId;\n"
+"void main(void) {\n"\
+   "int id = gl_InstanceID;"
+   "float invScale = (matrices[id]*a_position).w;\n"
+   "vec4 posCopy = a_position;"
+   "posCopy.xyz *= invScale;\n"
+   "gl_Position = matrices[id] * posCopy;\n"
+   "v_texcoord = vec2(a_user0.x, 1.0 - a_user0.y);\n"
+   "v_color = pow(a_user1 * instanceColors[id], vec4(2.2));\n"
+   "v_objectId = objectIds[id];\n"
+"}";
+
+static const char *gizmoFragSrc = "#version 330 core\n"
+"uniform sampler2D _MainTex;\n"
+"varying vec2 v_texcoord;\n"
+"varying vec4 v_color;\n"
+"flat in int v_objectId;\n"
+"out vec4 outColor;\n"
+"layout(location = 1) out int outObjectId;\n"
+"void main(void) {\n"
+   "outColor = v_color;\n"
+   "outObjectId = v_objectId;\n"
+"}";
+
 			
 static const char *fragShaderSrc = "#version 330 core\n"
 "uniform sampler2D _MainTex;\n"
@@ -108,8 +154,10 @@ static const char *uiFragSrc =
 "varying vec4 v_color;\n"
 "uniform sampler2D _MainTex;\n"
 "out vec4 outColor;\n"
+"layout(location = 1) out int outObjectId;\n"
 "void main(void) {\n"
     "outColor = v_color * texture2D(_MainTex, v_texcoord);\n"
+    "outObjectId = 0xFFFFFFFF;\n"
 "}";
 
 static uint32_t glDefaultMesh[] = 
@@ -451,7 +499,7 @@ internal GLMesh *get_mesh_safe(OpenGLRenderer *renderer, uint32_t meshId)
     return ret;
 }
 
-internal void opengl_handle_mesh_query(OpenGLRenderer *renderer, MeshQuery *mq)
+internal void opengl_handle_mesh_query(OpenGLRenderer *renderer, MeshQuery *mq, void *userData)
 {
     uint32_t meshId = mq->meshId;
     if(meshId == 0)
@@ -532,6 +580,7 @@ internal void opengl_handle_mesh_query(OpenGLRenderer *renderer, MeshQuery *mq)
 
     RenderMessage msg = {};
     msg.type = Render_Message_Mesh_Query_Result;
+    msg.usrData = userData;
     msg.meshQueryResult.meshId = meshId;
     msg.meshQueryResult.userData = mq->userData;
     msg.meshQueryResult.onComplete = mq->onComplete;
@@ -550,12 +599,13 @@ internal void opengl_mesh_ready(OpenGLRenderer *renderer, GLMesh* mesh)
     RenderMessage msg = {};
     msg.type = Render_Message_Mesh_Ready;
     msg.meshR.meshId = mesh->id;
+    msg.usrData = mesh->userData2;
     msg.meshR.userData = mesh->userData;
     msg.meshR.onComplete = mesh->onComplete;
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
-internal void opengl_handle_mesh_update(OpenGLRenderer *renderer, MeshUpdate *mu)
+internal void opengl_handle_mesh_update(OpenGLRenderer *renderer, MeshUpdate *mu, void *userData)
 {
     // TODO: handle errors
     uint32_t meshId = mu->meshId;
@@ -616,6 +666,7 @@ internal void opengl_handle_mesh_update(OpenGLRenderer *renderer, MeshUpdate *mu
     mesh->state = GL_Mesh_State_Wait_Sync;
     mesh->fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
     mesh->userData = mu->userData;
+    mesh->userData2 = userData;
     mesh->onComplete = mu->onComplete;
     opengl_notify_sync(renderer, &mesh->fence, (OnSyncAction_t)opengl_mesh_ready, mesh);
     glBindVertexArray(0);
@@ -634,7 +685,7 @@ internal GLMaterial *get_material(OpenGLRenderer *renderer, uint32_t matId)
     return ret;
 }
 
-internal void opengl_handle_material_query(OpenGLRenderer *renderer, MaterialQuery *mq)
+internal void opengl_handle_material_query(OpenGLRenderer *renderer, MaterialQuery *mq, void *userData)
 {
     uint32_t materialId = mq->materialId;
     if(materialId == 0)
@@ -670,12 +721,14 @@ internal void opengl_handle_material_query(OpenGLRenderer *renderer, MaterialQue
             break;
     };
     material->userData = mq->userData;
+    material->userData2 = userData;
     material->iData = mq->iData; // @OPTIMIZE: dont have to copy full
 
     RenderMessage msg = {};
     msg.type = Render_Message_Material_Ready;
     msg.matR.materialId = material->id;
     msg.matR.userData = material->userData;
+    msg.usrData = material->userData2;
     msg.matR.onComplete = mq->onComplete;
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
@@ -692,7 +745,7 @@ static inline GLTexture *get_texture(OpenGLRenderer *renderer, uint32_t texId)
     return ret;
 }
 
-internal void opengl_handle_texture_query(OpenGLRenderer *renderer, TextureQuery *tq)
+internal void opengl_handle_texture_query(OpenGLRenderer *renderer, TextureQuery *tq, void *userData)
 {
     // TODO: max size?
     if(tq->width == 0 || tq->height == 0)
@@ -742,11 +795,13 @@ internal void opengl_handle_texture_query(OpenGLRenderer *renderer, TextureQuery
     tex->format = tq->format;
     tex->filter = tq->filter;
     tex->state = GL_Texture_State_Dirty;
+    tex->userData2 = userData;
 
     RenderMessage response = {};
     response.type = Render_Message_Texture_Query_Response;
     response.texQR.textureId = textureId;
     response.texQR.userData = tq->userData;
+    response.usrData = userData;
     response.texQR.onComplete = tq->onComplete;
     response.texQR.textureDataPtr = dataPtr;
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &response);
@@ -763,10 +818,11 @@ internal void opengl_texture_ready(OpenGLRenderer *renderer, GLTexture *tex)
     msg.texR.textureId = tex->id;
     msg.texR.onComplete = tex->onComplete;
     msg.texR.userData = tex->userData;
+    msg.usrData = tex->userData2;
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
-internal void opengl_handle_texture_update(OpenGLRenderer *renderer, TextureUpdate *tu)
+internal void opengl_handle_texture_update(OpenGLRenderer *renderer, TextureUpdate *tu, void *usrData)
 {
     uint32_t textureId = tu->textureId;
     if(textureId == 0)
@@ -824,6 +880,7 @@ internal void opengl_handle_texture_update(OpenGLRenderer *renderer, TextureUpda
     opengl_notify_sync(renderer, &tex->fence, (OnSyncAction_t)opengl_texture_ready, tex);
 
     tex->userData = tu->userData;
+    tex->userData2 = usrData;
     tex->onComplete = tu->onComplete;
 
     //glBindTexture(GL_TEXTURE_2D, 0);
@@ -890,23 +947,23 @@ internal bool opengl_process_messages(OpenGLRenderer *renderer)
         {
             case Render_Message_Mesh_Query:
                 printf("OpenGL received mesh query!\n");
-                opengl_handle_mesh_query(renderer, &msg.meshQuery);
+                opengl_handle_mesh_query(renderer, &msg.meshQuery, msg.usrData);
                 break;
             case Render_Message_Mesh_Update:
                 printf("OpenGL received mesh update!\n");
-                opengl_handle_mesh_update(renderer, &msg.meshUpdate);
+                opengl_handle_mesh_update(renderer, &msg.meshUpdate, msg.usrData);
                 break;
             case Render_Message_Material_Query:
                 printf("OpenGL received material query!\n");
-                opengl_handle_material_query(renderer, &msg.matQ);
+                opengl_handle_material_query(renderer, &msg.matQ, msg.usrData);
                 break;
             case Render_Message_Texture_Query:
                 printf("OpenGL recived texture query!\n");
-                opengl_handle_texture_query(renderer, &msg.texQ);
+                opengl_handle_texture_query(renderer, &msg.texQ, msg.usrData);
                 break;
             case Render_Message_Texture_Update:
                 printf("OpenGL received texture update!\n");
-                opengl_handle_texture_update(renderer, &msg.texU);
+                opengl_handle_texture_update(renderer, &msg.texU, msg.usrData);
                 break;
             case Render_Message_Sample_Object_Id:
                 opengl_handle_object_id_samples(renderer, &msg.sampleO);
@@ -978,6 +1035,8 @@ internal void opengl_render_view(OpenGLRenderer *renderer, RenderViewBuffer *rbu
         {
             case Shader_Type_None:
                 idsize = 0;
+                glDisable(GL_BLEND);
+                glEnable(GL_DEPTH_TEST);
                 break;
             case Shader_Type_Unlit_Textured:
                 idsize = 16;
@@ -985,11 +1044,31 @@ internal void opengl_render_view(OpenGLRenderer *renderer, RenderViewBuffer *rbu
                 tex = get_texture(renderer, material->iData.unlitTextured.textureId);
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, tex->glTex);
+                glDisable(GL_BLEND);
+                glEnable(GL_DEPTH_TEST);
                 break;
             case Shader_Type_Unlit_Vertex_Color:
             case Shader_Type_Unlit_Color:
                 idsize = 16;
                 idptr = &material->iData.unlitColor.color;
+                glDisable(GL_BLEND);
+                glEnable(GL_DEPTH_TEST);
+                break;
+            case Shader_Type_Gizmo:
+                idsize = 16;
+                idptr = &material->iData.gizmoMat.color;
+                glDisable(GL_BLEND);
+                glDisable(GL_DEPTH_TEST);
+                break;
+            case Shader_Type_Unlit_Fade:
+                idsize = 16;
+                idptr = &material->iData.unlitFade.color;
+                tex = get_texture(renderer, material->iData.unlitFade.textureId);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, tex->glTex);
+                glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+                glEnable(GL_BLEND);
+                glEnable(GL_DEPTH_TEST);
                 break;
             default:
                 assert(0);
@@ -1171,9 +1250,12 @@ internal void opengl_init_builtin_shaders(OpenGLRenderer *renderer)
    renderer->builtinPrograms[Shader_Type_None] = program;
    program = opengl_create_standard_program_noerror(vertShaderSrc, fragShaderSrc);
    renderer->builtinPrograms[Shader_Type_Unlit_Textured] = program;
+   renderer->builtinPrograms[Shader_Type_Unlit_Fade] = program;
    program = opengl_create_standard_program_noerror(vertShaderSrc, fragShaderSolidSrc);
    renderer->builtinPrograms[Shader_Type_Unlit_Vertex_Color] = program;
    renderer->builtinPrograms[Shader_Type_Unlit_Color] = program; // TODO?
+   program = opengl_create_standard_program_noerror(gizmoVertSrc, gizmoFragSrc);
+   renderer->builtinPrograms[Shader_Type_Gizmo] = program;
    program = opengl_create_standard_program_noerror(uiVertSrc, uiFragSrc);
    renderer->uiProgram = program;
 }
@@ -1183,6 +1265,7 @@ internal void opengl_destroy_builtin_shaders(OpenGLRenderer *renderer)
     glDeleteProgram(renderer->builtinPrograms[Shader_Type_None]);
     glDeleteProgram(renderer->builtinPrograms[Shader_Type_Unlit_Textured]);
     glDeleteProgram(renderer->builtinPrograms[Shader_Type_Unlit_Vertex_Color]);
+    glDeleteProgram(renderer->builtinPrograms[Shader_Type_Gizmo]);
     glDeleteProgram(renderer->uiProgram);
 }
 
@@ -1233,7 +1316,8 @@ internal void opengl_init(OpenGLRenderer *renderer)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     // why do opengl docs tell to use GL_BGRA?
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     // generate fbo and attach color
     glGenFramebuffers(1, &renderer->fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, renderer->fbo);

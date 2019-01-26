@@ -53,10 +53,16 @@ void editor_init(TessEditor *editor)
     editor->cam = &editor->world->defaultCamera;
     editor->camRot = (V2){0};
     editor->camLocked = false;
+
+    editor->cmdStr[0] = 0;
+    editor->enteringCommand = false;
+    editor->profilerOpen = false;
+    editor->assetWinOpen = false;
 }
 
 void editor_coroutine(TessEditor *editor)
 {
+editor_start:
     editor_init(editor);
 
     bool success = editor_connect(editor, editor->ipStr, editor->port);
@@ -65,12 +71,14 @@ void editor_coroutine(TessEditor *editor)
     while(editor->connected)
     {
         editor_update(editor);
-        coro_transfer(&editor->coroCtx, editor->client->mainctx);
+        scheduler_yield();
     }
 
     editor_exit(editor);
     editor_destroy(editor);
-    coro_transfer(&editor->coroCtx, editor->client->mainctx);
+    scheduler_yield();
+    goto editor_start;
+    assert(0); // should not return to coroutine after it has yielded for the last time?
 }
 
 void editor_destroy(TessEditor *editor)
@@ -130,7 +138,8 @@ void editor_disconnect(TessEditor *editor)
     editor->platform->tcp_close_connection(editor->platform, editor->tcpCon);
     editor->tcpCon = NULL;
     editor->connected = false;
-    editor->client->mode = Tess_Client_Mode_Menu;
+    // TODO: should be more like scheduler_end_current_mode or something
+    scheduler_set_mode(Tess_Client_Mode_Menu);
 }
 
 void editor_send_create_entity_command(TessEditor *editor, uint32_t objectId)
@@ -146,6 +155,17 @@ void editor_send_create_entity_command(TessEditor *editor, uint32_t objectId)
     ARRAY_COMMAND_WRITE_HEADER(stream, Editor_Server_Command_Server_Create_Entities, 1);
     editor_client_send_stream(editor, &stream);
 } 
+
+void editor_send_destroy_entity_command(TessEditor *editor, uint32_t entityId)
+{
+    ARRAY_COMMAND_START(stream);
+    ARRAY_COMMAND_HEADER_END(stream);
+    bool written = true;
+    written &= stream_write_uint32(&stream, entityId);
+    ARRAY_COMMAND_INC(stream);
+    ARRAY_COMMAND_WRITE_HEADER(stream, Editor_Server_Command_Destroy_Entities, 1);
+    editor_client_send_stream(editor, &stream);
+}
 
 TessEditorEntity* editor_create_object(TessEditor *editor, uint32_t objectId)
 {
@@ -175,6 +195,18 @@ TessEditorEntity* editor_get_entity(TessEditor *editor, uint32_t entityId)
     if(entityId >= pool_cap(editor->edEntityPool))
         return NULL;
     return editor->edEntityPool + entityId;
+}
+
+void editor_destroy_entity(TessEditor *editor, uint32_t entityId)
+{
+    auto entity = editor_get_entity(editor, entityId);
+    int idx;
+    if(entity != NULL && (idx = buf_find_idx(editor->edEntities, entity)) != -1)
+    {
+        tess_destroy_entity(editor->world, entity->entityId);
+        buf_remove_at(editor->edEntities, idx);
+        pool_free(editor->edEntityPool, entity);
+    }
 }
 
 void editor_send_debug_message(TessEditor *editor, char *msg);
@@ -230,7 +262,8 @@ void editor_exit(TessEditor *editor)
 {
     if(editor->connected)
         editor_disconnect(editor);
-    editor->client->mode = Tess_Client_Mode_Menu;
+    // TODO: end_mode, editor should not know what mode the game needs to be in
+    scheduler_set_mode(Tess_Client_Mode_Menu);
 }
 
 void editor_draw_ui(TessEditor *editor)
@@ -238,7 +271,7 @@ void editor_draw_ui(TessEditor *editor)
     PROF_BLOCK();
     struct nk_context *ctx = editor->nk_ctx;
 
-    if(nk_begin(ctx, "Editor", nk_rect(400, 50, 350, 300),
+    /*if(nk_begin(ctx, "Editor", nk_rect(400, 50, 350, 300),
                 NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE))
     {
         nk_layout_row_dynamic(ctx, 30, 1);
@@ -257,11 +290,18 @@ void editor_draw_ui(TessEditor *editor)
         nk_property_int(ctx, "Mode", 0, (int*)&editor->client->mode, INT_MAX, 1, 1);
         nk_value_int(ctx, "Hover object:", editor->cursorObjectId);
     }
-    nk_end(ctx);
+    nk_end(ctx);*/
 
 
     if(nk_begin(ctx, "Selection", nk_rect(0, 0, 200, 400), NK_WINDOW_NO_SCROLLBAR))
     {
+        if(editor->objectSelected && key_down(editor->inputSystem, AIKE_KEY_DELETE))
+        {
+            editor->objectSelected = false;
+            TessEditorEntity *eEnt = editor_get_entity(editor, editor->selectedEditorEntityId);
+            editor_send_destroy_entity_command(editor, eEnt->serverId);
+        }
+
         if(editor->objectSelected)
         {
             TessEditorEntity *edEnt = editor_get_entity(editor, editor->selectedEditorEntityId);
@@ -305,22 +345,22 @@ void editor_draw_ui(TessEditor *editor)
             Mat4 trs;
             translate = edEnt->position;
             quat_euler_deg(&rotate, edEnt->eulerRotation);
-            scale = make_v3(0.2f, 0.2f, 5.0f);
+            scale = make_v3(0.02f, 0.02f, 0.5f);
             mat4_trs(&trs, translate, rotate, scale);
-            render_system_render_mesh(editor->renderSystem, 0, 2, selObj|0x80000000, &trs);
+            render_system_render_mesh(editor->renderSystem, 0, 3, selObj|0x80000000, &trs);
 
             Quat alignY;
             Quat rotate2 = rotate;
             quat_angle_axis(&rotate, 90.0f, make_v3(1.0f, 0.0f, 0.0f));
             quat_mul(&alignY, rotate2, rotate);
             mat4_trs(&trs, translate, alignY, scale);
-            render_system_render_mesh(editor->renderSystem, 0, 2, selObj|0x81000000, &trs);
+            render_system_render_mesh(editor->renderSystem, 0, 3, selObj|0x81000000, &trs);
 
             Quat alignX;
             quat_angle_axis(&rotate, 90.0f, make_v3(0.0f, 1.0f, 0.0f));
             quat_mul(&alignX, rotate2, rotate);
             mat4_trs(&trs, translate, alignX, scale);
-            render_system_render_mesh(editor->renderSystem, 0, 2, selObj|0x82000000, &trs);
+            render_system_render_mesh(editor->renderSystem, 0, 3, selObj|0x82000000, &trs);
 
             if(editor->cursorObjectId != 0xFFFFFFFF 
                     && (editor->cursorObjectId & 0x80000000) != 0)
@@ -345,7 +385,26 @@ void editor_draw_ui(TessEditor *editor)
     }
     nk_end(ctx);
 
-    render_profiler(ctx);
+    if(editor->profilerOpen)
+    {
+        bool wasClosed;
+        render_profiler(ctx, &wasClosed);
+        if(wasClosed)
+        {
+            editor->profilerOpen = false;
+        }
+    }
+    if(editor->assetWinOpen)
+    {
+        bool wasClosed;
+        render_asset_window(ctx, &editor->client->assetSystem, &wasClosed, &editor->createAssetState);
+        if(wasClosed)
+        {
+            editor->assetWinOpen = false;
+        }
+    }
+    if(editor->enteringCommand)
+        render_command_box(&editor->client->uiSystem, ctx, editor->cmdStr, ARRAY_COUNT(editor->cmdStr));
 }
 
 void editor_client_send_command(TessEditor *editor, uint8_t *data, uint32_t size)
@@ -443,12 +502,42 @@ void editor_camera_update(TessEditor *editor)
     cam->rotation = xRot;
 }
 
+void editor_flush_console_command(TessEditor *editor)
+{
+    printf("command: %s\n", editor->cmdStr);
+    // TODO: use hashmap
+    if(strcmp(editor->cmdStr, "profiler") == 0)
+    {
+        editor->profilerOpen = !editor->profilerOpen;
+    }
+    else if(strcmp(editor->cmdStr, "asset create") == 0)
+    {
+        editor->assetWinOpen = !editor->assetWinOpen;
+    }
+    editor->cmdStr[0] = 0;
+}
+
 void editor_update(TessEditor *editor)
 {
     PROF_BLOCK();
     uint32_t w = editor->platform->mainWin.width;
     uint32_t h = editor->platform->mainWin.height;
     editor->normalizedCursorPos = editor->client->inputSystem.normMousePos;
+
+    if(key_down(editor->inputSystem, AIKE_KEY_GRAVE))
+    {
+        editor->enteringCommand = !editor->enteringCommand;
+    }
+    if(editor->enteringCommand && key_down(editor->inputSystem, AIKE_KEY_ENTER))
+    {
+        editor->enteringCommand = false;
+        editor_flush_console_command(editor);
+    }
+
+    if(key_down(editor->inputSystem, AIKE_KEY_ESC))
+    {
+        editor_exit(editor);
+    }
 
     if(mouse_left_down(editor->inputSystem) && editor->cursorObjectId != -1)
     {
@@ -458,7 +547,6 @@ void editor_update(TessEditor *editor)
             editor->objectSelected = true;
             editor->selectedEditorEntityId = kh_val(editor->entityMap, k);
             editor->selectedObjectId = editor->cursorObjectId;
-            printf("select\n");
         }
     }
 
@@ -651,6 +739,23 @@ void editor_client_process_command(TessEditor *editor, uint16_t cmd, uint8_t *da
                     edEnt->localDirty = true;
                 }
             } break;
+        case Editor_Server_Command_Destroy_Entities:
+            {
+                uint16_t entryCount;
+                uint32_t serverId;
+                uint32_t editorId;
+                if(!stream_read_uint16(&stream, &entryCount)) return;
+                for(int i = 0; i < entryCount; i++)
+                {
+                    if(!stream_read_uint32(&stream, &serverId)) return;
+                    khiter_t k = kh_get(uint32, editor->serverEntityMap, serverId);
+                    if(k != kh_end(editor->serverEntityMap))
+                    {
+                        editorId = kh_val(editor->serverEntityMap, k);
+                        editor_destroy_entity(editor, editorId);
+                    }
+                }
+            }break;
         case Editor_Server_Command_Transform_Entities:
             {
                 uint16_t entryCount;

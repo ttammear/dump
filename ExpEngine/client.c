@@ -1,10 +1,9 @@
-void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *renderer, coro_context *mainctx)
+void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *renderer)
 {
     memset(tess, 0, sizeof(TessClient));
     tess->platform = platform;
-    tess->mainctx = mainctx;
 
-    fixed_arena_init(platform, &tess->arena, 4 * 1024 * 1024); 
+    fixed_arena_init(platform, &tess->arena, 8 * 1024 * 1024); 
 
     // Init strings
     //
@@ -68,8 +67,6 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
 
     // Init editor
     void *mem = fixed_arena_push_size(&tess->arena, 1024 * 1024, 64);
-    tess->editor.coroStack = mem;
-    tess->editor.coroStackSize = 1024*1024;
     tess->editor.init = false;
     tess->editor.renderSystem = &tess->renderSystem;
     tess->editor.platform = platform;
@@ -81,8 +78,6 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
 
     // Init game client
     mem = fixed_arena_push_size(&tess->arena, 1024 * 1024, 64);
-    tess->gameClient.coroStack = mem;
-    tess->gameClient.coroStackSize = 1024*1024;
     tess->gameClient.init = false;
     tess->gameClient.client = tess;
     tess->gameClient.world = &tess->gameSystem;

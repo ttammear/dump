@@ -5,6 +5,8 @@
 #define TTR_AREF_EXTERN_MASK 0x80000000
 #define TTR_IS_EXTERN_AREF(x) (((x.tblIndex) & TTR_AREF_EXTERN_MASK) != 0) 
 
+#define TTR_DELIM '/'
+
 typedef struct TTRAssetRef
 {
     uint32_t tblIndex; // highest order bit - 0=descTbl 1=importTbl
@@ -32,7 +34,7 @@ typedef struct TTRDescTblEntry
 
 typedef struct TTRImportTblEntry
 {
-    uint32_t type;
+    uint32_t type; // 4 character code ie "MESH" "OBJ "
     char packageName[TTR_MAX_NAME_LEN];
     char assetName[TTR_MAX_NAME_LEN];
 } TTRImportTblEntry;

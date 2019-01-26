@@ -98,6 +98,7 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 #include "input.c"
 #include "ui.c"
 #include "editor.c"
+#include "scheduler.c"
 
 #include "game.c"
 #include "fib.c"

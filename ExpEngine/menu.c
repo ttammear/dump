@@ -81,7 +81,7 @@ void draw_editor_connect_menu(struct TessMainMenu *menu, struct nk_context *ctx)
             }
             if(nk_button_label(ctx, "Connect"))
             {
-                menu->client->mode = Tess_Client_Mode_Editor;
+                scheduler_set_mode(Tess_Client_Mode_Editor);
                 menu->mode = Tess_Main_Menu_Mode_Menu;
             }
 
@@ -131,7 +131,7 @@ void draw_game_connect_menu(struct TessMainMenu *menu, struct nk_context *ctx)
             }
             if(nk_button_label(ctx, "Connect"))
             {
-                menu->client->mode = Tess_Client_Mode_Game;
+                scheduler_set_mode(Tess_Client_Mode_Game);
                 menu->mode = Tess_Main_Menu_Mode_Menu;
             }
 

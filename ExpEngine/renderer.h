@@ -40,6 +40,8 @@ enum ShaderType
     Shader_Type_Unlit_Color, // Color
     Shader_Type_Unlit_Vertex_Color, // nothing
     Shader_Type_Unlit_Textured, // texture, tint?
+    Shader_Type_Unlit_Fade, // texture RGB and A, tint
+    Shader_Type_Gizmo, // Color
     Shader_Type_Count,
 };
 
@@ -129,11 +131,24 @@ struct UnlitVertexColor
     V4 color;
 };
 
+struct UnlitFade
+{
+    uint32_t textureId;
+    V4 color;
+};
+
+struct GizmoMat
+{
+    V4 color;
+};
+
 union InstanceData
 {
     struct UnlitColorIData unlitColor;
     struct UnlitTexturedIData unlitTextured;
     struct UnlitVertexColor unlitVertexColor;
+    struct UnlitFade unlitFade;
+    struct GizmoMat gizmoMat;
 };
 #pragma pack(pop)
 
@@ -264,6 +279,7 @@ typedef struct ObjectIDSamplesReady
 typedef struct RenderMessage
 {
     uint32_t type;
+    void *usrData;
     union 
     {
         struct MeshQuery meshQuery;

@@ -17,7 +17,7 @@ static inline int seq16_sdif(uint16_t a, uint16_t b)
 
 #define ABS(x) ((x)<0?-(x):(x))
 
-void transform_init(NetworkedTransform *t)
+void transform_init(NetworkedTransform *t, V3 pos, Quat rot)
 {
     t->fromSeq = 65534;
     t->progress = 0.0;
@@ -25,6 +25,11 @@ void transform_init(NetworkedTransform *t)
     t->seqs[65535%NTRANS_BUF_SIZE] = 65535;
     t->seqs[0] = 0;
     t->seqs[1] = 1;
+    for(int i = 0; i < ARRAY_COUNT(t->positions); i++)
+    {
+        t->positions[i] = pos;
+        t->rotations[i] = rot;
+    }
 } 
 
 void transform_update(NetworkedTransform *t, uint16_t seq, uint16_t frameId, V3 position, Quat rotation)

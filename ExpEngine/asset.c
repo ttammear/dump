@@ -10,102 +10,86 @@ void tess_finalize_object(Renderer *renderer, MaterialReady *mr, void *userData)
 void tess_load_object2(TessAssetSystem *as, TessLoadingAsset *lasset);
 TessAsset* tess_get_asset(TessAssetSystem *as, TStr *assetId);
 
-internal void tess_load_texture(TessAssetSystem *as, TTRTexture *ttex, TessLoadingAsset *lasset)
-{
+void tess_task_load_texture(void *data) {
+    AsyncTask task;
+    TessLoadingAsset *lasset = (TessLoadingAsset*)data;
+    TTRTexture *ttex = lasset->texData.ttex;
+    TessAssetSystem *as = lasset->texData.as;
     RenderMessage msg = {};
     msg.type = Render_Message_Texture_Query;
-    msg.texQ.userData = (void*)lasset;
-    msg.texQ.onComplete = tess_fill_texture_data;
     msg.texQ.textureId = 0;
     msg.texQ.width = ttex->width;
     msg.texQ.height = ttex->height;
     msg.texQ.format = Texture_Format_RGBA;
     msg.texQ.filter = Texture_Filter_Trilinear;
-    renderer_queue_message(as->renderer, &msg);
-    printf("LOAD TEXTURE\n");
-}
+    struct TaskResult {
+        bool completed;
+        uint32_t completeEventId; // event id that completes this
+        void *data;
+    };
+    renderer_async_message(as->renderer, &task, &msg);
+    // yields control and scheduler restores it when the task is done
+    scheduler_wait_for(&task);
 
-void tess_fill_texture_data(Renderer *renderer, TextureQueryResponse *tqr, void *userData)
-{
-    TessLoadingAsset *lasset = (TessLoadingAsset*)userData;
-    TTRTexture *ttex = lasset->texData.ttex;
-    TessAssetSystem *as = lasset->texData.as;
     TTRBuffer *tbuf = TTR_REF_TO_PTR(TTRBuffer, ttex->bufRef);
+    // TODO: don't assert, just fail the asset load
     assert(tbuf->size == ttex->width*ttex->height*4);
-    memcpy(tqr->textureDataPtr, tbuf->data, tbuf->size);
-    RenderMessage msg = {0};
+    memcpy(task.renderMsg->texQR.textureDataPtr, tbuf->data, tbuf->size);
+    msg = (const struct RenderMessage){0};
     msg.type = Render_Message_Texture_Update;
-    msg.texU.textureId = tqr->textureId;
-    msg.texU.userData = userData;
-    msg.texU.onComplete = tess_finalize_texture;
-    renderer_queue_message(renderer, &msg);
-    printf("FILL TEXTURE\n");
-}
+    msg.texU.textureId = task.renderMsg->texQR.textureId;
+    //msg.texU.onComplete = tess_finalize_texture;
+    renderer_async_message(as->renderer, &task, &msg);
+    scheduler_wait_for(&task);
 
-void tess_finalize_texture(Renderer *renderer, TextureReady *tr, void *userData)
-{
-    TessLoadingAsset *lasset = (TessLoadingAsset*)userData;
-    TessAssetSystem *as = lasset->texData.as;
     TessTextureAsset *texture = pool_allocate(as->texturePool);
-    assert(texture);
-    texture->textureId = tr->textureId;
+    assert(texture); // TODO: fail asset load or evict something that's not being used
+    texture->textureId = task.renderMsg->texR.textureId;
     texture->asset.assetId = lasset->assetId;
     texture->asset.type = Tess_Asset_Texture;
     buf_push(as->loadedAssets, &texture->asset);
     lasset->status = Tess_Asset_Dependency_Status_Done;
     lasset->asset = &texture->asset;
-    printf("FINALIZE TEXTURE %d\n", tr->textureId);
+    scheduler_task_end();
 }
 
-internal void tess_load_mesh(TessAssetSystem *as, TTRMesh *tmesh, TessLoadingAsset *lasset)
-{
+void tess_task_load_mesh(void *data) {
+    AsyncTask task;
+    TessLoadingAsset *lasset = (TessLoadingAsset*)data;
+    TTRMesh *tmesh = lasset->meshData.tmesh;
+    TessAssetSystem *as = lasset->meshData.as;
     TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(TTRMeshDesc, tmesh->descRef);
     RenderMessage msg = {};
     msg.type = Render_Message_Mesh_Query;
-    msg.meshQuery.userData = (void*)lasset;
-    msg.meshQuery.onComplete = tess_fill_mesh_data;
     msg.meshQuery.meshId = 0;
     msg.meshQuery.vertexCount = tmesh->numVertices;
     msg.meshQuery.indexCount = tmesh->numIndices;
     for(int j = 0; j < ttrMeshDesc->numAttrs; j++)
         msg.meshQuery.attributeTypes[j] = ttrMeshDesc->attrs[j];
-    renderer_queue_message(as->renderer, &msg);
-    printf("LOAD MESH\n");
-}
+    renderer_async_message(as->renderer, &task, &msg);
+    scheduler_wait_for(&task);
 
-void tess_fill_mesh_data(Renderer *renderer, MeshQueryResult *mqr, void *userData)
-{
-    TessLoadingAsset *lasset = (TessLoadingAsset*)userData;
-    TTRMesh *tmesh = lasset->meshData.tmesh;
-    TessAssetSystem *as = lasset->meshData.as;
     TTRBuffer *vbuf = TTR_REF_TO_PTR(TTRBuffer, tmesh->vertBufRef);
     TTRBuffer *ibuf = TTR_REF_TO_PTR(TTRBuffer, tmesh->indexBufRef);
-    TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(TTRMeshDesc, tmesh->descRef);
     // TODO: check if buffer sizes match
-    memcpy(mqr->vertBufPtr, vbuf->data, vbuf->size);
-    memcpy(mqr->idxBufPtr, ibuf->data, ibuf->size);
-    RenderMessage msg = {};
+    memcpy(task.renderMsg->meshQueryResult.vertBufPtr, vbuf->data, vbuf->size);
+    memcpy(task.renderMsg->meshQueryResult.idxBufPtr, ibuf->data, ibuf->size);
+    msg = (const RenderMessage){};
     msg.type = Render_Message_Mesh_Update;
-    msg.meshUpdate.meshId = mqr->meshId;
-    msg.meshUpdate.onComplete = tess_finalize_mesh;
-    msg.meshUpdate.userData = (void*)lasset;
-    renderer_queue_message(renderer, &msg);
-    printf("FILL MESH %d %d\n", tmesh->numVertices, tmesh->numIndices);
-}
+    msg.meshUpdate.meshId = task.renderMsg->meshQueryResult.meshId;
+    renderer_async_message(as->renderer, &task, &msg);
+    scheduler_wait_for(&task);
 
-void tess_finalize_mesh(Renderer *renderer, MeshReady *mr, void *userData)
-{
-    TessLoadingAsset *lasset = (TessLoadingAsset*)userData;
-    TessAssetSystem *as = lasset->meshData.as;
     TessMeshAsset *mesh = pool_allocate(as->meshPool);
     assert(mesh);
-    mesh->meshId = mr->meshId;
+    mesh->meshId = task.renderMsg->meshR.meshId;
     mesh->asset.assetId = lasset->assetId;
     mesh->asset.type = Tess_Asset_Mesh;
     buf_push(as->loadedAssets, &mesh->asset);
     lasset->status = Tess_Asset_Dependency_Status_Done;
     lasset->asset = &mesh->asset;
-    printf("FINALIZE MESH %d\n", mr->meshId);
+
+    scheduler_task_end();
 }
 
 void tess_load_object(TessAssetSystem *as, TTRObject *tobject, TessLoadingAsset *lasset, TTRDescTbl *tbl, TTRImportTbl *imTbl)
@@ -133,18 +117,20 @@ void tess_load_object(TessAssetSystem *as, TTRObject *tobject, TessLoadingAsset 
     lasset->type = Tess_Asset_Object;
     lasset->objectData.tobj = tobject;
     lasset->objectData.as = as;
-    lasset->onDependenciesLoaded = tess_load_object2;
+    // TODO: wtf man
+    lasset->onDependenciesLoaded = (void*)0xFACEFEED;
 }
 
-void tess_load_object2(TessAssetSystem *as, TessLoadingAsset *lasset)
-{
+void tess_task_load_object(void *data) {
+    AsyncTask task;
+    TessObjectAsset *tessObj;
+    TessLoadingAsset *lasset = (TessLoadingAsset*)data;
     printf("process %s\n", lasset->assetId->cstr);
     TTRObject *tobj = lasset->objectData.tobj;
+    TessAssetSystem *as = lasset->objectData.as;
     TTRMaterial *ttrMat = TTR_REF_TO_PTR(TTRMaterial, tobj->materialRef);
     RenderMessage msg = {};
     msg.type = Render_Message_Material_Query;
-    msg.matQ.userData = lasset;
-    msg.matQ.onComplete = tess_finalize_object;
     msg.matQ.materialId = 0;
     msg.matQ.shaderId = ttrMat->shaderType;
 
@@ -164,8 +150,22 @@ void tess_load_object2(TessAssetSystem *as, TessLoadingAsset *lasset)
                 msg.matQ.iData.unlitTextured.textureId = 0;
             msg.matQ.iData.unlitTextured.color = ttrMat->tintColor;
             break;
+        case Shader_Type_Unlit_Fade:
+            texAsset = tess_get_asset(as, lasset->objectData.textureAssetId);
+            if(texAsset != NULL && texAsset->type == Tess_Asset_Texture)
+            {
+                TessTextureAsset *texa = (TessTextureAsset*)texAsset;
+                msg.matQ.iData.unlitFade.textureId = texa->textureId;
+            }
+            else
+                msg.matQ.iData.unlitFade.textureId = 0;
+            msg.matQ.iData.unlitFade.color = ttrMat->tintColor;
+            break;    
         case Shader_Type_Unlit_Color:
             msg.matQ.iData.unlitColor.color = ttrMat->tintColor;
+            break;
+        case Shader_Type_Gizmo:
+            msg.matQ.iData.gizmoMat.color = ttrMat->tintColor;
             break;
         case Shader_Type_Unlit_Vertex_Color:
             msg.matQ.iData.unlitVertexColor.color = ttrMat->tintColor;
@@ -175,21 +175,19 @@ void tess_load_object2(TessAssetSystem *as, TessLoadingAsset *lasset)
             fprintf(stderr, "Object material had unknown shader type: %d\n", ttrMat->shaderType);
             break;
     };
-    renderer_queue_message(as->renderer, &msg);
-}
+    renderer_async_message(as->renderer, &task, &msg);
+    scheduler_wait_for(&task);
 
-void tess_finalize_object(Renderer *renderer, MaterialReady *mr, void *userData)
-{
-    TessLoadingAsset *lasset = (TessLoadingAsset*)userData;
-    TessAssetSystem *as = lasset->objectData.as;
-    TessObjectAsset *tessObj = pool_allocate(as->objectPool);
+    tessObj = pool_allocate(as->objectPool);
     assert(tessObj);
     tessObj->asset.assetId = lasset->assetId;
     tessObj->asset.type = Tess_Asset_Object;
-    tessObj->materialId = mr->materialId;
+    tessObj->materialId = task.renderMsg->matR.materialId;
     lasset->asset = &tessObj->asset;
     lasset->status = Tess_Asset_Dependency_Status_Done;
-    printf("FINALIZE OBJECT MAT %d\n", mr->materialId);
+    printf("FINALIZE OBJECT MAT %d\n", task.renderMsg->matR.materialId);
+
+    scheduler_task_end();
 }
 
 internal inline void add_dependency(TessLoadingAsset *lasset, TStr *assetId)
@@ -238,7 +236,8 @@ void tess_process_ttr_file(TessAssetSystem *as, TessFile *tfile)
                         TTRMesh *tmesh = TTR_REF_TO_PTR(TTRMesh, tbl->entries[i].ref);
                         lasset->meshData.tmesh = tmesh;
                         lasset->type = Tess_Asset_Mesh;
-                        tess_load_mesh(as, tmesh, lasset);
+                        //tess_load_mesh(as, tmesh, lasset);
+                        scheduler_queue_task(tess_task_load_mesh, (void*)lasset);
                         found = true;
                     } break;
                 case ' JBO': // OBJ
@@ -247,13 +246,14 @@ void tess_process_ttr_file(TessAssetSystem *as, TessFile *tfile)
                         tess_load_object(as, tobject, lasset, tbl, imTbl);
                         found = true;
                     }break;
-                case ' XET':
+                case ' XET': // TEX
                     {
                         lasset->texData.as = as;
                         TTRTexture *ttex = TTR_REF_TO_PTR(TTRTexture, tbl->entries[i].ref);
                         lasset->texData.ttex = ttex;
                         lasset->type = Tess_Asset_Texture;
-                        tess_load_texture(as, ttex, lasset);
+                        //tess_load_texture(as, ttex, lasset);
+                        scheduler_queue_task(tess_task_load_texture, (void*)lasset);
                         found = true;
                     } break;
                 default:
@@ -472,8 +472,11 @@ internal void tess_check_dependencies(TessAssetSystem *as, TessLoadingAsset *las
     // only way to get here is if all were loaded
     printf("deps done %s\n", lasset->assetId->cstr);
     lasset->status = Tess_Asset_Dependency_Status_Loading;
-    if(lasset->onDependenciesLoaded != NULL)
-        lasset->onDependenciesLoaded(as, lasset);
+    // TODO: get rid of this shit
+    if(lasset->onDependenciesLoaded != NULL) {
+        scheduler_queue_task(tess_task_load_object, (void*)lasset);
+        //lasset->onDependenciesLoaded(as, lasset);
+    }
 }
 
 internal void tess_check_complete(TessAssetSystem *as)
@@ -585,6 +588,34 @@ internal void tess_replace_id_name_characters(char buf[], const char *name, uint
     }
     fprintf(stderr, "string passed to tess_escape_id_name() wasn't null terminated!\n");
     assert(false);
+}
+
+internal void tess_refresh_package_list(TessAssetSystem *as)
+{
+    char pdirPath[AIKE_MAX_PATH];
+    AikeFileEntry entries[64];
+    int count;
+    AikePlatform *platform = as->fileSystem->platform;
+    strcpy(pdirPath, "Packages");
+    AikeDirectory *dir = platform->open_directory(platform, pdirPath);
+    if(!dir)
+    {
+        fprintf(stderr, "Unable to read 'Packages' directory\n");
+        exit(-1);
+    }
+    buf_clear(as->packageList);
+    while((count = platform->next_files(platform, dir, entries, ARRAY_COUNT(entries))))
+    {
+        for(int i = 0; i < count; i++)
+        {
+            if(entries[i].type == Aike_File_Entry_Directory)
+            {
+                TStr *packageName = tess_intern_string(as->tstrings, entries[i].name);
+                buf_push(as->packageList, packageName);
+            }
+        }
+    }
+    platform->close_directory(platform, dir);
 }
 
 internal void tess_gen_lookup_cache_for_package(TessAssetSystem *as, TStr *packageName)

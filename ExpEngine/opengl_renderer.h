@@ -34,6 +34,7 @@ typedef struct GLMesh
 
     // TODO: move somwhere else
     void *userData;
+    void *userData2;
     MReady_A onComplete;
 
     uint32_t numVertices;
@@ -62,6 +63,7 @@ typedef struct GLTexture
 
     // TODO: move somewhere else
     void *userData;
+    void *userData2;
     TReady_A onComplete;
 
     u16 format;
@@ -89,6 +91,7 @@ typedef struct GLMaterial
     GLuint glProgram;
 
     void *userData;
+    void *userData2;
     
     uint32_t perInstanceDataSize;
     union InstanceData iData;

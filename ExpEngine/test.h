@@ -73,7 +73,7 @@ typedef struct RenderView
     uint32_t matrixCount;
     _Alignas(16) struct Mat4_sse2 *tmatrixBuf;
 
-    Mat4_sse2 worldToClip;
+    struct Mat4_sse2 worldToClip;
 
     V4 renderRect;
 
