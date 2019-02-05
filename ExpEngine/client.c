@@ -16,6 +16,8 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess->fileSystem.pipeline_vtbl[Tess_File_Pipeline_None] = NULL;
     tess->fileSystem.pipeline_vtbl[Tess_File_Pipeline_TTR] = (FilePipelineProc)tess_process_ttr_file;
     tess->fileSystem.pipeline_ptrs[Tess_File_Pipeline_TTR] = &tess->assetSystem;
+    tess->fileSystem.pipeline_vtbl[Tess_File_Pipeline_Task] = (FilePipelineProc)tess_task_file_loaded;
+    tess->fileSystem.pipeline_ptrs[Tess_File_Pipeline_Task] = NULL;
     tess_file_system_init(&tess->fileSystem, &tess->arena);
 
     // Init asset system

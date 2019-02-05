@@ -11,6 +11,8 @@ void debug_init(const char *name)
     strncpy(newProfState->name, name, ARRAY_COUNT(newProfState->name)-1);
     newProfState->name[ARRAY_COUNT(newProfState->name)-1] = 0;
 
+    newProfState->profTreeHash = kh_init(64);
+
     _Bool success = false;
     while(!success)
     {
@@ -31,25 +33,6 @@ void debug_init(const char *name)
     t_profState = newProfState;
 }
 
-void entry_recursive(struct ProfileEntry *entry, int depth)
-{
-    while(entry != NULL)
-    {
-        uint64_t cycles = entry->sum;
-        double milliseconds = (double)cycles / 2800000.0;
-        for(int i = 0; i < depth; i++)
-            printf(" "); 
-        printf("%s %lucycles %fms\n", entry->locationStr, cycles, milliseconds);
-        entry_recursive(entry->firstChild, depth+1);
-        entry = entry->nextSibling;
-    }
-}
-
-void debug_frame_report()
-{
-    entry_recursive(t_profState->root->firstChild, 0);
-}
-
 void debug_destroy()
 {
     for(int i = 0; i < ARRAY_COUNT(g_profStates); i++)
@@ -63,38 +46,98 @@ void debug_destroy()
 
 void debug_start_frame()
 {
-    for(int i = 0; i < PROFILER_MAX_ENTRIES_PER_FRAME; i++)
-    {
-        struct ProfileEntry *ent = &t_profState->entries[t_profState->curFrame][i];
-        ent->sum = 0;
-        ent->init = false;
-        ent->firstChild = NULL;
-        ent->nextSibling = NULL;
-    }
-    t_profState->freeEntryId = 0;
-
-    struct ProfileEntry *root = PROF__GET_ENTRY_GUID();
-    root->firstChild = NULL;
-    root->nextSibling = NULL;
-    root->locationStr = "Root";
-    root->init = true;
-    t_profState->openEntries[0].entry = root;
-    t_profState->openEntries[0].lastChild = NULL;
-    t_profState->curSEntry = 1;
-
     if(!atomic_load(&t_profState->pause))
     {
         atomic_exchange(&t_profState->prev, (uintptr_t)t_profState->root);
     }
-    t_profState->root = root;
+}
+
+ProfNode* prof_tree_node(ProfTree* tree, ProfNode *parent, int* eventIndex, int depth) {
+    ProfNode *newNode = NULL;
+    ProfNode *lastSibling = NULL;
+    ProfNode *firstChild = NULL;
+    uint64_t startCycles;
+    uint64_t hash = 0;
+    khiter_t k;
+    int ret;
+    bool open = false;
+    while(*eventIndex < t_profState->eventIndex) {
+        DebugEvent *e = &t_profState->events[*eventIndex];
+        switch(e->type) {
+            default: // skip events that have nothing to do with profiler
+                (*eventIndex)++;
+                continue;
+            case Debug_Event_Start_Block:
+                (*eventIndex)++;
+                hash = e->uid^(uint64_t)parent;
+                k = kh_put(64, t_profState->profTreeHash, hash, &ret);
+                if(ret > 0) {
+                    newNode = &tree->nodes[tree->nodeIndex++];
+                    kh_val(t_profState->profTreeHash, k) = newNode;
+                    assert(newNode - tree->nodes < PROF_TREE_MAX_NODES);
+                    if(firstChild == NULL)
+                        firstChild = newNode;
+                    newNode->firstChild = prof_tree_node(tree, newNode, eventIndex, depth+1);
+                    newNode->name = e->name;
+                    newNode->nextSibling = NULL;
+                    newNode->numInvocations = 1;
+                    newNode->cycles = 0;
+                    newNode->ms = 0.0;
+                    if(lastSibling != NULL) {
+                        lastSibling->nextSibling = newNode;
+                    }
+                } else {
+                    assert(firstChild != NULL); // reapeating entry when no entries haven't even been checked
+                    newNode = kh_val(t_profState->profTreeHash, k);
+                    newNode->numInvocations++;
+                }
+                startCycles = e->clock;
+                open = true;
+                break;
+            case Debug_Event_End_Block:
+                if(!open)
+                    return firstChild;
+                newNode->cycles += e->clock - startCycles;
+                newNode->ms += (float)newNode->cycles/2400000.f;
+                lastSibling = newNode;
+                open = false;
+                (*eventIndex)++;
+                break;
+        }
+    }
+    return firstChild;
 }
 
 void debug_end_frame()
 {
-    if(!atomic_load(&t_profState->pause))
-    {
-        t_profState->curFrame = (t_profState->curFrame+1) % PROFILER_FRAME_HISTORY;
-        assert(t_profState->curSEntry == 1); // more PROF_START than PROF_END
-        assert(t_profState->curFrame < PROFILER_FRAME_HISTORY);
+    // generate profiler tree
+    ProfTree *tree = &t_profState->profileTree[t_profState->frameId%PROFILE_TREE_STORED_FRAMES];
+    tree->nodeIndex = 0;
+    tree->frameId = t_profState->frameId;
+    kh_clear(64, t_profState->profTreeHash);
+    int idx = 0;
+    tree->tree.firstChild = prof_tree_node(tree, &tree->tree, &idx, 0);
+
+    // generate event log
+    // NOTE: reusing idx variable
+    if(!atomic_load(&t_profState->pause)) {
+        idx = t_profState->eventLogHead;
+        for(int i = 0; i < t_profState->eventIndex; i++) {
+            DebugEvent *e = t_profState->events + i;
+            if(e->type < Debug_Event_Queue_Task)
+                continue;
+            assert(e->name);
+            t_profState->eventLog[idx].name = e->name;
+            t_profState->eventLog[idx].func = e->taskFunc;
+            t_profState->eventLog[idx].frameId = t_profState->frameId;
+            idx = (idx+1)%EVENT_LOG_STORED_EVENTS;
+            t_profState->eventLogCount = MIN(t_profState->eventLogCount+1, EVENT_LOG_STORED_EVENTS);
+            //printf("lc %d\n", t_profState->eventLogCount);
+        }
+        t_profState->eventLogHead = idx;
+
+        t_profState->frameId++;
     }
+    
+    t_profState->eventIndex = 0;
 }

@@ -582,8 +582,6 @@ internal void opengl_handle_mesh_query(OpenGLRenderer *renderer, MeshQuery *mq, 
     msg.type = Render_Message_Mesh_Query_Result;
     msg.usrData = userData;
     msg.meshQueryResult.meshId = meshId;
-    msg.meshQueryResult.userData = mq->userData;
-    msg.meshQueryResult.onComplete = mq->onComplete;
     msg.meshQueryResult.vertBufPtr = vertPtr;
     msg.meshQueryResult.idxBufPtr = indexPtr;
     msg.meshQueryResult.dataBufPtr = NULL; // TODO
@@ -600,8 +598,6 @@ internal void opengl_mesh_ready(OpenGLRenderer *renderer, GLMesh* mesh)
     msg.type = Render_Message_Mesh_Ready;
     msg.meshR.meshId = mesh->id;
     msg.usrData = mesh->userData2;
-    msg.meshR.userData = mesh->userData;
-    msg.meshR.onComplete = mesh->onComplete;
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
@@ -665,9 +661,7 @@ internal void opengl_handle_mesh_update(OpenGLRenderer *renderer, MeshUpdate *mu
     }
     mesh->state = GL_Mesh_State_Wait_Sync;
     mesh->fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-    mesh->userData = mu->userData;
     mesh->userData2 = userData;
-    mesh->onComplete = mu->onComplete;
     opengl_notify_sync(renderer, &mesh->fence, (OnSyncAction_t)opengl_mesh_ready, mesh);
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -720,16 +714,13 @@ internal void opengl_handle_material_query(OpenGLRenderer *renderer, MaterialQue
             material->perInstanceDataSize = 0;
             break;
     };
-    material->userData = mq->userData;
     material->userData2 = userData;
     material->iData = mq->iData; // @OPTIMIZE: dont have to copy full
 
     RenderMessage msg = {};
     msg.type = Render_Message_Material_Ready;
     msg.matR.materialId = material->id;
-    msg.matR.userData = material->userData;
     msg.usrData = material->userData2;
-    msg.matR.onComplete = mq->onComplete;
     ring_queue_enqueue(RenderMessage, &renderer->renderer.ch.fromRenderer, &msg);
 }
 
@@ -1456,10 +1447,39 @@ internal void opengl_init(OpenGLRenderer *renderer)
         .perInstanceDataSize = sizeof(struct UnlitVertexColor),
         .iData.unlitVertexColor.color = (V4){1.0f, 1.0f, 1.0f, 1.0f},
     };
+    buf_push(renderer->materials, mat);
+
+    mat = (GLMaterial){ 
+        .id = 1,
+        .shaderId = Shader_Type_Gizmo,
+        .glProgram = renderer->builtinPrograms[Shader_Type_Gizmo],
+        .userData = NULL,
+        .perInstanceDataSize = sizeof(struct GizmoMat),
+        .iData.gizmoMat.color = (V4){1.0f, 0.0f, 0.0f, 1.0f},
+    };
+    buf_push(renderer->materials, mat);
+    mat = (GLMaterial){ 
+        .id = 2,
+        .shaderId = Shader_Type_Gizmo,
+        .glProgram = renderer->builtinPrograms[Shader_Type_Gizmo],
+        .userData = NULL,
+        .perInstanceDataSize = sizeof(struct GizmoMat),
+        .iData.gizmoMat.color = (V4){0.0f, 1.0f, 0.0f, 1.0f},
+    };
+    buf_push(renderer->materials, mat);
+    mat = (GLMaterial){ 
+        .id = 3,
+        .shaderId = Shader_Type_Gizmo,
+        .glProgram = renderer->builtinPrograms[Shader_Type_Gizmo],
+        .userData = NULL,
+        .perInstanceDataSize = sizeof(struct GizmoMat),
+        .iData.gizmoMat.color = (V4){0.0f, 0.0f, 1.0f, 1.0f},
+    };
+    buf_push(renderer->materials, mat);
+
 
     buf_push(renderer->textures, tex);
     buf_push(renderer->meshes, mesh);
-    buf_push(renderer->materials, mat);
 
     // TODO: remove
     opengl_init_object_id_buffer(renderer);

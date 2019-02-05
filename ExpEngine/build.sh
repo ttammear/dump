@@ -10,7 +10,7 @@ cd ..
 
 set -e
 
-CFLAGS='-Wshadow -Wno-multichar -pthread -std=c11 -ffast-math -O0 -ggdb3 -DAIKE_X86'
+CFLAGS='-Wno-multichar -pthread -std=c11 -ffast-math -O0 -ggdb3 -DAIKE_X86'
 LFLAGS=''
 COMFLAGS=''
 CC='clang'

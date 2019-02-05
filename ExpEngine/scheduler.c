@@ -19,14 +19,16 @@ void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *clien
 
     ctx->waitingTaskSet = kh_init(64);
 
-    const int maxTasks = 10;
+    // TODO: this is only so high because the asset system is too dumb to resolve
+    // dependency graphs in a resource friendly manner!
+    // SO CHANGE THIS ONCE THAT IS NO LONGER TRUE
+    const int maxTasks = 444;
+    // TODO: use protected stack in debug builds!
     const int taskStackSize = 4096;
-    ctx->tasks = NULL;
+    ctx->taskQueueHead = NULL;
+    ctx->taskQueueTail = NULL;
+    ctx->freeTasks = NULL;
     pool_init_with_memory(ctx->ctxPool, malloc(pool_calc_size(ctx->ctxPool, maxTasks)), maxTasks);
-    void * test = pool_allocate(ctx->ctxPool);
-    void * test2 = pool_allocate(ctx->ctxPool);
-    pool_print(ctx->ctxPool);
-    pool_print(ctx->ctxPool);
     ctx->taskMemory = malloc(taskStackSize*maxTasks);
     ctx->taskMemorySize = taskStackSize;
 
@@ -80,8 +82,9 @@ void scheduler_yield() {
              coro_transfer(&s->gameCtx, &s->mainCtx);
              break;
         case SCHEDULER_STATE_TASK:
+             {DEBUG_TASK_EVENT(Debug_Event_Suspend_Task, __COUNTER__, "Suspend task", s->curTaskCtx->name);}
              s->state = SCHEDULER_STATE_MAIN;
-             coro_transfer(s->curTaskCtx, &s->mainCtx);
+             coro_transfer(&s->curTaskCtx->ctx, &s->mainCtx);
              break;
         default:
              assert(false); // invalid code path, possibly memory corruption?
@@ -98,21 +101,37 @@ void scheduler_wait_for(AsyncTask *task) {
     scheduler_yield();
 }
 
-void scheduler_event(u32 type, void *data, void *usrPtr) {
+void scheduler_event(u32 type, void *data, AsyncTask *task) {
     TessScheduler *s = g_scheduler;
-    khiter_t k = kh_get(64, s->waitingTaskSet, (uint64_t)usrPtr);
+    khiter_t k = kh_get(64, s->waitingTaskSet, (uint64_t)task);
     if(k != kh_end(s->waitingTaskSet)) {
        kh_del(64, s->waitingTaskSet, k);
-       AsyncTask *t = (AsyncTask*)usrPtr;
+       AsyncTask *t = (AsyncTask*)task;
        switch(type) {
            case SCHEDULER_EVENT_RENDER_MESSAGE:
                // TODO: avoid so many copies somehow?
                // TODO: this is unsafe, referencing to mainCtx stack from task
                t->renderMsg = ((RenderMessage*)data);
+               // TODO: wrap this into function?
                assert(s->state == SCHEDULER_STATE_MAIN);
                s->state = SCHEDULER_STATE_TASK;
                s->curTaskCtx = t->ctx;
-               coro_transfer(&s->mainCtx, t->ctx);
+               DEBUG_TASK_EVENT(Debug_Event_Resume_Task, __COUNTER__, "Resume task (waited on render message)", t->ctx->name);
+               coro_transfer(&s->mainCtx, &t->ctx->ctx);
+               break;
+           case SCHEDULER_EVENT_ASSET_DEPS_LOADED:
+               assert(s->state == SCHEDULER_STATE_MAIN);
+               s->state = SCHEDULER_STATE_TASK;
+               s->curTaskCtx = t->ctx;
+               {DEBUG_TASK_EVENT(Debug_Event_Resume_Task, __COUNTER__, "Resume task (waited on asset dependencies)", t->ctx->name);}
+               coro_transfer(&s->mainCtx, &t->ctx->ctx);
+               break;
+           case SCHEDULER_EVENT_FILE_LOADED:
+               assert(s->state == SCHEDULER_STATE_MAIN);
+               s->state = SCHEDULER_STATE_TASK;
+               s->curTaskCtx = t->ctx;
+               {DEBUG_TASK_EVENT(Debug_Event_Resume_Task, __COUNTER__, "Resume task (waited on file read)", t->ctx->name);}
+               coro_transfer(&s->mainCtx, &t->ctx->ctx);
                break;
            default:
                assert(0);
@@ -121,19 +140,38 @@ void scheduler_event(u32 type, void *data, void *usrPtr) {
     }
 }
 
-void scheduler_queue_task(TaskFunc func, void *usrData) {
+void scheduler_queue_task_(TaskFunc func, void *usrData, const char* name) {
     TessScheduler *s = g_scheduler;
-    SchedulerTask task = {.func = func, .data = usrData};
-    buf_push(s->tasks, task);
+    SchedulerTask* task;
+    if(s->freeTasks != NULL) { // try to reuse previously allocated task
+        task = s->freeTasks;
+        s->freeTasks = task->next;
+    }
+    else {
+        // TODO: no malloc!
+        task = malloc(sizeof(SchedulerTask));
+    }
+    task->func = func;
+    task->data = usrData;
+    task->next = NULL;
+    task->name = name;
+    if(s->taskQueueTail == NULL) {
+        assert(s->taskQueueHead == NULL);
+        s->taskQueueHead = task;
+    } else {
+        s->taskQueueTail->next = task;
+    }
+    s->taskQueueTail = task;
+    DEBUG_TASK_EVENT(Debug_Event_Queue_Task, __COUNTER__, "Queue task", name);
 }
 
 // TODO: find an "automated" way of doing this, like seeding a return address to task stack
 void scheduler_task_end() {
     TessScheduler *s = g_scheduler;
-    coro_context *ctx = s->curTaskCtx;
+    TaskContext *ctx = s->curTaskCtx;
     assert(s->state == SCHEDULER_STATE_TASK);
     // copy because we need it for coro_transfer and it's more convenient to free it here
-    coro_context ctxCopy = *ctx;
+    TaskContext ctxCopy = *ctx;
     pool_free(s->ctxPool, ctx); 
 #if _DEBUG
     ctx = NULL;
@@ -141,25 +179,34 @@ void scheduler_task_end() {
     // TODO: not really necessary, for debug purposes only
     s->curTaskCtx = NULL;
     s->state = SCHEDULER_STATE_MAIN;
-    coro_transfer(&ctxCopy, &s->mainCtx);
+    DEBUG_TASK_EVENT(Debug_Event_End_Task, __COUNTER__, "End task", ctxCopy.name);
+    coro_transfer(&ctxCopy.ctx, &s->mainCtx);
 }
 
 void scheduler_start_pending_tasks() {
     TessScheduler *s = g_scheduler;
     assert(s->state == SCHEDULER_STATE_MAIN);
+        
     while(true) {
-        if(buf_len(s->tasks) <= 0) // no tasks
+        if(s->taskQueueTail == NULL) // no tasks
             return;
-        coro_context *ctx = pool_allocate(s->ctxPool);
+        TaskContext *ctx = pool_allocate(s->ctxPool);
         if(!ctx) // no more tasks
             return;
-        // TODO: this is FILO not FIFO!!
-        SchedulerTask task = s->tasks[buf_len(s->tasks)-1];
+        SchedulerTask *task = s->taskQueueHead;
 
-       coro_create(ctx, task.func, task.data, s->taskMemory+s->taskMemorySize*(ctx - s->ctxPool), s->taskMemorySize);
-       s->state = SCHEDULER_STATE_TASK;
-       s->curTaskCtx = ctx;
-       coro_transfer(&s->mainCtx, ctx);
-       buf_pop_back(s->tasks);
+        DEBUG_TASK_EVENT(Debug_Event_Queue_Task, __COUNTER__, "Start task", task->name);
+        coro_create(&ctx->ctx, task->func, task->data, s->taskMemory+s->taskMemorySize*(ctx - s->ctxPool), s->taskMemorySize);
+        s->state = SCHEDULER_STATE_TASK;
+        s->curTaskCtx = ctx;
+        ctx->name = task->name;
+        coro_transfer(&s->mainCtx, &ctx->ctx);
+
+        s->taskQueueHead = s->taskQueueHead->next;
+        if(s->taskQueueHead == NULL) {
+            s->taskQueueTail = NULL;
+        }
+        task->next = s->freeTasks;
+        s->freeTasks = task;
     }
 }

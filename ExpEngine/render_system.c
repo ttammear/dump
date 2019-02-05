@@ -29,33 +29,15 @@ void process_render_messages(TessRenderSystem *rs)
             scheduler_event(SCHEDULER_EVENT_RENDER_MESSAGE, &msg, msg.usrData);
         switch(msg.type)
         {
-            case Render_Message_Mesh_Query_Result:
-                if(msg.meshQueryResult.onComplete != NULL)
-                    msg.meshQueryResult.onComplete(renderer, &msg.meshQueryResult, msg.meshQueryResult.userData);
-                break;
             case Render_Message_Texture_Query_Response:
                 if(msg.texQR.onComplete != NULL)
                     msg.texQR.onComplete(renderer, &msg.texQR, msg.texQR.userData);
                 break;
-            case Render_Message_Mesh_Ready:
-                if(msg.meshR.onComplete != NULL)
-                    msg.meshR.onComplete(renderer, &msg.meshR, msg.meshR.userData);
-                else
-                    printf("mesh ready %d\n", msg.meshR.meshId);
-                break;
             case Render_Message_Texture_Ready:
                 if(msg.texR.onComplete != NULL)
                     msg.texR.onComplete(renderer, &msg.texR, msg.texR.userData);
-                else
-                    printf("texture ready %d\n", msg.texR.textureId);
                 break;
-            case Render_Message_Material_Ready:
-                if(msg.matR.onComplete != NULL)
-                    msg.matR.onComplete(renderer, &msg.matR, msg.matR.userData);
-                else
-                    printf("material ready %d\n", msg.matR.materialId);
-                break;
-            case Render_Message_Sample_Object_Ready:
+           case Render_Message_Sample_Object_Ready:
                 if(msg.sampleOR.onComplete != NULL)
                 {
                     ((OSReady_A)(*msg.sampleOR.onComplete))(renderer, &msg.sampleOR, msg.sampleOR.userData);

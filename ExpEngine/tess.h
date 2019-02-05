@@ -4,7 +4,7 @@
 #define TESS_OBJECT_POOL_SIZE 500
 #define TESS_LOADING_ASSET_POOL_SIZE 1000
 #define TESS_DEP_NODE_POOL_SIZE 1000
-#define TESS_ASSET_LOOKUP_ENTRY_POOL_SIZE 1000
+#define TESS_ASSET_LOOKUP_ENTRY_POOL_SIZE 2500
 #define TESS_ASSET_LOOKUP_CACHE_POOL_SIZE 100
 
 #define POOL_FROM_ARENA(pool, arena, size) (pool_init_with_memory((pool), arena_push_size((arena), pool_calc_size((pool), (size)), 8), (size)))
@@ -25,6 +25,7 @@ enum TessFilePipeline
 {
     Tess_File_Pipeline_None,
     Tess_File_Pipeline_TTR,
+    Tess_File_Pipeline_Task,
     Tess_File_Pipeline_Count,
 };
 
@@ -76,30 +77,44 @@ typedef enum SchedulerState {
 typedef enum SchedulerEvent {
     SCHEDULER_EVENT_NONE,
     SCHEDULER_EVENT_RENDER_MESSAGE,
+    SCHEDULER_EVENT_ASSET_DEPS_LOADED,
+    SCHEDULER_EVENT_FILE_LOADED,
 } SchedulerEvent;
 
 typedef struct SchedulerTask {
     TaskFunc func;
     void *data;
+    struct SchedulerTask *next;
+    const char* name;
     uint8_t datas[512];
 } SchedulerTask;
 
 typedef struct AsyncTask {
-   coro_context *ctx;
+   struct TaskContext *ctx;
+   const char *name;
    union {
        struct RenderMessage *renderMsg;
+       struct TessFile *file;
    }; 
 } AsyncTask;
+
+typedef struct TaskContext {
+    coro_context ctx;
+    const char *name;
+} TaskContext;
 
 typedef struct TessScheduler {
     u32 mode;
     SchedulerState state;
 
-    coro_context *curTaskCtx;
+    TaskContext *curTaskCtx;
     khash_t(64) *waitingTaskSet; // hashmap used as a set
 
-    SchedulerTask *tasks;
-    coro_context *ctxPool;
+    SchedulerTask *taskQueueHead;
+    SchedulerTask *taskQueueTail;
+
+    SchedulerTask *freeTasks;
+    TaskContext *ctxPool;
     uint8_t *taskMemory;
     u32 taskMemorySize;
 
@@ -198,6 +213,8 @@ typedef struct TessObjectDepData
     TStr *meshAssetId;
     TStr *textureAssetId;
     struct TTRObject *tobj;
+    struct TTRDescTbl *ttbl;
+    struct TTRImportTbl *titbl;
 } TessObjectDepData;
 
 typedef struct TessAssetDependency
@@ -210,7 +227,7 @@ typedef struct TessAssetDependency
 typedef struct TessLoadingAsset
 {
     TessAssetDependency *dependencies;
-    void (*onDependenciesLoaded)(struct TessAssetSystem*, struct TessLoadingAsset *lasset);
+    AsyncTask *task;
     struct TessFile *file;
     uint32_t status;
     TStr *assetId;
@@ -239,6 +256,13 @@ typedef struct AssetLookupCache
 
 typedef void (*OnAssetLoaded_t) (void *, struct TessAssetSystem *, struct TessAsset *);
 
+typedef struct TessAssetSystemMetrics {
+    int numLoadingAssets;
+    int numLoadedAssets;
+    int numOpenedAssetFiles;
+    int totalFileLoads;
+} TessAssetSystemMetrics;
+
 typedef struct TessAssetSystem
 {
     TessAsset nullAsset;
@@ -256,6 +280,9 @@ typedef struct TessAssetSystem
     struct TessLoadingAsset **loadingAssets;
     struct AssetLookupEntry *assetLookupEntryPool;
     struct AssetLookupCache *assetLookupCachePool;
+
+    int numOpenAssetFiles;
+    int totalFileLoads;
 
     khash_t(str) *packageAssetMap;
     khash_t(64) *loadedAssetMap; // TStr assetId, TessAsset*
@@ -331,6 +358,7 @@ typedef struct TessInputSystem
     V2 mousePos;
     V2 normMousePos;
     V2 mousePrev;
+    V2 scroll;
 
     AikePlatform *platform;
     struct TessRenderSystem *renderSystem;
@@ -403,9 +431,12 @@ typedef struct TessMainMenu
     struct nk_context *nk_ctx;
     uint32_t mode;
 
-    char ipStrBuf[256];
-    char portStrBuf[7];
-    int portStrLen;
+    char gameIpStrBuf[256];
+    char editorIpStrBuf[256];
+    char gamePortStrBuf[7];
+    char editorPortStrBuf[7];
+    int gamePortStrLen;
+    int editorPortStrLen;
 
     const char *statusStr;
 
@@ -479,6 +510,7 @@ typedef struct TessEditor
     bool enteringCommand;
     char cmdStr[256];
     bool profilerOpen;
+    bool debugLogOpen;
     bool assetWinOpen;
     CreateAssetState createAssetState;
 
@@ -674,6 +706,9 @@ typedef struct TessServer
     AikePlatform *platform;
 } TessServer;
 
+
+bool tess_load_file(TessFileSystem *fs, const char* fileName, uint32_t pipeline, void *userData);
+
 void tess_process_ttr_file(struct TessAssetSystem *as, struct TessFile *tfile);
 TStr* tess_intern_string_s(struct TessStrings *tstrings, const char *string, uint32_t maxlen);
 TStr* tess_intern_string(struct TessStrings *tstrings, const char *string);
@@ -682,6 +717,8 @@ bool tess_load_asset_if_not_loaded(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_id(struct TessAssetSystem *as, TStr *package, TStr *asset);
 TStr *tess_get_asset_name_from_id(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_package_from_id(struct TessAssetSystem *as, TStr *assetId);
+// for debug only
+void tess_get_asset_metrics(struct TessAssetSystem *as, struct TessAssetSystemMetrics *tasm);
 
 void tess_world_init(TessGameSystem *gs);
 TessEntity* tess_get_entity(TessGameSystem *gs, uint32_t id);
@@ -710,9 +747,10 @@ void editor_reset(TessEditor *editor);
 void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *client);
 void scheduler_yield();
 void scheduler_set_mode(u32 mode);
-void scheduler_event(u32 type, void *data, void *usrPtr);
+void scheduler_event(u32 type, void *data, struct AsyncTask *usrPtr);
 void scheduler_wait_for(struct AsyncTask *task);
 void scheduler_task_end();
-void scheduler_queue_task(TaskFunc func, void *usrData);
+void scheduler_queue_task_(TaskFunc func, void *usrData, const char *name);
+#define scheduler_queue_task(func, usrData) scheduler_queue_task_(func, usrData, #func)
 
 extern struct TessVtable *g_tessVtbl;

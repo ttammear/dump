@@ -1,4 +1,4 @@
-
+#if 0
 typedef struct GameData
 {
     struct RenderViewBuilder *viewBuilder;
@@ -80,6 +80,7 @@ void fill_cat_texture(struct Renderer *renderer, struct TextureQueryResponse *tq
 
 void init_game(struct Renderer *renderer, struct GameData *gdata, struct TessClient *tess)
 {
+/*
     int comp;
     gdata->s_texdata = stbi_load("./cat.png", &gdata->s_x, &gdata->s_y, &comp, 4);
     assert(gdata->s_texdata != NULL);
@@ -144,7 +145,7 @@ void init_game(struct Renderer *renderer, struct GameData *gdata, struct TessCli
     renderer_queue_message(renderer, &msg);
 
     //nk_init_default(&ctx, &font->handle);}
-    gdata->ui_ready = false;
+    gdata->ui_ready = false;*/
 }
 
 void deinit_game()
@@ -516,3 +517,4 @@ void update_game(struct GameData *gdata)
     PROF_END();
     PROF_END();
 }
+#endif

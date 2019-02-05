@@ -23,6 +23,7 @@ void tess_input_begin(struct TessInputSystem *input)
     input->mousePrev = input->mousePos;
     input->normMouseDelta = make_v2(input->mouseDelta.x / input->renderSystem->rtW, input->mouseDelta.y / input->renderSystem->rtH);
     input->normMousePos = make_v2(input->mousePos.x / input->renderSystem->rtW, input->mousePos.y / input->renderSystem->rtH);
+    input->scroll = make_v2(input->platform->mouseHorAxis, -input->platform->mouseVerAxis);
 }
 
 void tess_input_end(struct TessInputSystem *input)

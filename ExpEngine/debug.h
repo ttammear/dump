@@ -1,90 +1,112 @@
 #pragma once
 
-struct ProfileEntry
-{
-    uint64_t start;
-    uint64_t sum;
-    uint32_t init;
-    struct ProfileEntry *firstChild;
-    struct ProfileEntry *nextSibling;
-    const char *locationStr;
-};
+#define PROF_TREE_MAX_NODES 1024
+#define PROFILE_TREE_STORED_FRAMES 60
+#define EVENT_LOG_STORED_EVENTS 65536
 
-struct OpenProfileEntry
-{
-    struct ProfileEntry *entry;
-    struct ProfileEntry *lastChild;
-};
+typedef struct DebugEvent {
+    uint64_t clock;
+    uint16_t threadId;
+    uint32_t uid;
+    uint8_t type;
+    const char *name;
+    union {
+        void *data;
+        const char *taskFunc;
+    };
+} DebugEvent;
 
-#define PROFILER_FRAME_HISTORY              600
-#define PROFILER_MAX_ENTRIES_PER_FRAME      100
-#define PROFILER_MAX_NESTING                 50
+typedef struct ProfNode { // node of profiler tree (generated from debug events)
+    struct ProfNode *firstChild;
+    struct ProfNode *nextSibling;
+    const char *name;
+    uint32_t numInvocations;
+    uint64_t cycles;
+    float ms;
+} ProfNode;
 
+typedef struct ProfTree {
+   ProfNode tree; // sentinel node
+   uint32_t nodeIndex;
+   uint32_t frameId;
+   ProfNode nodes[PROF_TREE_MAX_NODES];
+} ProfTree;
+
+typedef struct EventLogEntry {
+    const char *name;
+    uint32_t frameId;
+    const char *func;
+} EventLogEntry;
+
+// NOTE: allocate aligned!
 struct ProfilerState
 {
-     struct ProfileEntry entries[PROFILER_FRAME_HISTORY][PROFILER_MAX_ENTRIES_PER_FRAME];
-     uint32_t curFrame;
-     uint32_t freeEntryId;
+     uint32_t frameId;
 
      struct ProfileEntry *root;
      atomic_uintptr_t prev;
 
      char name[128];
      atomic_bool pause;
+     int pauseIdx;
 
-     uint32_t curSEntry;
-     struct OpenProfileEntry openEntries[PROFILER_MAX_NESTING];
+     khash_t(64) *profTreeHash; // used to generate profile tree (removes duplicate entries)
+
+     _Alignas(8) uint32_t eventIndex;
+     DebugEvent events[65536];
+    
+     uint32_t eventLogCount;
+     uint32_t eventLogHead;
+     EventLogEntry eventLog[EVENT_LOG_STORED_EVENTS]; // NOTE: ringbuffer oldest -> newest
+
+     ProfTree profileTree[PROFILE_TREE_STORED_FRAMES];
 };
 
 extern aike_thread_local struct ProfilerState *t_profState;
 
 extern atomic_uintptr_t g_profStates[10];
 
+enum DebugEventType {
+    Debug_Event_None,
+
+    // profiler events
+    Debug_Event_End_Frame,
+    Debug_Event_Start_Block,
+    Debug_Event_End_Block,
+
+    // other events
+    Debug_Event_Queue_Task, // keep this first in thos block
+    Debug_Event_Start_Task,
+    Debug_Event_Suspend_Task,
+    Debug_Event_Resume_Task,
+    Debug_Event_End_Task,
+    Debug_Event_Count,
+} DebugEventType;
+
+static_assert(Debug_Event_Count < 256, "With that many events, make sure you use 16bit integer and delete this message!");
 
 #ifdef _DEBUG
 
+#define DEBUG_EVENT(etype, guid, ename) \
+    uint32_t _eIdx = __atomic_fetch_add(&t_profState->eventIndex, 1, __ATOMIC_ACQ_REL);\
+    assert(_eIdx < ARRAY_COUNT(t_profState->events)); \
+    DebugEvent *_evnt = t_profState->events + _eIdx; \
+    _evnt->threadId = 0; \
+    _evnt->clock = __rdtsc(); \
+    _evnt->type = etype; \
+    _evnt->uid = guid; \
+    _evnt->name = ename; \
+    _evnt->data = NULL
+
+#define DEBUG_TASK_EVENT(etype, guid, ename, name) \
+    DEBUG_EVENT(etype, guid, ename); \
+    _evnt->taskFunc = name
+
 #define PROF__GET_ENTRY_GUID() (&t_profState->entries[t_profState->curFrame][__COUNTER__ % PROFILER_MAX_ENTRIES_PER_FRAME])
 
-// TODO: this will not work with recursive entries
-// TODO: if __COUNTER__ gets used anywhere else then
-// we're either wasting entries or colliding
-
-#define PROF_START_STR(str) \
-{\
-    if(t_profState) \
-    { \
-    struct ProfileEntry *entry = PROF__GET_ENTRY_GUID(); \
-    struct OpenProfileEntry *oe = &t_profState->openEntries[t_profState->curSEntry++]; \
-    if(!entry->init) /*this entry is visited for the first time*/ \
-    { \
-        struct OpenProfileEntry *parentOE = &t_profState->openEntries[t_profState->curSEntry-2]; \
-        oe->entry = entry; \
-        oe->lastChild = NULL; \
-        entry->start = __rdtsc(); \
-        entry->locationStr = str; \
-        if(parentOE->entry->firstChild == NULL) \
-           parentOE->entry->firstChild = entry; \
-        if(parentOE->lastChild != NULL) \
-            parentOE->lastChild->nextSibling = entry; \
-        parentOE->lastChild = entry; \
-        entry->init = true; \
-    } \
-    else \
-    { \
-        entry->start = __rdtsc(); \
-        oe->lastChild = NULL; \
-        oe->entry = entry; \
-    } \
-    } \
-}
-
-static inline void prof__end(void *dummy)
-{
-    if(t_profState)
-    {
-        struct ProfileEntry *entry = t_profState->openEntries[--t_profState->curSEntry].entry;
-        dummy = 0;
-        entry->sum += __rdtsc() - entry->start;
+static inline void block__end(void *dummy) {
+    if(t_profState) {
+        DEBUG_EVENT(Debug_Event_End_Block, __COUNTER__, __func__);
     }
 }
 
@@ -95,19 +117,12 @@ static inline void prof__end(void *dummy)
 
 #define MERGE_(a, b) a##b
 #define LABEL_(a) MERGE_(dummy_, a)
-#define UNIQUE_N_ LABEL_(__LINE__)
-#define PROF_BLOCK() void __attribute__((cleanup(prof__end))) *UNIQUE_N_; PROF_START()
-#define PROF_BLOCK_STR(x) void __attribute__((cleanup(prof__end))) *UNIQUE_N_; PROF_START_STR(x)
+#define UNIQUE_N_ LABEL_(__LINE__) // unique line based on line number
 
-
-#define PROF_END() \
-{ \
-    if(t_profState)\
-    {\
-        struct ProfileEntry *entry = t_profState->openEntries[--t_profState->curSEntry].entry; \
-        entry->sum += __rdtsc() - entry->start; \
-    }\
-}
+#define PROF_BLOCK() void __attribute__((cleanup(block__end))) *UNIQUE_N_; DEBUG_EVENT(Debug_Event_Start_Block, __COUNTER__, __func__); 
+#define PROF_BLOCK_STR(x) void __attribute__((cleanup(block__end))) *UNIQUE_N_; DEBUG_EVENT(Debug_Event_Start_Block, __COUNTER__, x); 
+#define PROF_START_STR(x) {DEBUG_EVENT(Debug_Event_Start_Block, __COUNTER__, x);}
+#define PROF_END() {DEBUG_EVENT(Debug_Event_End_Block, __COUNTER__, __func__);}
 
 #define DEBUG_START_FRAME() debug_start_frame()
 #define DEBUG_END_FRAME() debug_end_frame()

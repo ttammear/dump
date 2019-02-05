@@ -37,7 +37,6 @@ void tess_ui_destroy(struct TessUISystem *ui)
 {
     if(ui->loaded)
     {
-        ui->loaded = false;
         nk_font_atlas_cleanup(&ui->nk_atlas);
         nk_font_atlas_clear(&ui->nk_atlas);
         nk_buffer_free(&ui->nk_cmds);
@@ -72,6 +71,9 @@ void tess_ui_begin(struct TessUISystem *ui)
     {
         nk_input_char(ctx, (char)next);
     }
+
+    nk_input_scroll(ctx, (struct nk_vec2){.x = ui->inputSystem->scroll.x, .y = ui->inputSystem->scroll.y});
+
     nk_input_end(ctx);
 }
 
@@ -173,55 +175,114 @@ void tess_ui_end(struct TessUISystem *ui)
 
 // PROFILER
 
-void profile_entry_recursive(struct nk_context *ctx, struct ProfileEntry *entry, int depth)
-{
-    while(entry != NULL)
-    {
-        uint64_t cycles = entry->sum;
-        double milliseconds = (double)cycles / 2800000.0;
-        /*for(int i = 0; i < depth; i++)
-            printf(" "); */
+void profile_entry_recursive(struct nk_context *ctx, struct ProfNode *node, int depth) {
+    while(node != NULL) {
+        uint64_t cycles = node->cycles;
+        double ms = node->ms;
         char buf[1024];
-        stbsp_sprintf(buf, "%s %fms", entry->locationStr, milliseconds);
-        if(nk_tree_push_id(ctx, NK_TREE_TAB, buf, NK_MINIMIZED, (uint32_t)(uintptr_t)entry->locationStr))
-        {
-            nk_layout_row_dynamic(ctx, 20, 1);
-            nk_labelf(ctx, NK_TEXT_LEFT, "%llucy %fms", (unsigned long long)cycles, milliseconds);
-            profile_entry_recursive(ctx, entry->firstChild, depth+1);
+        stbsp_sprintf(buf, "%s %fms", node->name, ms);
+        if(nk_tree_push_id(ctx, NK_TREE_TAB, buf, NK_MINIMIZED, (uint32_t)(uintptr_t)node->name)) {
+            nk_layout_row_dynamic(ctx, 15, 1);
+            nk_labelf(ctx, NK_TEXT_LEFT, "Cycles: %llu", (unsigned long long)cycles); 
+            nk_layout_row_dynamic(ctx, 15, 1);
+            nk_labelf(ctx, NK_TEXT_LEFT, "Time: %fms", ms);
+            nk_layout_row_dynamic(ctx, 15, 1);
+            nk_labelf(ctx, NK_TEXT_LEFT, "Calls: %d", node->numInvocations);
+            profile_entry_recursive(ctx, node->firstChild, depth+1);
             nk_tree_pop(ctx);
         }
-        entry = entry->nextSibling;
+        node = node->nextSibling;
     }
+}
+
+void render_debug_log(struct nk_context *ctx, bool *wasClosed) {
+    if(nk_begin(ctx, "Debug log", nk_rect(400, 350, 600, 600),
+                NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE|NK_WINDOW_SCALABLE)) {
+        struct ProfilerState *ps = t_profState;
+
+        nk_layout_row_dynamic(ctx, 25, 2);
+        if(!atomic_load(&ps->pause) && nk_button_label(ctx, "Pause capture")) {
+            atomic_store(&ps->pause, true);
+        } else if(atomic_load(&ps->pause) && nk_button_label(ctx, "Resume capture")) {
+            atomic_store(&ps->pause, false);
+        }
+
+        int start = ps->eventLogHead - ps->eventLogCount;
+        start = (start < 0) ? EVENT_LOG_STORED_EVENTS + start : start;
+        for(int i = start; i < ps->eventLogCount; i = (i+1) % EVENT_LOG_STORED_EVENTS) {
+            EventLogEntry *e = ps->eventLog + i;
+            nk_layout_row_dynamic(ctx, 15, 3);
+            nk_label(ctx, e->name, NK_TEXT_ALIGN_LEFT);
+            if(e->func != NULL) {
+                nk_label(ctx, e->func, NK_TEXT_ALIGN_LEFT);
+            }
+            nk_labelf(ctx, NK_TEXT_LEFT, "%d", e->frameId);
+        }
+    }
+    nk_end(ctx);
 }
 
 void render_profiler(struct nk_context *ctx, bool *wasClosed)
 {
-    if(nk_begin(ctx, "Profiler", nk_rect(400, 350, 300, 400),
+    if(nk_begin(ctx, "Profiler", nk_rect(400, 350, 600, 600),
                 NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE|NK_WINDOW_SCALABLE))
     {
-        for(int j = 0; j < ARRAY_COUNT(g_profStates); j++)
-        {
+        for(int j = 0; j < ARRAY_COUNT(g_profStates); j++) {
             uintptr_t pptr = atomic_load(&g_profStates[j]);
-            if(pptr != (uintptr_t)NULL)
-            {
-                struct ProfilerState *profState = (struct ProfilerState*)pptr;
-                uintptr_t rootUptr = atomic_load(&profState->prev);
-                struct ProfileEntry *root = (struct ProfileEntry*)rootUptr;
-                if(nk_tree_push_id(ctx, NK_TREE_TAB, profState->name, NK_MINIMIZED, j))
-                {
-                    nk_layout_row_dynamic(ctx, 25, 2);
-                    if (!atomic_load(&profState->pause) && nk_button_label(ctx, "Pause")) 
-                    {
-                        atomic_store(&profState->pause, true);
-                    }
-                    else if (atomic_load(&profState->pause) && nk_button_label(ctx, "Resume")) 
-                    {
-                        atomic_store(&profState->pause, false);
-                    }
-                    if(root)
-                        profile_entry_recursive(ctx, root->firstChild, 0);
-                    nk_tree_pop(ctx);
+            if(pptr == (uintptr_t)NULL) {
+                continue;
+            }
+            struct ProfilerState *ps = (struct ProfilerState*)pptr;
+            if(nk_tree_push_id(ctx, NK_TREE_TAB, ps->name, NK_MINIMIZED, 1)) {
+                // current profiler frameIdx
+                const int idx2 = (ps->frameId-1)%PROFILE_TREE_STORED_FRAMES;
+                // id of potentially dirty frame that's being generated
+                const int dirtyIdx = ps->frameId%PROFILE_TREE_STORED_FRAMES;
+                int idx;
+                bool paused = atomic_load(&ps->pause);
+                if(!paused) {
+                    ps->pauseIdx = idx = idx2;
+                } else {
+                    idx = ps->pauseIdx;
                 }
+
+                nk_layout_row_dynamic(ctx, 25, PROFILE_TREE_STORED_FRAMES);
+
+                for(int i = 0; i < PROFILE_TREE_STORED_FRAMES; i++) {
+                    //nk_button_color(ctx, (struct nk_color){.r = 255, .g = 0, .b = 0, .a = 255});
+                    struct nk_color col;
+                    if(i == idx) {
+                        col = (struct nk_color){.r = 255, .g = 0, .b = 0, .a = 255};
+                    } else if(i == dirtyIdx) {
+                        col = (struct nk_color){.r = 255, .g = 255, .b = 0, .a = 255};
+                    } else {
+                        col = (struct nk_color){.r = 0, .g = 255, .b = 0, .a = 255};
+                    }
+                    struct nk_window *win = ctx->current;
+                    struct nk_panel *layout = ctx->current->layout;
+                    struct nk_rect bounds;
+                    struct nk_input *in = &ctx->input;
+                    enum nk_widget_layout_states state = nk_widget(&bounds, ctx);
+                    nk_fill_rect(&win->buffer, bounds, 0, col); // 0 rounding
+                    if(nk_button_behavior(&ctx->last_widget_state, bounds, in, ctx->button_behavior) && i != dirtyIdx) {
+                        ps->pauseIdx = i;
+                    }
+                }
+
+                nk_layout_row_dynamic(ctx, 25, 2);
+                // TODO: this atomic stuff doesn't really do anything?
+                if(!atomic_load(&ps->pause) && nk_button_label(ctx, "Pause capture")) {
+                    atomic_store(&ps->pause, true);
+                } else if(atomic_load(&ps->pause) && nk_button_label(ctx, "Resume capture")) {
+                    atomic_store(&ps->pause, false);
+                }
+                ProfNode *tree = ps->profileTree[idx].tree.firstChild;
+                nk_layout_row_dynamic(ctx, 15, 1);
+                nk_labelf(ctx, NK_TEXT_LEFT, "Frame ID: %d", ps->profileTree[idx].frameId);
+                if(tree != NULL) {
+                    profile_entry_recursive(ctx, tree, 0);
+                }
+                nk_tree_pop(ctx);
             }
         }
         *wasClosed = false;

@@ -51,6 +51,18 @@ void tess_asset_system_init(TessAssetSystem *as, TessFixedArena *arena)
     DELEGATE_INIT(as->onAssetLoaded);
 }
 
+void tess_async_load_file(TessFileSystem *fs, const char* fileName, AsyncTask *task) {
+    assert(g_scheduler->state == SCHEDULER_STATE_TASK);
+    task->ctx = g_scheduler->curTaskCtx;
+    tess_load_file(fs, fileName, Tess_File_Pipeline_Task, task);
+}
+
+void tess_task_file_loaded(void *what, TessFile *tfile) {
+    AsyncTask *task = (AsyncTask*)tfile->userData;
+    task->file = tfile;
+    scheduler_event(SCHEDULER_EVENT_FILE_LOADED, NULL, tfile->userData);
+}
+
 void tess_asset_system_destroy(TessAssetSystem *as)
 {
     DELEGATE_CLEAR(as->onAssetLoaded);

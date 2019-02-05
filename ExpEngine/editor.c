@@ -347,14 +347,14 @@ void editor_draw_ui(TessEditor *editor)
             quat_euler_deg(&rotate, edEnt->eulerRotation);
             scale = make_v3(0.02f, 0.02f, 0.5f);
             mat4_trs(&trs, translate, rotate, scale);
-            render_system_render_mesh(editor->renderSystem, 0, 3, selObj|0x80000000, &trs);
+            render_system_render_mesh(editor->renderSystem, 0, 1, selObj|0x80000000, &trs);
 
             Quat alignY;
             Quat rotate2 = rotate;
             quat_angle_axis(&rotate, 90.0f, make_v3(1.0f, 0.0f, 0.0f));
             quat_mul(&alignY, rotate2, rotate);
             mat4_trs(&trs, translate, alignY, scale);
-            render_system_render_mesh(editor->renderSystem, 0, 3, selObj|0x81000000, &trs);
+            render_system_render_mesh(editor->renderSystem, 0, 2, selObj|0x81000000, &trs);
 
             Quat alignX;
             quat_angle_axis(&rotate, 90.0f, make_v3(0.0f, 1.0f, 0.0f));
@@ -391,6 +391,13 @@ void editor_draw_ui(TessEditor *editor)
         render_profiler(ctx, &wasClosed);
         if(wasClosed)
         {
+            editor->profilerOpen = false;
+        }
+    }
+    if(editor->debugLogOpen) {
+        bool wasClosed;
+        render_debug_log(ctx, &wasClosed);
+        if(wasClosed) {
             editor->profilerOpen = false;
         }
     }
@@ -470,13 +477,13 @@ void editor_client_update(TessEditor *editor)
     }
 }
 
-void editor_camera_update(TessEditor *editor)
+void editor_camera_update(TessEditor *editor, float dt)
 {
     V3 forward = make_v3(0.0f, 0.0f, 0.01f);
     V3 right;
     TessCamera *cam = editor->cam;
-    quat_v3_mul_dir(&forward, cam->rotation, make_v3(0.0f, 0.0f, 0.01f));
-    quat_v3_mul_dir(&right, cam->rotation, make_v3(0.01f, 0.0f, 0.0f));
+    quat_v3_mul_dir(&forward, cam->rotation, make_v3(0.0f, 0.0f, dt*10.0f));
+    quat_v3_mul_dir(&right, cam->rotation, make_v3(dt*10.0f, 0.0f, 0.0f));
 
     if(key_down(editor->inputSystem, AIKE_KEY_SPACE))
         editor->camLocked = !editor->camLocked;
@@ -510,6 +517,9 @@ void editor_flush_console_command(TessEditor *editor)
     {
         editor->profilerOpen = !editor->profilerOpen;
     }
+    else if(strcmp(editor->cmdStr, "dlog") == 0) {
+        editor->debugLogOpen = !editor->debugLogOpen;
+    }
     else if(strcmp(editor->cmdStr, "asset create") == 0)
     {
         editor->assetWinOpen = !editor->assetWinOpen;
@@ -523,6 +533,7 @@ void editor_update(TessEditor *editor)
     uint32_t w = editor->platform->mainWin.width;
     uint32_t h = editor->platform->mainWin.height;
     editor->normalizedCursorPos = editor->client->inputSystem.normMousePos;
+    float dt = 0.01f;
 
     if(key_down(editor->inputSystem, AIKE_KEY_GRAVE))
     {
@@ -549,8 +560,11 @@ void editor_update(TessEditor *editor)
             editor->selectedObjectId = editor->cursorObjectId;
         }
     }
+    if(mouse_right_down(editor->inputSystem)) {
+        editor->objectSelected = false;
+    }
 
-    editor_camera_update(editor);
+    editor_camera_update(editor, dt);
 
     int count = buf_len(editor->edEntities);
 
@@ -657,9 +671,9 @@ void editor_update(TessEditor *editor)
             }
         }
     }
+    // TODO: this is just here to keep the framerate at ~100, create a better system for frame rate control
+    editor->platform->sleep(10000);
 }
-
-
 
 void editor_client_process_command(TessEditor *editor, uint16_t cmd, uint8_t *data, uint32_t size)
 {

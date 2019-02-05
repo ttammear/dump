@@ -166,8 +166,6 @@ typedef struct MeshSection
 
 typedef struct MeshQuery
 {
-    void *userData;
-    MQComplete_A onComplete;
     uint32_t meshId;
     uint32_t vertexCount;
     uint32_t indexCount; // number of total indices
@@ -177,8 +175,6 @@ typedef struct MeshQuery
 typedef struct MeshQueryResult
 {
     uint32_t meshId;
-    void *userData;
-    MQComplete_A onComplete;
     void *vertBufPtr;
     void *idxBufPtr;
     void *dataBufPtr;
@@ -187,8 +183,6 @@ typedef struct MeshQueryResult
 typedef struct MeshUpdate
 {
     uint32_t meshId;
-    void *userData;
-    MReady_A onComplete;
 /*    uint16_t numSections;
     MeshSection sections[MAX_MESH_SECTIONS]; // TODO: this will make command union very large*/
 } MeshUpdate;
@@ -196,14 +190,10 @@ typedef struct MeshUpdate
 typedef struct MeshReady
 {
     uint32_t meshId;
-    void *userData;
-    MReady_A onComplete;
 } MeshReady;
 
 typedef struct MaterialQuery
 {
-    void *userData;
-    MatReady_A onComplete;
     uint32_t materialId;
     uint32_t shaderId;
     union InstanceData iData;
@@ -212,8 +202,6 @@ typedef struct MaterialQuery
 typedef struct MaterialReady
 {
     uint32_t materialId;
-    void *userData;
-    MatReady_A onComplete;
 } MaterialReady;
 
 typedef struct TextureQuery

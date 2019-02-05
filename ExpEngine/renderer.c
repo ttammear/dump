@@ -77,7 +77,6 @@ void stop_renderer(struct Renderer *renderer)
     }
 }
 
-
 //#define renderer_queue_message(r, m) ring_queue_enqueue(RenderMessage, &r->ch.toRenderer, m)
 
 

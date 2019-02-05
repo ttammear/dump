@@ -269,6 +269,28 @@ void process_packet(GameClient *gc, void *data, size_t dataLen)
     }
 }
 
+void draw_game_debug_ui(TessClient *client) {
+    struct nk_context *ctx = &client->uiSystem.nk_ctx; 
+    char buf[512];
+    TessAssetSystemMetrics asMetrics;
+    tess_get_asset_metrics(&client->assetSystem, &asMetrics);
+    if(nk_begin(ctx, "Test window", nk_rect(0, 0, 250, 400), NK_WINDOW_NO_SCROLLBAR)) {
+        sprintf(buf, "Loading assets: %d", asMetrics.numLoadingAssets);
+        nk_layout_row_dynamic(ctx, 30, 1);
+        nk_label(ctx, buf, NK_TEXT_ALIGN_CENTERED);
+        sprintf(buf, "Loaded assets: %d", asMetrics.numLoadedAssets);
+        nk_layout_row_dynamic(ctx, 30, 1);
+        nk_label(ctx, buf, NK_TEXT_ALIGN_CENTERED);
+        sprintf(buf, "Open asset files: %d", asMetrics.numOpenedAssetFiles);
+        nk_layout_row_dynamic(ctx, 30, 1);
+        nk_label(ctx, buf, NK_TEXT_ALIGN_CENTERED);
+        sprintf(buf, "Total asset file loads: %d", asMetrics.totalFileLoads);
+        nk_layout_row_dynamic(ctx, 30, 1);
+        nk_label(ctx, buf, NK_TEXT_ALIGN_CENTERED);
+    }
+    nk_end(ctx);
+}
+
 void play_update(TessClient *client, double dt, uint16_t frameId)
 {
     static V2 camRot;
@@ -316,5 +338,6 @@ void play_update(TessClient *client, double dt, uint16_t frameId)
         //printf("pos %f %f %f\n", npos.x, npos.y, npos.z);
         mat4_trs(&ent->objectToWorld, npos, rot, (V3){1.0f, 1.0f, 1.0f});
     }
+    draw_game_debug_ui(client);
 }
 

@@ -6,8 +6,6 @@ typedef struct TessRoot
     TessServer server;
     AikeMemoryBlock *rootBlock;
     bool loaded; // TODO: remove this hack
-    // TODO: temp
-    GameData gdata;
     //aike_thread_local struct ProfilerState *t_profState;
     uintptr_t g_profStates[10];
     struct ProfilerState *main_profState;
@@ -28,32 +26,14 @@ void aike_update_window(AikePlatform *platform, AikeWindow *win)
         int h = root->client.renderSystem.rtH;
         root->client.gameSystem.defaultCamera.aspectRatio = (float)w/(float)h;
         tess_update_camera_perspective(&root->client.gameSystem.defaultCamera);
-    
 
         render_system_screen_resize(&root->client.renderSystem, win->width, win->height);
     }
 }
 
+// TODO: delete?
 void test_task(void *data) {
-    printf("Hello from task %p\n", data);
-    scheduler_task_end();
-}
-
-void test_task2(void *data) {
-    static_assert(sizeof(AsyncTask) < 2048, "Does not fit in this tiny taskstack!");
-    AsyncTask task;
-    RenderMessage msg;
-    msg.type = Render_Message_Material_Query;
-    msg.matQ.onComplete = NULL;
-    msg.matQ.materialId = 0;
-    msg.matQ.shaderId = Shader_Type_Unlit_Color;
-    msg.matQ.iData.unlitColor.color = make_v4(1.0, 0.0, 0.0, 1.0);
-    // TODO: fill msg
-    renderer_async_message((struct Renderer*)data, &task, &msg);
-    printf("Waiting for render command to complete!\n");
-    scheduler_wait_for(&task);
-    printf("Render command should be done! mat id: %d\n", task.renderMsg->matR.materialId);
-
+    printf("Task %p\n", data);
     scheduler_task_end();
 }
 
@@ -98,14 +78,9 @@ void aike_init(AikePlatform *platform)
     root->client.gameSystem.defaultCamera.farPlane = 1000.0f;
     tess_update_camera_perspective(&root->client.gameSystem.defaultCamera);
 
-    root->gdata.viewBuilder = root->client.renderSystem.viewBuilder;
-    root->gdata.platform = platform;
-
     platform->make_window_current(platform, NULL);
     renderer->swapBuffer = root->client.renderSystem.viewSwapBuffer;
     start_renderer(renderer);
-
-    init_game(renderer, &root->gdata, &root->client);
 
     tess_refresh_package_list(&root->client.assetSystem);
     int count = buf_len(root->client.assetSystem.packageList);
@@ -122,10 +97,9 @@ void aike_init(AikePlatform *platform)
         assert(0);
     }
 
-    scheduler_queue_task(test_task2, (void*)renderer);
-    scheduler_queue_task(test_task2, (void*)renderer);
-    for(int i = 0; i < 100; i++)
-        scheduler_queue_task(test_task, (void*)0xFACEFEED5+i);
+    /*for(int i = 0; i < 1000; i++) {
+        scheduler_queue_task(test_task, (void*)i);
+    }*/
 }
 
 void aike_deinit(AikePlatform *platform)
@@ -133,8 +107,6 @@ void aike_deinit(AikePlatform *platform)
     TessRoot *root = (TessRoot*)platform->userData;
 
     enet_deinitialize();
-
-    deinit_game();
 
     stop_renderer(root->client.renderSystem.renderer);
     destroy_renderer(root->client.renderSystem.renderer);
@@ -159,7 +131,7 @@ void aike_update(AikePlatform *platform)
 
     process_render_messages(&root->client.renderSystem);
 
-    if(!root->loaded && tess_are_all_loads_complete(&root->client.assetSystem))
+    if(!root->loaded && root->client.uiSystem.loaded && tess_are_all_loads_complete(&root->client.assetSystem))
     {
         root->loaded = true;
 
@@ -167,7 +139,6 @@ void aike_update(AikePlatform *platform)
         Quat q;
         quat_angle_axis(&q, 180.0f, make_v3(0.0f, 1.0f, 0.0f));
         mat4_trs(&objectToWorld, make_v3(0.0f, 0.0f, 10.0f), q, make_v3(1.0f, 1.0f, 1.0f));
-        //tess_create_entity(&root->client.gameSystem, 1, &objectToWorld);
 
         scheduler_set_mode(Tess_Client_Mode_Menu);
     }
@@ -180,33 +151,6 @@ void aike_update(AikePlatform *platform)
         game_server_update(&root->server.gameServer, platform->dt);
 
         scheduler_yield();
-        /*switch(root->client.mode)
-        {
-            case Tess_Client_Mode_Menu:
-                tess_main_menu_update(&root->client.mainMenu);
-                break;
-            case Tess_Client_Mode_Editor:
-                if(!root->client.editor.init)
-                {
-                    coro_create(&root->client.editor.coroCtx, (void(*)(void*))editor_coroutine, &root->client.editor, root->client.editor.coroStack, root->client.editor.coroStackSize);
-                }
-                coro_transfer(&root->mainctx, &root->client.editor.coroCtx);
-                break;
-            case Tess_Client_Mode_CrazyTown:
-                update_game(&root->gdata);
-                break;
-            case Tess_Client_Mode_Game:
-                if(!root->client.gameClient.init)
-                {
-                    coro_create(&root->client.gameClient.coroCtx, (void(*)(void*))game_client_coroutine, &root->client.gameClient, root->client.gameClient.coroStack, root->client.gameClient.coroStackSize);
-                }
-                coro_transfer(&root->mainctx, &root->client.gameClient.coroCtx);
-                break;
-            default:
-                fprintf(stderr, "Invalid mode!\n");
-                break;
-        };*/
-
         tess_client_end_frame(&root->client);
     }
     DEBUG_END_FRAME();

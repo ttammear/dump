@@ -21,7 +21,7 @@ void tess_world_init(TessGameSystem *gs)
     DELEGATE_LISTEN(gs->assetSystem->onAssetLoaded, (OnAssetLoaded_t) world_asset_loaded, gs);
 }
 
-// define new object
+// define new object in object table id->asset
 void tess_register_object(TessGameSystem *gs, uint32_t id, TStr *assetId)
 {
     if(id == 0) // id 0 is unset object and can not be overriden

@@ -9,8 +9,10 @@ void tess_main_menu_init(struct TessMainMenu *menu)
 {
     menu->mode = Tess_Main_Menu_Mode_Menu;
     menu->nk_ctx = &menu->uiSystem->nk_ctx; 
-    strcpy(menu->ipStrBuf, "127.0.0.1");
-    strcpy(menu->portStrBuf, "7879");
+    strcpy(menu->gameIpStrBuf, "127.0.0.1");
+    strcpy(menu->gamePortStrBuf, "7777");
+    strcpy(menu->editorIpStrBuf, "127.0.0.1");
+    strcpy(menu->editorPortStrBuf, "7879");
     menu->statusStr = "";
 }
 
@@ -60,18 +62,18 @@ void draw_editor_connect_menu(struct TessMainMenu *menu, struct nk_context *ctx)
             nk_layout_row_push(ctx, 0.08f);
             nk_label(ctx, "Ip:", NK_TEXT_LEFT);
             nk_layout_row_push(ctx, 0.5f);
-            nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD, menu->ipStrBuf, sizeof(menu->ipStrBuf), 0);
+            nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD, menu->editorIpStrBuf, sizeof(menu->editorIpStrBuf), 0);
             nk_layout_row_push(ctx, 0.03f);
             nk_label(ctx, "", NK_TEXT_LEFT);
             nk_layout_row_push(ctx, 0.16f);
             nk_label(ctx, "Port:", NK_TEXT_LEFT);
             nk_layout_row_push(ctx, 0.2f);
-            nk_edit_string_zero_terminated(ctx, NK_EDIT_SIMPLE|NK_EDIT_NO_CURSOR, menu->portStrBuf, sizeof(menu->portStrBuf)-1, nk_filter_decimal);
+            nk_edit_string_zero_terminated(ctx, NK_EDIT_SIMPLE|NK_EDIT_NO_CURSOR, menu->editorPortStrBuf, sizeof(menu->editorPortStrBuf)-1, nk_filter_decimal);
             nk_layout_row_push(ctx, 0.03f);
         nk_layout_row_end(ctx);
 
-        strcpy(menu->client->editor.ipStr, menu->ipStrBuf);
-        menu->client->editor.port = atoi(menu->portStrBuf);
+        strcpy(menu->client->editor.ipStr, menu->editorIpStrBuf);
+        menu->client->editor.port = atoi(menu->editorPortStrBuf);
         
         nk_layout_row_static(ctx, 20, 100, 1);
             nk_layout_row_dynamic(ctx, 30, 2);
@@ -110,18 +112,18 @@ void draw_game_connect_menu(struct TessMainMenu *menu, struct nk_context *ctx)
             nk_layout_row_push(ctx, 0.08f);
             nk_label(ctx, "Ip:", NK_TEXT_LEFT);
             nk_layout_row_push(ctx, 0.5f);
-            nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD, menu->ipStrBuf, sizeof(menu->ipStrBuf), 0);
+            nk_edit_string_zero_terminated(ctx, NK_EDIT_FIELD, menu->gameIpStrBuf, sizeof(menu->gameIpStrBuf), 0);
             nk_layout_row_push(ctx, 0.03f);
             nk_label(ctx, "", NK_TEXT_LEFT);
             nk_layout_row_push(ctx, 0.16f);
             nk_label(ctx, "Port:", NK_TEXT_LEFT);
             nk_layout_row_push(ctx, 0.2f);
-            nk_edit_string_zero_terminated(ctx, NK_EDIT_SIMPLE|NK_EDIT_NO_CURSOR, menu->portStrBuf, sizeof(menu->portStrBuf)-1, nk_filter_decimal);
+            nk_edit_string_zero_terminated(ctx, NK_EDIT_SIMPLE|NK_EDIT_NO_CURSOR, menu->gamePortStrBuf, sizeof(menu->gamePortStrBuf)-1, nk_filter_decimal);
             nk_layout_row_push(ctx, 0.03f);
         nk_layout_row_end(ctx);
 
-        strcpy(menu->client->gameClient.ipStr, menu->ipStrBuf);
-        menu->client->gameClient.port = atoi(menu->portStrBuf);
+        strcpy(menu->client->gameClient.ipStr, menu->gameIpStrBuf);
+        menu->client->gameClient.port = atoi(menu->gamePortStrBuf);
         
         nk_layout_row_static(ctx, 20, 100, 1);
             nk_layout_row_dynamic(ctx, 30, 2);
