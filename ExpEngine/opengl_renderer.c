@@ -124,6 +124,23 @@ static const char *fragShaderSrc = "#version 330 core\n"
    "//gl_FragColor = vec4(v_texcoord.x, v_texcoord.y, 0.0, 1.0);\n"
 "}";
 
+static const char *fragShaderCutoutSrc = "#version 330 core\n"
+"uniform sampler2D _MainTex;\n"
+"varying vec2 v_texcoord;\n"
+"varying vec4 v_color;\n"
+"flat in int v_objectId;\n"
+"out vec4 outColor;\n"
+"layout(location = 1) out int outObjectId;\n"
+"void main(void) {\n"
+   "//gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n"
+   "outColor = texture2D(_MainTex, v_texcoord) * v_color;\n"
+   "if(outColor.a < 0.1) {\n"
+   "discard;\n"
+   "}\n"
+   "outObjectId = v_objectId;\n"
+   "//gl_FragColor = vec4(v_texcoord.x, v_texcoord.y, 0.0, 1.0);\n"
+"}";
+
 static const char *fragShaderSolidSrc = "#version 330 core\n"
 "varying vec4 v_color;\n"
 "flat in int v_objectId;\n"
@@ -704,6 +721,7 @@ internal void opengl_handle_material_query(OpenGLRenderer *renderer, MaterialQue
     material->glProgram = renderer->builtinPrograms[mq->shaderId];
     switch(mq->shaderId)
     {
+        case Shader_Type_Unlit_Textured_Cutout:
         case Shader_Type_Unlit_Textured:
             material->perInstanceDataSize = sizeof(struct UnlitTexturedIData);
             break;
@@ -1030,6 +1048,7 @@ internal void opengl_render_view(OpenGLRenderer *renderer, RenderViewBuffer *rbu
                 glEnable(GL_DEPTH_TEST);
                 break;
             case Shader_Type_Unlit_Textured:
+            case Shader_Type_Unlit_Textured_Cutout:
                 idsize = 16;
                 idptr = &material->iData.unlitTextured.color;
                 tex = get_texture(renderer, material->iData.unlitTextured.textureId);
@@ -1242,6 +1261,8 @@ internal void opengl_init_builtin_shaders(OpenGLRenderer *renderer)
    program = opengl_create_standard_program_noerror(vertShaderSrc, fragShaderSrc);
    renderer->builtinPrograms[Shader_Type_Unlit_Textured] = program;
    renderer->builtinPrograms[Shader_Type_Unlit_Fade] = program;
+   program = opengl_create_standard_program_noerror(vertShaderSrc, fragShaderCutoutSrc);
+   renderer->builtinPrograms[Shader_Type_Unlit_Textured_Cutout] = program;
    program = opengl_create_standard_program_noerror(vertShaderSrc, fragShaderSolidSrc);
    renderer->builtinPrograms[Shader_Type_Unlit_Vertex_Color] = program;
    renderer->builtinPrograms[Shader_Type_Unlit_Color] = program; // TODO?

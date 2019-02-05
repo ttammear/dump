@@ -124,6 +124,12 @@ void tess_task_load_object(void *data) {
             add_dependency(lasset, textureAssetId);
             lasset->objectData.textureAssetId = textureAssetId;
             break;
+        case Shader_Type_Unlit_Textured_Cutout:
+            aref = ttrMat->albedoTexARef;
+            textureAssetId = tess_asset_id_from_aref(as, lasset->objectData.ttbl, lasset->objectData.titbl, aref, curPackage);
+            add_dependency(lasset, textureAssetId);
+            lasset->objectData.textureAssetId = textureAssetId;
+            break;
     }
 
     lasset->status = Tess_Asset_Dependency_Status_Wait_Dependencies;
@@ -140,6 +146,7 @@ void tess_task_load_object(void *data) {
 
     switch(ttrMat->shaderType)
     {
+        case Shader_Type_Unlit_Textured_Cutout:
         case Shader_Type_Unlit_Textured:
             // TODO: get tex
             texAsset = tess_get_asset(as, lasset->objectData.textureAssetId);

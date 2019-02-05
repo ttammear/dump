@@ -41,6 +41,7 @@ enum ShaderType
     Shader_Type_Unlit_Vertex_Color, // nothing
     Shader_Type_Unlit_Textured, // texture, tint?
     Shader_Type_Unlit_Fade, // texture RGB and A, tint
+    Shader_Type_Unlit_Textured_Cutout,
     Shader_Type_Gizmo, // Color
     Shader_Type_Count,
 };
