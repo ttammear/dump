@@ -206,7 +206,6 @@ typedef struct TessLoadingAsset
     AsyncTask *task;
     struct TessFile *file;
     TStr *assetId;
-    struct TessAsset *asset;
     uint32_t type;
 }TessLoadingAsset;
 

@@ -45,6 +45,13 @@ void tess_get_asset_metrics(struct TessAssetSystem *as, struct TessAssetSystemMe
     tasm->totalFileLoads = as->totalFileLoads;
 }
 
+void tess_finalize_asset(TessAssetSystem *as, TessLoadingAsset *lasset, TessAsset *asset) {
+    printf("Asset loaded! %s\n", lasset->assetId->cstr);
+    tess_loading_asset_done(as, lasset, Tess_Asset_Status_Loaded);
+    asset_loaded(as, asset);
+    buf_push(as->loadedAssets, asset);
+}
+
 ASYNC TessTextureAsset* tess_load_texture(TessAssetSystem *as, struct TessLoadingAsset *lasset, TTRTexture *ttex) {
     scheduler_assert_task(); // this is an async function
     AsyncTask task;
@@ -72,14 +79,8 @@ ASYNC TessTextureAsset* tess_load_texture(TessAssetSystem *as, struct TessLoadin
     texture->textureId = task.renderMsg->texR.textureId;
     texture->asset.assetId = lasset->assetId;
     texture->asset.type = Tess_Asset_Texture;
-    buf_push(as->loadedAssets, &texture->asset);
-    lasset->asset = &texture->asset;
 
-    // TODO: separate it to shared function
-    printf("Asset loaded! %s\n", lasset->assetId->cstr);
-    // NOTE: will delete current interated loadingAsset
-    tess_loading_asset_done(as, lasset, Tess_Asset_Status_Loaded);
-    asset_loaded(as, lasset->asset);
+    tess_finalize_asset(as, lasset, &texture->asset);
 
     return texture;
 }
@@ -112,15 +113,8 @@ ASYNC TessMeshAsset* tess_load_mesh(TessAssetSystem *as, TessLoadingAsset *lasse
     mesh->meshId = task.renderMsg->meshR.meshId;
     mesh->asset.assetId = lasset->assetId;
     mesh->asset.type = Tess_Asset_Mesh;
-    buf_push(as->loadedAssets, &mesh->asset);
-    lasset->asset = &mesh->asset;
 
-    // TODO: separate it to shared function
-    printf("Asset loaded! %s\n", lasset->assetId->cstr);
-    // NOTE: will delete current interated loadingAsset
-    tess_loading_asset_done(as, lasset, Tess_Asset_Status_Loaded);
-    asset_loaded(as, lasset->asset);
-
+    tess_finalize_asset(as, lasset, &mesh->asset);
 
     return mesh;
 }
@@ -198,13 +192,8 @@ ASYNC TessObjectAsset* tess_load_object(TessAssetSystem *as, TessLoadingAsset *l
     tessObj->asset.type = Tess_Asset_Object;
     tessObj->materialId = task.renderMsg->matR.materialId;
     tessObj->mesh = (TessMeshAsset*)meshAsset;
-    lasset->asset = &tessObj->asset;
 
-    // TODO: separate it to shared function
-    printf("Asset loaded! %s\n", lasset->assetId->cstr);
-    // NOTE: will delete current interated loadingAsset
-    tess_loading_asset_done(as, lasset, Tess_Asset_Status_Loaded);
-    asset_loaded(as, lasset->asset);
+    tess_finalize_asset(as, lasset, &tessObj->asset);
 
     return tessObj;
 }
@@ -393,7 +382,6 @@ internal void prepare_loading_asset(TessAssetSystem *as, TessLoadingAsset *lasse
     lasset->fileName = fileName;
     lasset->as = as;
     lasset->file = NULL;
-    lasset->asset = NULL;
     lasset->assetId = assetId;
     lasset->type = Tess_Asset_Unknown;
     buf_push(as->loadingAssets, lasset);
