@@ -28,8 +28,6 @@ void tess_server_init(struct TessServer *server, AikePlatform *platform)
     server->fileSystem.platform = platform;
     // Virtual table tells file system where to pass the data once it's done loading
     server->fileSystem.pipeline_vtbl[Tess_File_Pipeline_None] = NULL;
-    server->fileSystem.pipeline_vtbl[Tess_File_Pipeline_TTR] = (FilePipelineProc)tess_process_ttr_file;
-    server->fileSystem.pipeline_ptrs[Tess_File_Pipeline_TTR] = &server->assetSystem;
     tess_file_system_init(&server->fileSystem, &server->arena);
 
     // Init asset system

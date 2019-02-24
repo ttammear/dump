@@ -24,7 +24,6 @@
 enum TessFilePipeline
 {
     Tess_File_Pipeline_None,
-    Tess_File_Pipeline_TTR,
     Tess_File_Pipeline_Task,
     Tess_File_Pipeline_Count,
 };
@@ -77,7 +76,6 @@ typedef enum SchedulerState {
 typedef enum SchedulerEvent {
     SCHEDULER_EVENT_NONE,
     SCHEDULER_EVENT_RENDER_MESSAGE,
-    SCHEDULER_EVENT_ASSET_DEPS_LOADED,
     SCHEDULER_EVENT_FILE_LOADED,
 } SchedulerEvent;
 
@@ -86,11 +84,16 @@ typedef struct SchedulerTask {
     void *data;
     struct SchedulerTask *next;
     const char* name;
-    uint8_t datas[512];
 } SchedulerTask;
+
+typedef struct YieldedTask {
+    struct TaskContext *ctx;
+    struct YieldedTask *next;
+} YieldedTask;
 
 typedef struct AsyncTask {
    struct TaskContext *ctx;
+   atomic_bool done;
    const char *name;
    union {
        struct RenderMessage *renderMsg;
@@ -112,6 +115,9 @@ typedef struct TessScheduler {
 
     SchedulerTask *taskQueueHead;
     SchedulerTask *taskQueueTail;
+
+    YieldedTask *yieldedTasksHead;
+    YieldedTask *yieldedTasksTail;
 
     SchedulerTask *freeTasks;
     TaskContext *ctxPool;
@@ -146,23 +152,14 @@ enum TessAssetType
     Tess_Asset_Object
 };
 
-enum TessAssetDependencyStatus
+typedef enum TessAssetStatus
 {
-    Tess_Asset_Dependency_Status_None,
-    Tess_Asset_Dependency_Status_Wait_Dependencies,
-    Tess_Asset_Dependency_Status_Loading,
-    Tess_Asset_Dependency_Status_Done,
-    Tess_Asset_Dependency_Status_Extern,
-    Tess_Asset_Dependency_Status_Fail,
-};
-
-enum TessAssetStatus
-{
-    Tess_Asset_Status_None,
-    Tess_Asset_Status_Loading,
-    Tess_Asset_Status_Loaded,
-    Tess_Asset_Status_Fail
-};
+    Tess_Asset_Status_None, // uninitialized state
+    Tess_Asset_Status_InQueue, // the task to load the asset has been queued, but not started yet
+    Tess_Asset_Status_Loading, // loading asset has started, but not yet finished
+    Tess_Asset_Status_Loaded, // asset is ready
+    Tess_Asset_Status_Fail, // failure, asset can not be loaded
+} TessAssetStatus;
 
 enum TessObjectFlags
 {
@@ -195,50 +192,22 @@ typedef struct TessObjectAsset
     // TODO: material?
 } TessObjectAsset;
 
-typedef struct TessMeshDepData
-{
-    struct TessAssetSystem *as;
-    struct TTRMesh *tmesh;
-} TessMeshDepData;
-
-typedef struct TessTexDepData
-{
-    struct TessAssetSystem *as;
-    struct TTRTexture *ttex;
-} TessTexDepData;
-
-typedef struct TessObjectDepData
-{
-    struct TessAssetSystem *as;
-    TStr *meshAssetId;
-    TStr *textureAssetId;
-    struct TTRObject *tobj;
-    struct TTRDescTbl *ttbl;
-    struct TTRImportTbl *titbl;
-} TessObjectDepData;
-
 typedef struct TessAssetDependency
 {
     TStr *assetId;
     struct TessAsset *asset;
     struct TessAssetDependency *next;
-}TessAssetDependency;
+} TessAssetDependency;
 
 typedef struct TessLoadingAsset
 {
-    TessAssetDependency *dependencies;
+    struct TessAssetSystem *as;
+    TStr *fileName;
     AsyncTask *task;
     struct TessFile *file;
-    uint32_t status;
     TStr *assetId;
     struct TessAsset *asset;
     uint32_t type;
-    union
-    {
-        TessMeshDepData meshData;
-        TessTexDepData texData;
-        TessObjectDepData objectData;
-    } ;
 }TessLoadingAsset;
 
 typedef struct AssetLookupEntry
@@ -285,9 +254,12 @@ typedef struct TessAssetSystem
     int totalFileLoads;
 
     khash_t(str) *packageAssetMap;
+    // currenlty loaded assets
     khash_t(64) *loadedAssetMap; // TStr assetId, TessAsset*
+    // assets that have started loading, but have not yet finished
     khash_t(64) *loadingAssetMap; // TStr assetId, TessLoadingAsset*
-    khash_t(uint32) *assetStatusMap; // TStr assetId, uint32
+    // is asset loaded, failed, loading etc
+    khash_t(uint32) *assetStatusMap; // TStr assetId, TessAssetStatus
 
     TStr **packageList;
 
@@ -709,11 +681,11 @@ typedef struct TessServer
 
 bool tess_load_file(TessFileSystem *fs, const char* fileName, uint32_t pipeline, void *userData);
 
-void tess_process_ttr_file(struct TessAssetSystem *as, struct TessFile *tfile);
+TessAsset* tess_process_asset_from_ttr(struct TessAssetSystem *as, struct TessFile *tfile, struct TessLoadingAsset*);
 TStr* tess_intern_string_s(struct TessStrings *tstrings, const char *string, uint32_t maxlen);
 TStr* tess_intern_string(struct TessStrings *tstrings, const char *string);
 bool get_asset_file(struct TessAssetSystem *as, TStr *assetId, TStr **result);
-bool tess_load_asset_if_not_loaded(struct TessAssetSystem *as, TStr *assetId);
+bool tess_queue_asset(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_id(struct TessAssetSystem *as, TStr *package, TStr *asset);
 TStr *tess_get_asset_name_from_id(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_package_from_id(struct TessAssetSystem *as, TStr *assetId);
@@ -751,6 +723,9 @@ void scheduler_event(u32 type, void *data, struct AsyncTask *usrPtr);
 void scheduler_wait_for(struct AsyncTask *task);
 void scheduler_task_end();
 void scheduler_queue_task_(TaskFunc func, void *usrData, const char *name);
+void scheduler_assert_task();
 #define scheduler_queue_task(func, usrData) scheduler_queue_task_(func, usrData, #func)
 
 extern struct TessVtable *g_tessVtbl;
+
+#define ASYNC // for now just an informative tag for the programmer

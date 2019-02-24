@@ -54,6 +54,7 @@ void tess_asset_system_init(TessAssetSystem *as, TessFixedArena *arena)
 void tess_async_load_file(TessFileSystem *fs, const char* fileName, AsyncTask *task) {
     assert(g_scheduler->state == SCHEDULER_STATE_TASK);
     task->ctx = g_scheduler->curTaskCtx;
+    atomic_store(&task->done, false);
     tess_load_file(fs, fileName, Tess_File_Pipeline_Task, task);
 }
 
@@ -107,23 +108,10 @@ bool tess_load_file(TessFileSystem *fs, const char* fileName, uint32_t pipeline,
     req->fileOffset = 0;
     req->nBytes = file->size;
     bool success = true;
-    // TODO: temp hack (fix if linux returns EAGAIN)
-    while(true)
-    {
-        success = fs->platform->submit_io_request(fs->platform, req);
-        if(success)
-            break;
-        else
-        {
-            tess_process_io_events(fs);
-            fs->platform->sleep(1000);
-            //break;
-        }
-    }
+    success = fs->platform->submit_io_request(fs->platform, req);
     assert(success);
     tfile->pipeline = pipeline;
     tfile->userData = userData;
-    printf("load file %s\n", tfile->filePath);
     return success;
 }
 
@@ -132,7 +120,6 @@ void tess_unload_file(TessFileSystem *fs, TessFile *tfile)
 {
     free(tfile->req.buffer);
     pool_free(fs->loadedFilePool, tfile);
-    printf("unload file %s\n", tfile->filePath);
 }
 
 void tess_process_io_events(TessFileSystem *fs)

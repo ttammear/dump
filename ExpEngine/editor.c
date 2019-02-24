@@ -479,9 +479,45 @@ void editor_client_update(TessEditor *editor)
 
 void editor_camera_update(TessEditor *editor, float dt)
 {
+    TessCamera *cam = editor->cam;
+
+    const float kp = 0.03f;
+    const float ki = 0.0001f;
+    const float kd = 0.001f;
+
+    static V3 error; // desired - actual
+    static V3 integral; // integral + error*dt
+    static V3 derivative; // (error - error_prior)/dt
+    static V3 output; // kp*error + ki*integral + kd*derivative + bias
+    static V3 error_prior;
+
+    static V3 position;
+
+    { // PID controller
+        v3_sub(&error, position, cam->position);
+
+        v3_add(&integral, integral, v3_scale(error, dt));
+
+        V3 errorDif;
+        v3_sub(&errorDif, error, error_prior);
+        derivative = v3_scale(errorDif, 1.0f / dt);
+        
+        v3_add(&output, v3_scale(error, kp), v3_scale(integral, ki));
+        v3_add(&output, v3_scale(derivative, kd), output);
+        error_prior = error;
+
+        /*printf("desired %f %f %f\n", position.x, position.y, position.z);
+        printf("pos %f %f %f\n", cam->position.x, cam->position.y, cam->position.z);
+        printf("error %f %f %f\n", error.x, error.y, error.z);
+        printf("dif %f %f %f\n", errorDif.x, errorDif.y, errorDif.z);
+        printf("output %f %f %f\n", output.x, output.y, output.z);*/
+        v3_add(&cam->position, cam->position, output);
+    }
+
+
+
     V3 forward = make_v3(0.0f, 0.0f, 0.01f);
     V3 right;
-    TessCamera *cam = editor->cam;
     quat_v3_mul_dir(&forward, cam->rotation, make_v3(0.0f, 0.0f, dt*10.0f));
     quat_v3_mul_dir(&right, cam->rotation, make_v3(dt*10.0f, 0.0f, 0.0f));
 
@@ -490,14 +526,22 @@ void editor_camera_update(TessEditor *editor, float dt)
 
     if(!editor->camLocked)
     {
-        if(key(editor->inputSystem, AIKE_KEY_W))
-            v3_add(&cam->position, cam->position, forward);
+        static float velocity;
+        if(key_down(editor->inputSystem, AIKE_KEY_W)) {
+            velocity = 5.0;
+        }
+        forward = v3_scale(forward, velocity);
+        right = v3_scale(right, velocity);
+        if(key(editor->inputSystem, AIKE_KEY_W)) {
+            v3_add(&position, position, forward);
+            velocity += dt;
+        }
         if(key(editor->inputSystem, AIKE_KEY_S))
-            v3_sub(&cam->position, cam->position, forward);
+            v3_sub(&position, position, forward);
         if(key(editor->inputSystem, AIKE_KEY_D))
-            v3_add(&cam->position, cam->position, right);
+            v3_add(&position, position, right);
         if(key(editor->inputSystem, AIKE_KEY_A))
-            v3_sub(&cam->position, cam->position, right);
+            v3_sub(&position, position, right);
 
         v2_add(&editor->camRot, editor->camRot, editor->inputSystem->mouseDelta);
         editor->camRot = make_v2(editor->camRot.x, MAX(editor->camRot.y, -90.0f));

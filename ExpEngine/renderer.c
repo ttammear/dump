@@ -85,5 +85,6 @@ void renderer_async_message(struct Renderer *r, AsyncTask *task, RenderMessage *
     // for now, async stuff can only be done in tasks!
     assert(g_scheduler->state == SCHEDULER_STATE_TASK);
     task->ctx = g_scheduler->curTaskCtx;
+    atomic_store(&task->done, false);
     renderer_queue_message(r, msg); 
 }

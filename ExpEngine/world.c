@@ -32,7 +32,7 @@ void tess_register_object(TessGameSystem *gs, uint32_t id, TStr *assetId)
     obj->id = id;
     
     // TODO: remove once you can load assets on demand
-    bool loaded = tess_load_asset_if_not_loaded(gs->assetSystem, assetId);
+    bool loaded = tess_queue_asset(gs->assetSystem, assetId);
     if(loaded)
     {
         auto asset = tess_get_asset(gs->assetSystem, assetId);

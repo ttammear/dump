@@ -127,7 +127,6 @@ void aike_update(AikePlatform *platform)
 
     TessRoot *root = (TessRoot*)platform->userData;
     tess_process_io_events(&root->client.fileSystem);
-    tess_check_complete(&root->client.assetSystem);
 
     process_render_messages(&root->client.renderSystem);
 

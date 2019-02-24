@@ -242,6 +242,10 @@ static inline V3 v3_add(V3 *restrict res, V3 lhs, V3 rhs)
     return *res;
 }
 
+static inline V3 v3_scale(V3 v, float scale) {
+    return make_v3(v.x * scale, v.y * scale, v.z * scale);
+}
+
 static inline V3 v3_sub(V3 *restrict res, V3 lhs, V3 rhs)
 {
     res->x = lhs.x - rhs.x;

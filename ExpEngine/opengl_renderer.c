@@ -1046,12 +1046,18 @@ internal void opengl_render_view(OpenGLRenderer *renderer, RenderViewBuffer *rbu
                 idsize = 0;
                 glDisable(GL_BLEND);
                 glEnable(GL_DEPTH_TEST);
+                glEnable(GL_CULL_FACE);
                 break;
-            case Shader_Type_Unlit_Textured:
             case Shader_Type_Unlit_Textured_Cutout:
+            case Shader_Type_Unlit_Textured:
                 idsize = 16;
                 idptr = &material->iData.unlitTextured.color;
                 tex = get_texture(renderer, material->iData.unlitTextured.textureId);
+                if(material->shaderId == Shader_Type_Unlit_Textured_Cutout) {
+                    glDisable(GL_CULL_FACE);
+                } else {
+                    glEnable(GL_CULL_FACE);
+                }
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, tex->glTex);
                 glDisable(GL_BLEND);
@@ -1063,12 +1069,14 @@ internal void opengl_render_view(OpenGLRenderer *renderer, RenderViewBuffer *rbu
                 idptr = &material->iData.unlitColor.color;
                 glDisable(GL_BLEND);
                 glEnable(GL_DEPTH_TEST);
+                glEnable(GL_CULL_FACE);
                 break;
             case Shader_Type_Gizmo:
                 idsize = 16;
                 idptr = &material->iData.gizmoMat.color;
                 glDisable(GL_BLEND);
                 glDisable(GL_DEPTH_TEST);
+                glEnable(GL_CULL_FACE);
                 break;
             case Shader_Type_Unlit_Fade:
                 idsize = 16;
@@ -1079,6 +1087,7 @@ internal void opengl_render_view(OpenGLRenderer *renderer, RenderViewBuffer *rbu
                 glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
                 glEnable(GL_BLEND);
                 glEnable(GL_DEPTH_TEST);
+                glEnable(GL_CULL_FACE);
                 break;
             default:
                 assert(0);
