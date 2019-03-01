@@ -26,11 +26,6 @@ internal inline TessAssetStatus tess_get_asset_status(TessAssetSystem *as, TStr 
     return k == kh_end(as->assetStatusMap) ? Tess_Asset_Status_None : kh_value(as->assetStatusMap, k);
 }
 
-internal inline bool tess_is_asset_loaded(TessAssetSystem *as, TStr *assetId)
-{
-    khiter_t k = kh_get(64, as->loadedAssetMap, (intptr_t)assetId);
-    return k != kh_end(as->loadedAssetMap);
-}
 
 internal inline bool tess_is_asset_loading(TessAssetSystem *as, TStr *assetId)
 {
@@ -45,7 +40,9 @@ void tess_get_asset_metrics(struct TessAssetSystem *as, struct TessAssetSystemMe
     tasm->totalFileLoads = as->totalFileLoads;
 }
 
-void tess_finalize_asset(TessAssetSystem *as, TessLoadingAsset *lasset, TessAsset *asset) {
+void tess_finalize_asset(TessAssetSystem *as, TessLoadingAsset *lasset, TessAsset *asset, TStr *assetId, enum TessAssetType type) {
+    asset->assetId = assetId;
+    asset->type = type;
     printf("Asset loaded! %s\n", lasset->assetId->cstr);
     tess_loading_asset_done(as, lasset, Tess_Asset_Status_Loaded);
     asset_loaded(as, asset);
@@ -77,10 +74,8 @@ ASYNC TessTextureAsset* tess_load_texture(TessAssetSystem *as, struct TessLoadin
     TessTextureAsset *texture = pool_allocate(as->texturePool);
     assert(texture);
     texture->textureId = task.renderMsg->texR.textureId;
-    texture->asset.assetId = lasset->assetId;
-    texture->asset.type = Tess_Asset_Texture;
 
-    tess_finalize_asset(as, lasset, &texture->asset);
+    tess_finalize_asset(as, lasset, &texture->asset, lasset->assetId, Tess_Asset_Texture);
 
     return texture;
 }
@@ -111,10 +106,8 @@ ASYNC TessMeshAsset* tess_load_mesh(TessAssetSystem *as, TessLoadingAsset *lasse
     TessMeshAsset *mesh = pool_allocate(as->meshPool);
     assert(mesh);
     mesh->meshId = task.renderMsg->meshR.meshId;
-    mesh->asset.assetId = lasset->assetId;
-    mesh->asset.type = Tess_Asset_Mesh;
 
-    tess_finalize_asset(as, lasset, &mesh->asset);
+    tess_finalize_asset(as, lasset, &mesh->asset, lasset->assetId, Tess_Asset_Mesh);
 
     return mesh;
 }
@@ -193,9 +186,44 @@ ASYNC TessObjectAsset* tess_load_object(TessAssetSystem *as, TessLoadingAsset *l
     tessObj->materialId = task.renderMsg->matR.materialId;
     tessObj->mesh = (TessMeshAsset*)meshAsset;
 
-    tess_finalize_asset(as, lasset, &tessObj->asset);
+    tess_finalize_asset(as, lasset, &tessObj->asset, lasset->assetId, Tess_Asset_Object);
 
     return tessObj;
+}
+
+
+ASYNC TessMapAsset* tess_load_map_asset(TessAssetSystem *as, TessLoadingAsset *lasset, TTRMap *map) {
+    TTRMapObjectTable *mapObjTbl = TTR_REF_TO_PTR(TTRMapObjectTable, map->objectTableRef);
+    TTRMapEntityTable *mapEntTbl = TTR_REF_TO_PTR(TTRMapEntityTable, map->entityTableRef);
+    // TODO: use pool or something
+    TessMapAsset *ret = malloc(sizeof(TessMapAsset));
+    ret->mapObjectCount = mapObjTbl->numEntries;
+    ret->mapEntityCount = mapObjTbl->numEntries;
+    assert(ret);
+    ret->objects = malloc(sizeof(ret->objects[0]) * mapObjTbl->numEntries);
+    assert(ret->objects);
+    for(int i = 0; i < mapObjTbl->numEntries; i++) {
+        TStr *assetId = tess_intern_string_s(as->tstrings, mapObjTbl->entries[i].assetId, sizeof(mapObjTbl->entries[i].assetId));
+        ret->objects[i] = (TessMapObject) {
+            .objectid = mapObjTbl->entries[i].objectId,
+            .assetId = assetId
+        };
+    }
+    ret->entities = malloc(sizeof(ret->entities[0]) * mapEntTbl->numEntries);
+    assert(ret->entities);
+    for(int i = 0; i < mapObjTbl->numEntries; i++) {
+        TTRMapEntityEntry *e = mapEntTbl->entries + i;
+        ret->entities[i] = (TessMapEntity){
+            .position = e->position,
+            .rotation = e->rotation,
+            .scale = e->scale,
+            .objectId = e->objectId,
+        };
+    }
+    
+    tess_finalize_asset(as, lasset, &ret->asset, lasset->assetId, Tess_Asset_Map);
+
+    return ret;
 }
 
 ASYNC TessAsset* tess_load_asset(TessLoadingAsset *lasset) {
@@ -229,15 +257,14 @@ ASYNC TessAsset* tess_force_load_asset(TessAssetSystem *as, TStr *assetId) {
     printf("Force load asset %s\n", assetId->cstr);
     // TODO: event based, no polling!
     //assert(!tess_is_asset_loading(as, assetId));
-    bool sb = false;
     int i = 0;
     while(tess_is_asset_loading(as, assetId)) {
-        sb = true;
         scheduler_yield();
     }
     if(tess_is_asset_loaded(as, assetId)) {
         return tess_get_asset(as, assetId);
     }
+    assert(!tess_is_asset_loaded(as, assetId));
     TStr *fileName;
     TStr *packageName = tess_get_asset_package_from_id(as, assetId);
     if(get_asset_file(as, assetId, &fileName)) {
@@ -249,7 +276,6 @@ ASYNC TessAsset* tess_force_load_asset(TessAssetSystem *as, TStr *assetId) {
         return NULL;
     }
 }
-
 
 ASYNC void tess_task_load_asset(void *data) {
     scheduler_assert_task(); // async function
@@ -310,6 +336,16 @@ ASYNC TessAsset* tess_process_asset_from_ttr(TessAssetSystem *as, TessFile *tfil
                         TTRTexture *ttex = TTR_REF_TO_PTR(TTRTexture, tbl->entries[i].ref);
                         lasset->type = Tess_Asset_Texture;
                         asset = (TessAsset*)tess_load_texture(as, lasset, ttex);
+                        found = true;
+                    } break;
+                // NOTE: loading map asset does not load the map
+                // map asset is only a container of data that is
+                // further handled by a different subsystem
+                case ' PAM': // MAP
+                    {
+                        TTRMap *tmap = TTR_REF_TO_PTR(TTRMap, tbl->entries[i].ref);
+                        lasset->type = Tess_Asset_Map;
+                        asset = (TessAsset*)tess_load_map_asset(as, lasset, tmap);
                         found = true;
                     } break;
                 default:
@@ -410,6 +446,7 @@ bool tess_queue_asset(TessAssetSystem *as, TStr *assetId)
     }
     else {
         tess_set_asset_status(as, assetId, Tess_Asset_Status_Fail);
+        printf("FAILED TO LOAD ASSET %s\n", assetId->cstr);
     }
     return false;
 }
@@ -448,7 +485,7 @@ internal void tess_loading_asset_done(TessAssetSystem *as, TessLoadingAsset *las
     // remove from loadingAssetMap
     k = kh_get(64, as->loadingAssetMap, (intptr_t)lasset->assetId);
     assert(k != kh_end(as->loadingAssetMap));
-    kh_del(64, as->loadingAssetMap, k);
+   kh_del(64, as->loadingAssetMap, k);
 
     // set new status
     k = kh_get(uint32, as->assetStatusMap, (intptr_t)lasset->assetId);

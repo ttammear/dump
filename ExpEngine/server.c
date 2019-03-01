@@ -41,7 +41,8 @@ void tess_server_init(struct TessServer *server, AikePlatform *platform)
     //
     server->editorServer.tstrings = &server->strings;
     server->editorServer.platform = platform;
-    tess_create_editor_server(&server->editorServer, &server->arena);
+    server->editorServer.assetSystem = &server->assetSystem;
+    server->editorServer.arena = &server->arena;
 
     // Init game server
     //
@@ -88,43 +89,29 @@ void tess_create_editor_server(struct TessEditorServer *eserver, struct TessFixe
     //    TStr *intr = tess_intern_string(eserver->tstrings, "First/object0");
     //   eserver->objectTable[1] = intr;
 
-    void *buf = malloc(1024*1024);
-    FILE *file = fopen("Packages/Sponza/map.ttm", "rb");
-    if(file != NULL)
-    {
-        fseek(file, 0, SEEK_END);
-        long size = ftell(file);
-        rewind(file);
-        fread(buf, 1, size, file);
-        fclose(file);
-
-        MapReader reader;
-        bool res = map_reader_begin(&reader, buf, size);
-        if(!res)
-        {
-            fprintf(stderr, "Editor server: Loading map failed!\n");
-            goto load_done;
-        }
-        MapObject obj;
-        while(map_next_object(&reader, &obj) == Map_Error_Code_Success)
-        {
-            TStr *assetId = tess_intern_string_s(eserver->tstrings, obj.assetId, sizeof(obj.assetId));
-            eserver->objectTable[obj.objectId] = assetId;
-        }
-        MapEntity ent;
-        while(map_next_entity(&reader, &ent) == Map_Error_Code_Success)
-        {
-            Mat4 modelToWorld;
-            mat4_trs(&modelToWorld, ent.pos, ent.rot, ent.scale);
-            uint32_t eid = tess_editor_server_create_entity(eserver, ent.objectId, ent.pos);
-            auto sent = tess_editor_server_get_entity(eserver, eid);
-            //sent->eulerRotation ...
-            sent->scale = ent.scale;
-        }
+    TessAssetSystem *as = eserver->assetSystem;
+    TessStrings *strings = eserver->tstrings;
+    TStr *sponzaStr = tess_intern_string(strings, "Sponza/Sponza");
+    tess_queue_asset(as, sponzaStr); 
+    while(!tess_is_asset_loaded(as, sponzaStr)) {
+        scheduler_yield();
     }
-load_done:
-    free(buf);
+    TessAsset *mapAsset = tess_get_asset(as, sponzaStr);
+    assert(mapAsset);
+    assert(mapAsset->type == Tess_Asset_Map);
+    TessMapAsset *map = (TessMapAsset*)mapAsset;
 
+    // load map!
+    for(int i = 0; i < map->mapObjectCount; i++) {
+        TessMapObject *obj = map->objects + i;
+        eserver->objectTable[obj->objectid] = map->objects[i].assetId;
+    }
+    for(int i = 0; i < map->mapEntityCount; i++) {
+        TessMapEntity *ent = map->entities + i;
+        uint32_t eid = tess_editor_server_create_entity(eserver, ent->objectId, ent->position);
+        auto sent = tess_editor_server_get_entity(eserver, eid);
+        sent->scale = ent->scale;
+    }
 }
 
 void tess_destroy_editor_server(struct TessEditorServer *eserver)
@@ -521,5 +508,14 @@ void tess_update_editor_server(struct TessEditorServer *eserver)
     for(int i = 0; i < count; i++)
     {
         client_update(eserver, eserver->activeClients[i]);
+    }
+}
+
+void editor_server_coroutine(void *data) {
+    TessEditorServer *eserver = (TessEditorServer*)data;
+    tess_create_editor_server(eserver, eserver->arena);
+    while(1) {
+        tess_update_editor_server(eserver);
+        scheduler_yield();
     }
 }

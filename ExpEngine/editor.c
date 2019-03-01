@@ -211,7 +211,7 @@ void editor_destroy_entity(TessEditor *editor, uint32_t entityId)
 
 void editor_send_debug_message(TessEditor *editor, char *msg);
 
-void editor_export_map(TessEditor *editor, const char *path)
+/*void editor_export_map(TessEditor *editor, const char *path)
 {
     void *mem = malloc(1024 * 1024);
 
@@ -256,7 +256,7 @@ void editor_export_map(TessEditor *editor, const char *path)
         fprintf(stderr, "Writing map file failed!\n");
 
     free(mem);
-}
+}*/
 
 void editor_exit(TessEditor *editor)
 {

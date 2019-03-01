@@ -2,42 +2,19 @@ void play_update(TessClient *client, double dt, uint16_t frameId);
 void update_transform(GameClient *gc, uint16_t frameId, void *data, uint32_t dataLen);
 void process_packet(GameClient *gc, void *data, size_t dataLen);
 
-void load_map(TessClient *client)
-{
+void load_map(TessClient *client, TessMapAsset *map) {
+    printf("Game client load map %s with %d object and %d entities\n", map->asset.assetId->cstr, map->mapObjectCount, map->mapEntityCount);
     tess_reset_world(&client->gameSystem);
-    void *buf = malloc(1024*1024);
-    FILE *file = fopen("Packages/Sponza/map.ttm", "rb");
-    if(file != NULL)
-    {
-        fseek(file, 0, SEEK_END);
-        long size = ftell(file);
-        rewind(file);
-        fread(buf, 1, size, file);
-        fclose(file);
-
-        MapReader reader;
-        bool res = map_reader_begin(&reader, buf, size);
-        if(!res)
-        {
-            fprintf(stderr, "Loading map failed!\n");
-            goto load_done;
-        }
-        MapObject obj;
-        while(map_next_object(&reader, &obj) == Map_Error_Code_Success)
-        {
-            TStr *assetId = tess_intern_string_s(&client->strings, obj.assetId, sizeof(obj.assetId));
-            tess_register_object(&client->gameSystem, obj.objectId, assetId);
-        }
-        MapEntity ent;
-        while(map_next_entity(&reader, &ent) == Map_Error_Code_Success)
-        {
-            Mat4 modelToWorld;
-            mat4_trs(&modelToWorld, ent.pos, ent.rot, ent.scale);
-            tess_create_entity(&client->gameSystem, ent.objectId, &modelToWorld);
-        }
+    for(int i = 0; i < map->mapObjectCount; i++) {
+        TessMapObject *obj = map->objects + i;
+        tess_register_object(&client->gameSystem, obj->objectid, obj->assetId);
     }
-load_done:
-    free(buf);
+    for(int i = 0; i < map->mapEntityCount; i++) {
+        Mat4 modelToWorld;
+        TessMapEntity *ent = map->entities + i;
+        mat4_trs(&modelToWorld, ent->position, ent->rotation, ent->scale);
+        tess_create_entity(&client->gameSystem, ent->objectId, &modelToWorld);
+    }
 }
 
 void game_client_coroutine(GameClient *gclient)
@@ -99,7 +76,17 @@ game_client_start:
 
     if(gclient->connected)
     {
-        load_map(gclient->client);
+        TessAssetSystem *as = &gclient->client->assetSystem;
+        TessStrings *strings = &gclient->client->strings;
+        TStr *sponzaStr = tess_intern_string(strings, "Sponza/Sponza");
+        tess_queue_asset(as, sponzaStr);
+        while(!tess_is_asset_loaded(as, sponzaStr)) {
+            scheduler_yield();
+        }
+        TessAsset *map = tess_get_asset(as, sponzaStr);
+        assert(map);
+        assert(map->type == Tess_Asset_Map);
+        load_map(gclient->client, (TessMapAsset*)map);
         gclient->eServerPeer = peer;
     }
     else
@@ -211,7 +198,7 @@ void process_packet(GameClient *gc, void *data, size_t dataLen)
                     dynEnt->id = dynEnt - gc->dynEntityPool;
                     dynEnt->serverId = entityId;
                     dynEnt->entityId = tess_create_entity(gc->world, objectId, &mat);
-                    assert(dynEnt->entityId != 0);
+                    assert(dynEnt->entityId != 0); // world in invalid state, possibly world not reset before started loading?
                     transform_init(&dynEnt->ntransform, pos, rot);
                     buf_push(gc->dynEntities, dynEnt);
 

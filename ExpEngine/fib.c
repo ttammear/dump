@@ -70,7 +70,7 @@ void aike_init(AikePlatform *platform)
 
     tess_server_init(&root->server, platform);
 
-    scheduler_init(&root->scheduler, &root->client.arena, &root->client);
+    scheduler_init(&root->scheduler, &root->client.arena, &root->client, &root->server);
 
     root->client.gameSystem.defaultCamera.aspectRatio = platform->mainWin.width/platform->mainWin.height;
     root->client.gameSystem.defaultCamera.FOV = 75.0f;
@@ -87,8 +87,16 @@ void aike_init(AikePlatform *platform)
     for(int i = 0; i < count; i++)
     {
         TStr *packageName = root->client.assetSystem.packageList[i];
-        printf("Generating lookup cache for package '%s'\n", packageName->cstr);
+        printf("Generating (client) lookup cache for package '%s'\n", packageName->cstr);
         tess_gen_lookup_cache_for_package(&root->client.assetSystem, packageName);
+    }
+
+    tess_refresh_package_list(&root->server.assetSystem);
+    count = buf_len(root->server.assetSystem.packageList);
+    for(int i = 0; i < count; i++) {
+        TStr *packageName = root->server.assetSystem.packageList[i];
+        printf("Generating (server) lookup cache for package '%s'\n", packageName->cstr);
+        tess_gen_lookup_cache_for_package(&root->server.assetSystem, packageName);
     }
 
     if (enet_initialize () != 0)
@@ -146,7 +154,7 @@ void aike_update(AikePlatform *platform)
         PROF_BLOCK_STR("Generate frame");
         tess_client_begin_frame(&root->client);
 
-        tess_update_editor_server(&root->server.editorServer);
+        //tess_update_editor_server(&root->server.editorServer);
         game_server_update(&root->server.gameServer, platform->dt);
 
         scheduler_yield();

@@ -106,6 +106,37 @@ typedef struct TTRObject
     // something else?
 } TTRObject;
 
+typedef struct TTRMap {
+    TTRRef entityTableRef;
+    TTRRef objectTableRef;
+} TTRMap;
+
+typedef struct TTRMapObjectEntry
+{
+    uint32_t objectId;
+    char assetId[128];
+} TTRMapObjectEntry;
+
+typedef struct TTRMapObjectTable
+{
+    uint32_t numEntries;
+    TTRMapObjectEntry entries[];
+} TTRMapObjectTable;
+
+typedef struct TTRMapEntityEntry
+{
+    V3 position;
+    Quat rotation;
+    V3 scale;
+    uint32_t objectId;
+} TTRMapEntityEntry;
+
+typedef struct TTRMapEntityTable
+{
+    uint32_t numEntries;
+    TTRMapEntityEntry entries[];
+} TTRMapEntityTable;
+
 #pragma pack(pop)
 
 #define TTR_4CHAR(x) ((x[0]) | (x[1]<<8) | (x[2]<<16) | (x[3]<<24))

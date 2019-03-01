@@ -71,6 +71,7 @@ typedef enum SchedulerState {
     SCHEDULER_STATE_EDITOR,
     SCHEDULER_STATE_GAME,
     SCHEDULER_STATE_TASK,
+    SCHEDULER_STATE_EDITOR_SERVER,
 } SchedulerState;
 
 typedef enum SchedulerEvent {
@@ -131,12 +132,19 @@ typedef struct TessScheduler {
     coro_context editorCtx;
     coro_context gameCtx;
 
+    // TODO: editor server and game server should be run on a separate
+    // process (from client) or at the very least separate thread
+    // them sharing data with client is not that important
+    coro_context editorServerCtx;
+
     void *mainStack;
     size_t mainStackSize;
     void *editorStack;
     size_t editorStackSize;
     void *gameStack;
     size_t gameStackSize;
+    void *editorServerStack;
+    size_t editorServerStackSize;
 } TessScheduler;
 
 // --------- ASSET SYSTEM ----------
@@ -149,7 +157,8 @@ enum TessAssetType
     Tess_Asset_Texture,
     Tess_Asset_Material,
     Tess_Asset_Sound,
-    Tess_Asset_Object
+    Tess_Asset_Object,
+    Tess_Asset_Map,
 };
 
 typedef enum TessAssetStatus
@@ -174,7 +183,9 @@ typedef struct TessAsset
 
 typedef struct TessMeshAsset
 {
-    TessAsset asset;
+    // NOTE: asset is first for "inheritance"
+    // (we can cast pointer of this structure to an TessAsset pointer)
+    TessAsset asset; 
     uint32_t meshId;
 } TessMeshAsset;
 
@@ -192,12 +203,30 @@ typedef struct TessObjectAsset
     // TODO: material?
 } TessObjectAsset;
 
-typedef struct TessAssetDependency
-{
+typedef struct TessMapObject {
+    uint32_t objectid;
     TStr *assetId;
-    struct TessAsset *asset;
-    struct TessAssetDependency *next;
-} TessAssetDependency;
+} TessMapObject;
+
+typedef struct TessMapEntity {
+    V3 position;
+    Quat rotation;
+    V3 scale;
+    uint32_t objectId;
+} TessMapEntity;
+
+typedef struct TessMapData {
+} TessMapData;
+
+typedef struct TessMapAsset
+{
+    TessAsset asset;
+    uint32_t mapObjectCount;
+    uint32_t mapEntityCount;
+    TessMapObject *objects;
+    TessMapEntity *entities;
+    TessMapData *data;
+} TessMapAsset;
 
 typedef struct TessLoadingAsset
 {
@@ -613,6 +642,8 @@ typedef struct TessEditorServer
 
     struct TessStrings *tstrings;
     AikePlatform *platform;
+    TessAssetSystem *assetSystem;
+    struct TessFixedArena *arena;
 
     uint16_t objectTableVersion;
     TStr *objectTable[TESS_MAX_OBJECTS];
@@ -690,6 +721,12 @@ TStr *tess_get_asset_name_from_id(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_package_from_id(struct TessAssetSystem *as, TStr *assetId);
 // for debug only
 void tess_get_asset_metrics(struct TessAssetSystem *as, struct TessAssetSystemMetrics *tasm);
+internal inline bool tess_is_asset_loaded(TessAssetSystem *as, TStr *assetId)
+{
+    khiter_t k = kh_get(64, as->loadedAssetMap, (intptr_t)assetId);
+    return k != kh_end(as->loadedAssetMap);
+}
+TessAsset* tess_get_asset(TessAssetSystem *as, TStr *assetId);
 
 void tess_world_init(TessGameSystem *gs);
 TessEntity* tess_get_entity(TessGameSystem *gs, uint32_t id);
@@ -715,7 +752,7 @@ void tess_main_menu_update(struct TessMainMenu *menu);
 
 void editor_reset(TessEditor *editor);
 
-void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *client);
+void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *client, TessServer *server);
 void scheduler_yield();
 void scheduler_set_mode(u32 mode);
 void scheduler_event(u32 type, void *data, struct AsyncTask *usrPtr);

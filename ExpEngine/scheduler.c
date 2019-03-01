@@ -4,7 +4,7 @@ struct TessScheduler *g_scheduler;
 void scheduler_start_pending_tasks();
 
 // TODO: coro_destroy?
-void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *client) {
+void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *client, TessServer *server) {
     coro_create(&ctx->mainCtx, NULL, NULL, NULL, 0);
 
     void *mem = fixed_arena_push_size(arena, 1024*1024, 64);
@@ -16,6 +16,11 @@ void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *clien
     assert(mem);
     ctx->gameStack = mem;
     ctx->gameStackSize = 1024*1024;
+
+    mem = fixed_arena_push_size(arena, 1024*1024, 64);
+    assert(mem);
+    ctx->editorServerStack = mem;
+    ctx->editorServerStackSize = 1024*1024;
 
     ctx->waitingTaskSet = kh_init(64);
 
@@ -38,6 +43,7 @@ void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *clien
     
     coro_create(&ctx->gameCtx, (void(*)(void*))game_client_coroutine, &client->gameClient, ctx->gameStack, ctx->gameStackSize); 
     coro_create(&ctx->editorCtx, (void(*)(void*))editor_coroutine, &client->editor, ctx->editorStack, ctx->editorStackSize);
+    coro_create(&ctx->editorServerCtx, editor_server_coroutine, &server->editorServer, ctx->editorServerStack, ctx->editorServerStackSize);
     g_scheduler = ctx;
 }
 
@@ -52,6 +58,7 @@ void scheduler_assert_task() {
 static void do_main_task() {
     PROF_BLOCK();
     TessScheduler *s = g_scheduler;
+    // do client 
     switch(s->mode) {
         case Tess_Client_Mode_Game:
             s->state = SCHEDULER_STATE_GAME;
@@ -71,6 +78,10 @@ static void do_main_task() {
             assert(0); // invalid/unknown state
             break;
     }
+    // do editor server
+    s->state = SCHEDULER_STATE_EDITOR_SERVER;
+    coro_transfer(&s->mainCtx, &s->editorServerCtx);
+    // do pending tasks
     scheduler_start_pending_tasks(); 
 }
 
@@ -84,6 +95,10 @@ void scheduler_yield() {
         case SCHEDULER_STATE_EDITOR:
             s->state = SCHEDULER_STATE_MAIN;
             coro_transfer(&s->editorCtx, &s->mainCtx);
+            break;
+        case SCHEDULER_STATE_EDITOR_SERVER:
+            s->state = SCHEDULER_STATE_MAIN;
+            coro_transfer(&s->editorServerCtx, &s->mainCtx);
             break;
         case SCHEDULER_STATE_GAME:
             s->state = SCHEDULER_STATE_MAIN;

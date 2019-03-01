@@ -78,7 +78,6 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 #include "test.c"
 
 #include "resourceformat.c"
-#include "map.c"
 #include "render_system.c"
 #include "tess.c"
 #include "client.c"
