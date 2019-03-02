@@ -49,7 +49,9 @@ void tess_server_init(struct TessServer *server, AikePlatform *platform)
     POOL_FROM_ARENA(server->gameServer.peerPool, &server->arena, TESS_SERVER_MAX_PEERS);
     POOL_FROM_ARENA(server->gameServer.dynEntityPool, &server->arena, TESS_SERVER_MAX_DYN_ENTITIES);
     server->gameServer.tempStack = &server->tempStack;
+    server->gameServer.platform = server->platform;
     game_server_init(&server->gameServer);
+
 }
 
 void tess_server_destroy(struct TessServer *server)

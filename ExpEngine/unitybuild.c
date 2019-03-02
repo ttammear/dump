@@ -89,6 +89,10 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 #include "editor_server_client_shared.c"
 #include "play.c"
 
+#include <dlfcn.h>
+#include "coreclrhost.h"
+#include "coreclr_host.c"
+
 #include "gameserver.c"
 #include "server.c"
 
@@ -104,3 +108,4 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 
 #include "opengl_renderer.h"
 #include "opengl_renderer.c"
+

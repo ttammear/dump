@@ -75,7 +75,7 @@ enum EditorServerCommandType
     Editor_Server_Command_Server_Create_Entities, // client->server
     Editor_Server_Command_Move_Entity,
     Editor_Server_Command_Transform_Entities,
-    Editor_Server_Command_Destroy_Entities,
+    Editor_Server_Command_Destroy_Entities, // server<->client
     Editor_Server_Command_Debug_Message,
 };
 

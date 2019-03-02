@@ -680,6 +680,7 @@ typedef struct GameServer
 {
     ENetHost *eServer;
 
+    AikePlatform *platform;
     ServerPeer **connectedPeers;
     ServerPeer *peerPool;
 

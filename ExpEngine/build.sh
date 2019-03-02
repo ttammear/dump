@@ -48,6 +48,8 @@ echo "linking engine $(($(($(date +%s%N) - $LINKTIME))/1000000))ms"
 CURTIME=$(date +%s%N)
 echo "total $(($(($CURTIME - $STARTTIME))/1000000))ms"
 
+cp ./Managed/bin/Debug/netstandard2.0/Managed.{dll,pdb} ../ExpEngineBuild/
+
 #run if run set
 if [ "$1" == 'run' ]
 then

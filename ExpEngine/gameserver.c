@@ -39,6 +39,8 @@ Command update dynamic entities
 
 void game_server_init(GameServer *gs)
 {
+    coreclr_init(gs->platform);
+
     ENetAddress address;
     address.host = ENET_HOST_ANY;
     address.port = 7777;
