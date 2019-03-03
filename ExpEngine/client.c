@@ -78,10 +78,13 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
 
     // Init game client
     mem = fixed_arena_push_size(&tess->arena, 1024 * 1024, 64);
+    memset(&tess->gameClient, 0, sizeof(GameClient));
     tess->gameClient.init = false;
     tess->gameClient.client = tess;
     tess->gameClient.world = &tess->gameSystem;
     tess->gameClient.platform = platform;
+    tess->gameClient.strings = &tess->strings;
+    tess->gameClient.assetSystem = &tess->assetSystem;
     POOL_FROM_ARENA(tess->gameClient.dynEntityPool, &tess->arena, TESS_CLIENT_MAX_DYN_ENTITIES);
 }
 

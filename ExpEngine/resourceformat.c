@@ -1,6 +1,7 @@
 #pragma pack(push, 1)
 
 #define TTR_MAX_NAME_LEN 64
+#define TTR_MAX_ASSET_ID_LEN 129
 
 #define TTR_AREF_EXTERN_MASK 0x80000000
 #define TTR_IS_EXTERN_AREF(x) (((x.tblIndex) & TTR_AREF_EXTERN_MASK) != 0) 

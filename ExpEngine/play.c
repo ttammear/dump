@@ -1,6 +1,8 @@
 void play_update(TessClient *client, double dt, uint16_t frameId);
 void update_transform(GameClient *gc, uint16_t frameId, void *data, uint32_t dataLen);
 void process_packet(GameClient *gc, void *data, size_t dataLen);
+void query_required_server_properties(GameClient *gc);
+void notify_world_ready(GameClient *gc);
 
 void load_map(TessClient *client, TessMapAsset *map) {
     printf("Game client load map %s with %d object and %d entities\n", map->asset.assetId->cstr, map->mapObjectCount, map->mapEntityCount);
@@ -17,12 +19,39 @@ void load_map(TessClient *client, TessMapAsset *map) {
     }
 }
 
+void game_client_yield(GameClient *gclient) {
+
+    ENetEvent event;
+    // TODO: this should be done at start of the frame!
+    while(gclient->connected && enet_host_service(gclient->eClient, &event, 0) > 0)
+    {
+        switch(event.type)
+        {
+            case ENET_EVENT_TYPE_DISCONNECT:
+                gclient->connected = false;
+                printf("Disconnected!\n");
+                break;
+            case ENET_EVENT_TYPE_RECEIVE:
+                //assert(event.packet->dataLength == 30);
+                //float *data = (float*)event.packet->data;
+                //update_transform(gclient, (uint16_t)frameId, event.packet->data, event.packet->dataLength);
+                process_packet(gclient, event.packet->data, event.packet->dataLength);
+                enet_packet_destroy(event.packet);
+                break;
+            default:
+                break;
+        }
+    }
+
+    scheduler_yield();
+}
+
 void game_client_coroutine(GameClient *gclient)
 {
+    // NOTE: GameClient dependencies are filled and
+    // rest of the memory is zero initialized
 game_client_start:
     gclient->init = true;
-    gclient->connected = false;
-    gclient->dynEntities = NULL;
     gclient->serverDynEntityMap = kh_init(uint32);
 
     gclient->eClient = enet_host_create(NULL, 1, 2, 0, 0);
@@ -60,6 +89,7 @@ game_client_start:
             if(res > 0 && event.type == ENET_EVENT_TYPE_CONNECT)
             {
                 printf("Game client connected to %s:%u\n", gclient->ipStr, gclient->port);
+                gclient->eServerPeer = peer;
                 gclient->connected = true;
                 retries = 0;
                 connecting = false;
@@ -74,20 +104,33 @@ game_client_start:
         }
     }
 
+    // get server properties and load map
     if(gclient->connected)
     {
-        TessAssetSystem *as = &gclient->client->assetSystem;
-        TessStrings *strings = &gclient->client->strings;
-        TStr *sponzaStr = tess_intern_string(strings, "Sponza/Sponza");
-        tess_queue_asset(as, sponzaStr);
-        while(!tess_is_asset_loaded(as, sponzaStr)) {
-            scheduler_yield();
+        query_required_server_properties(gclient);
+        while((gclient->flags & Game_Client_Flag_Have_Map_AssetId) == 0) {
+            // TODO: option to cancel or at least a timeout!
+            game_client_yield(gclient);
         }
-        TessAsset *map = tess_get_asset(as, sponzaStr);
-        assert(map);
-        assert(map->type == Tess_Asset_Map);
-        load_map(gclient->client, (TessMapAsset*)map);
-        gclient->eServerPeer = peer;
+        notify_world_ready(gclient);
+
+        TessAssetSystem *as = gclient->assetSystem;
+        TessStrings *strings = gclient->strings;
+        tess_queue_asset(as, gclient->mapAssetId);
+        TessAssetStatus mapStatus;
+        do{
+            scheduler_yield();
+            mapStatus = tess_get_asset_status(as, gclient->mapAssetId);
+        } while(mapStatus != Tess_Asset_Status_Fail && mapStatus != Tess_Asset_Status_Loaded);
+        TessAsset *map = tess_get_asset(as, gclient->mapAssetId);
+        if(map == NULL || map->type != Tess_Asset_Map) {
+            // TODO: proper disconnect
+            fprintf(stderr, "Map asset requested by server was not found or was not a map asset!\n");
+            gclient->connected = false;
+        } else {
+            load_map(gclient->client, (TessMapAsset*)map);
+            gclient->eServerPeer = peer;
+        }
     }
     else
         gclient->eServerPeer = NULL;
@@ -101,30 +144,10 @@ game_client_start:
         double dt = aike_timedif_sec(start, curTime);
         start = curTime;
 
-        while(enet_host_service(gclient->eClient, &event, 0) > 0)
-        {
-            switch(event.type)
-            {
-                case ENET_EVENT_TYPE_DISCONNECT:
-                    gclient->connected = false;
-                    printf("Disconnected!\n");
-                    break;
-                case ENET_EVENT_TYPE_RECEIVE:
-                    //assert(event.packet->dataLength == 30);
-                    //float *data = (float*)event.packet->data;
-                    //update_transform(gclient, (uint16_t)frameId, event.packet->data, event.packet->dataLength);
-                    process_packet(gclient, event.packet->data, event.packet->dataLength);
-                    enet_packet_destroy(event.packet);
-                    break;
-                default:
-                    break;
-            }
-        }
-
         if(gclient->connected)
             play_update(gclient->client, dt, frameId);
         frameId++;
-        scheduler_yield();
+        game_client_yield(gclient);
     }
 
     enet_host_destroy(gclient->eClient);
@@ -165,6 +188,40 @@ void game_client_destroy_dyn_ent(GameClient *gc, uint32_t id)
     }
 }
 
+// TODO: just have a string library with len+string?
+void process_server_property_string(GameClient *gc, uint32_t property, const char *str, uint32_t len) {
+    switch(property) {
+        case Game_Server_Property_Map_AssetId:
+            gc->mapAssetId = tess_intern_string_s(gc->strings, str, len);
+            printf("map set to %s\n", gc->mapAssetId->cstr);
+            gc->flags |= Game_Client_Flag_Have_Map_AssetId;
+            break;
+    }
+    free((void*)str);
+}
+
+void query_required_server_properties(GameClient *gc) {
+    // format: id (uint16_t), count(uint8_t), [array of properties](uint8_t)
+    // mapAssetId
+    uint8_t mem[300];
+    ByteStream stream;
+    init_byte_stream(&stream, mem, sizeof(mem));
+    stream_write_uint16(&stream, Game_Client_Command_Get_Server_Properties);
+    stream_write_uint8(&stream, 1);
+    stream_write_uint8(&stream, Game_Server_Property_Map_AssetId);
+    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), ENET_PACKET_FLAG_RELIABLE);
+    enet_peer_send(gc->eServerPeer, 0, packet);
+}
+
+void notify_world_ready(GameClient *gc) {
+    uint8_t mem[64];
+    ByteStream stream;
+    init_byte_stream(&stream, mem, sizeof(mem));
+    stream_write_uint16(&stream, Game_Client_Command_World_Ready);
+    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), ENET_PACKET_FLAG_RELIABLE);
+    enet_peer_send(gc->eServerPeer, 0, packet);
+}
+
 void process_packet(GameClient *gc, void *data, size_t dataLen)
 {
     ByteStream stream;
@@ -174,6 +231,34 @@ void process_packet(GameClient *gc, void *data, size_t dataLen)
     success &= stream_read_uint16(&stream, &cmdId);
     switch(cmdId)
     {
+        case Game_Server_Command_Server_Property_Response:
+            {
+                uint8_t type;
+                uint8_t property;
+                success &= stream_read_uint8(&stream, &property);
+                if(!success) break;
+                success &= stream_read_uint8(&stream, &type);
+                if(!success) break;
+                switch(type) {
+                    case Game_Server_Data_Type_String:
+                    {
+                        uint16_t strLen = 0;
+                        success &= stream_read_uint16(&stream, &strLen);
+                        if(!success) break;
+                        // TODO: don't use malloc?
+                        char *buf = malloc(strLen);
+                        success &= stream_read_str(&stream, buf, strLen);
+                        if(success) {
+                            process_server_property_string(gc, property, buf, strLen);
+                        } else {
+                            free(buf);
+                        }
+                    } break;
+                    default:
+                        fprintf(stderr, "Unhandled server property response for proprty %d with type %d\n", property, type);
+                        break;
+                }
+            } break;
         case Game_Server_Command_Create_DynEntities:
             {
                 uint16_t count;

@@ -561,6 +561,10 @@ typedef struct GameClientDynEntity
     NetworkedTransform ntransform;
 } GameClientDynEntity;
 
+typedef enum GameClientFlags {
+    Game_Client_Flag_Have_Map_AssetId = 1<<0,
+} GameClientFlags;
+
 typedef struct GameClient
 {
     ENetHost *eClient;
@@ -571,11 +575,16 @@ typedef struct GameClient
     char ipStr[256];
     uint16_t port;
 
+    uint32_t flags;
+    TStr *mapAssetId;
+
     GameClientDynEntity **dynEntities;
     GameClientDynEntity *dynEntityPool;
 
     khash_t(uint32) *serverDynEntityMap; // serverId -> dynEntityId
 
+    struct TessStrings *strings;
+    struct TessAssetSystem *assetSystem;
     struct TessClient *client;
     struct TessGameSystem *world;
     struct AikePlatform *platform;
@@ -653,17 +662,46 @@ typedef struct TessEditorServer
     struct TessEditorServerEntity *entityPool;
 } TessEditorServer;
 
+typedef enum GameClientCommand {
+    Game_Client_Command_Get_Server_Properties,
+    Game_Client_Command_World_Ready,
+} GameClientCommand;
+
+enum GameServerDataType {
+    Game_Server_Data_Type_None,
+    Game_Server_Data_Type_Uint8,
+    Game_Server_Data_Type_Int8,
+    Game_Server_Data_Type_Int32,
+    Game_Server_Data_Type_Uint32,
+    Game_Server_Data_Type_Float32,
+    Game_Server_Data_Type_Float64,
+    Game_Server_Data_Type_String,
+};
+
+enum GameServerProperty {
+    Game_Server_Property_Map_AssetId,
+    Game_Server_Property_Max_Players,
+    Game_Server_Property_Server_Title,
+    Game_Server_Property_Gamemode_Title,
+};
+
 enum GameServerCommand
 {
     Game_Server_Command_Nop,
     Game_Server_Command_Create_DynEntities,
     Game_Server_Command_Destroy_DynEntities,
     Game_Server_Command_Update_DynEntities,
+    Game_Server_Command_Server_Property_Response,
+};
+
+enum ServerPeerFlag {
+    Server_Peer_Flag_World_Ready = 1<<0,
 };
 
 typedef struct ServerPeer
 {
     ENetPeer *ePeer;
+    uint32_t flags;
 } ServerPeer;
 
 typedef struct GameServerDynEntity
@@ -681,11 +719,17 @@ typedef struct GameServer
     ENetHost *eServer;
 
     AikePlatform *platform;
+    TessAssetSystem *assetSystem;
     ServerPeer **connectedPeers;
     ServerPeer *peerPool;
 
+    uint32_t flags;
+    TStr *mapAssetId;
+
     GameServerDynEntity **dynEntities;
     GameServerDynEntity *dynEntityPool;
+
+    TessStrings *strings;
 
     double updateProgress;
     TessStack *tempStack;
@@ -720,6 +764,7 @@ bool tess_queue_asset(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_id(struct TessAssetSystem *as, TStr *package, TStr *asset);
 TStr *tess_get_asset_name_from_id(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_package_from_id(struct TessAssetSystem *as, TStr *assetId);
+TStr* intern_asset_id(TessAssetSystem *as, const char *package, const char *asset);
 // for debug only
 void tess_get_asset_metrics(struct TessAssetSystem *as, struct TessAssetSystemMetrics *tasm);
 internal inline bool tess_is_asset_loaded(TessAssetSystem *as, TStr *assetId)
@@ -727,6 +772,12 @@ internal inline bool tess_is_asset_loaded(TessAssetSystem *as, TStr *assetId)
     khiter_t k = kh_get(64, as->loadedAssetMap, (intptr_t)assetId);
     return k != kh_end(as->loadedAssetMap);
 }
+internal inline TessAssetStatus tess_get_asset_status(TessAssetSystem *as, TStr *assetId)
+{
+    khiter_t k = kh_get(uint32, as->assetStatusMap, (intptr_t)assetId);
+    return k == kh_end(as->assetStatusMap) ? Tess_Asset_Status_None : kh_value(as->assetStatusMap, k);
+}
+
 TessAsset* tess_get_asset(TessAssetSystem *as, TStr *assetId);
 
 void tess_world_init(TessGameSystem *gs);

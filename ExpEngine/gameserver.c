@@ -39,7 +39,9 @@ Command update dynamic entities
 
 void game_server_init(GameServer *gs)
 {
-    coreclr_init(gs->platform);
+    coreclr_init(gs->platform, gs);
+
+    assert(gs->mapAssetId); // Managed code should set map assetId
 
     ENetAddress address;
     address.host = ENET_HOST_ANY;
@@ -236,6 +238,64 @@ void game_server_send_dyn_updates(GameServer *gs, ServerPeer *speer)
     stack_pop(gs->tempStack);
 }
 
+void server_send_property(GameServer *gs, ServerPeer *sp, uint8_t prop) {
+    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
+    ByteStream stream;
+    init_byte_stream(&stream, mem, 65536);
+    stream_write_uint16(&stream, Game_Server_Command_Server_Property_Response);
+    stream_write_uint8(&stream, prop);
+    bool send = false;
+    switch(prop) {
+        case Game_Server_Property_Map_AssetId:
+            {
+                stream_write_uint8(&stream, Game_Server_Data_Type_String);
+                assert(gs->mapAssetId->len < 65536);
+                stream_write_uint16(&stream, gs->mapAssetId->len);
+                stream_write_str(&stream, gs->mapAssetId->cstr, gs->mapAssetId->len);
+                send = true;
+            } break;
+    }
+    if(send) {
+        ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), ENET_PACKET_FLAG_RELIABLE);
+        enet_peer_send(sp->ePeer, 1, packet);
+    }
+    stack_pop(gs->tempStack);
+}
+
+void server_process_packet(GameServer *gs, ServerPeer *sp, void* data, size_t dataLen) {
+    ByteStream stream;
+    init_byte_stream(&stream, data, dataLen);
+    bool success = true;
+    uint16_t cmdId;
+    success &= stream_read_uint16(&stream, &cmdId);
+    if(!success) return;
+    switch(cmdId) {
+        case Game_Client_Command_Get_Server_Properties:
+            {
+                // TODO: use bitfield to set the property dirty and then periodically send the dirty properties (much easier to rate-limit in case of malicious/abnormal client)
+                printf("Game client requested server properties\n");
+                uint8_t count;
+                success &= stream_read_uint8(&stream, &count);
+                if(!success) break;
+                for(int i = 0; i < count; i++) {
+                    uint8_t prop = 0;
+                    success &= stream_read_uint8(&stream, &prop);
+                    if(!success) return;
+                    server_send_property(gs, sp, prop);
+                }
+            } break;
+        case Game_Client_Command_World_Ready:
+            {
+                if((sp->flags&Server_Peer_Flag_World_Ready) == 0) {
+                    game_server_send_all_dyn_create(gs, sp);
+                    sp->flags |= Server_Peer_Flag_World_Ready;
+                }
+            } break;
+        default:
+            return;
+    }
+}
+
 void game_server_update(GameServer *gs, double dt)
 {
     if(NULL == gs->eServer)
@@ -254,9 +314,8 @@ void game_server_update(GameServer *gs, double dt)
                         printf("New game client from %x:%u\n", event.peer->address.host, event.peer->address.port);
                         event.peer->data = speer;
                         speer->ePeer = event.peer;
+                        speer->flags = 0;
                         buf_push(gs->connectedPeers, speer);
-
-                        game_server_send_all_dyn_create(gs, speer);
                     }
                     else
                     {
@@ -265,9 +324,12 @@ void game_server_update(GameServer *gs, double dt)
                     }
                 }break;
             case ENET_EVENT_TYPE_RECEIVE:
-                printf("Received packet. Size: %zu\n", event.packet->dataLength);
-                enet_packet_destroy(event.packet);
-                break;
+                {
+                    printf("Received packet. Size: %zu\n", event.packet->dataLength);
+                    ServerPeer *speer = (ServerPeer*)event.peer->data;
+                    server_process_packet(gs, speer, event.packet->data, event.packet->dataLength);
+                    enet_packet_destroy(event.packet);
+                } break;
             case ENET_EVENT_TYPE_DISCONNECT:
                 {
                     ServerPeer *speer = (ServerPeer*)event.peer->data;

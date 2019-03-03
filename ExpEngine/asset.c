@@ -20,12 +20,6 @@ internal inline void tess_set_asset_status(TessAssetSystem *as, TStr *assetId, u
     kh_value(as->assetStatusMap, k) = status;
 }
 
-internal inline TessAssetStatus tess_get_asset_status(TessAssetSystem *as, TStr *assetId)
-{
-    khiter_t k = kh_get(uint32, as->assetStatusMap, (intptr_t)assetId);
-    return k == kh_end(as->assetStatusMap) ? Tess_Asset_Status_None : kh_value(as->assetStatusMap, k);
-}
-
 
 internal inline bool tess_is_asset_loading(TessAssetSystem *as, TStr *assetId)
 {
@@ -526,6 +520,16 @@ internal void tess_replace_id_name_characters(char buf[], const char *name, uint
     }
     fprintf(stderr, "string passed to tess_escape_id_name() wasn't null terminated!\n");
     assert(false);
+}
+
+TStr* intern_asset_id(TessAssetSystem *as, const char *package, const char *asset) {
+    char nameBuf[TTR_MAX_NAME_LEN];
+    tess_replace_id_name_characters(nameBuf, asset, ARRAY_COUNT(nameBuf));
+    // TODO: no reason to intern name and package, do it directly
+    TStr *internedName = tess_intern_string_s(as->tstrings, nameBuf, TTR_MAX_NAME_LEN);
+    tess_replace_id_name_characters(nameBuf, package, ARRAY_COUNT(nameBuf));
+    TStr *internedPackage = tess_intern_string_s(as->tstrings, nameBuf, TTR_MAX_NAME_LEN);
+    return tess_get_asset_id(as, internedPackage, internedName);
 }
 
 internal void tess_refresh_package_list(TessAssetSystem *as)

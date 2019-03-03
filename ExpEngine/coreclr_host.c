@@ -80,7 +80,7 @@ bool coreclr_loadlib() {
     return true;
 }
 
-void coreclr_init(AikePlatform *platform) {
+void coreclr_init(AikePlatform *platform, GameServer *gsCtx) {
     const char *libsLoc = "/usr/share/dotnet/shared/Microsoft.NETCore.App/2.2.2/";
     char *tpa = add_files_from_directory_tpa_list(platform, libsLoc);
     printf("TPALIST %s\n", tpa);
@@ -130,12 +130,28 @@ void coreclr_init(AikePlatform *platform) {
         exit(-1);
     }
 
+    const char *msg = "Failed to create delegate! 0x%x\n";
+    #define CHECK_STATUS(msg) if(status < 0) {printf(msg, status);exit(-1);}
+
     void (*csharp_hello)(void);
+    void (*managed_set_native_api_func)(int nativeApiFunc, void *procPtr);
+    void (*managed_set_context)(void *ctx);
+
     status = coreclr_create_delegate(clrHost, domainId, "Managed", "Sandbox", "Hello", (void**)&csharp_hello);
-    if(status < 0) {
-        printf("Failed to create delegate! 0x%x\n", status);
-    }
-    csharp_hello();
+    CHECK_STATUS(msg);
+    status = coreclr_create_delegate(clrHost, domainId, "Managed", "Sandbox", "SetNativeApiFunc", (void**)&managed_set_native_api_func);
+    CHECK_STATUS(msg);
+    status = coreclr_create_delegate(clrHost, domainId, "Managed", "Sandbox", "SetContext", (void**)&managed_set_context);
+    CHECK_STATUS(msg);
+
+    managed_set_context(gsCtx);
+    managed_set_native_api_func(Native_Api_Proc_InternAssetId, native_intern_asset_id);
+    managed_set_native_api_func(Native_Api_Proc_SetMap, native_set_map);
+    managed_set_native_api_func(Native_Api_Proc_SetServerTitle, native_set_server_title);
+    managed_set_native_api_func(Native_Api_Proc_SetGamemodeTitle, native_set_gamemode_title);
+    managed_set_native_api_func(Native_Api_Proc_SetMaxPlayers, native_set_max_players);
+
+    csharp_hello(); // TODO: delete this and move Start() out of it
 
     int latchedExitCode = 0;
     status = coreclr_shutdown_2(clrHost, domainId, &latchedExitCode);

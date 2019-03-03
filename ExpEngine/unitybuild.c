@@ -66,6 +66,7 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 #include "mathsc.h"
 #include "test.h"
 #include "memory.h"
+#include "resourceformat.c"
 #include "tess.h"
 
 #include "renderer.h"
@@ -77,7 +78,6 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 #include "renderer.c"
 #include "test.c"
 
-#include "resourceformat.c"
 #include "render_system.c"
 #include "tess.c"
 #include "client.c"
@@ -89,7 +89,9 @@ KHASH_MAP_INIT_INT(uint32, uint32_t)
 #include "editor_server_client_shared.c"
 #include "play.c"
 
+// TODO: get rid of this! (move to platform layer!)
 #include <dlfcn.h>
+#include "native_api.c"
 #include "coreclrhost.h"
 #include "coreclr_host.c"
 
