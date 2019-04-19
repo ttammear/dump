@@ -158,9 +158,8 @@ void tess_render_entities(TessGameSystem *gs)
             obj = &gs->objectTable[0];
         uint32_t meshId, materialId;
         meshId = obj->asset->mesh->meshId;
-        materialId = obj->asset->materialId;
 
-        render_system_render_mesh(gs->renderSystem, meshId, materialId, ent->id, &ent->objectToWorld);
+        render_system_render_mesh(gs->renderSystem, meshId, ent->id, &ent->objectToWorld);
     }
 }
 

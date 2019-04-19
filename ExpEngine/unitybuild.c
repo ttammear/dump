@@ -56,6 +56,7 @@
 #include "libs/klib/khash.h"
 KHASH_MAP_INIT_STR(str, void*)
 KHASH_MAP_INIT_INT64(64, void*)
+KHASH_MAP_INIT_INT64(32, void*)
 KHASH_MAP_INIT_INT(uint32, uint32_t)
 
 #include "debug.h"

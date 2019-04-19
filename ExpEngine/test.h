@@ -30,7 +30,6 @@ typedef struct RenderMeshInstance
 typedef struct RenderMeshEntry
 {
     uint32_t meshId;
-    uint32_t materialId;
     u32 numInstances;
     RenderMeshInstance instances[];
 } RenderMeshEntry;
@@ -98,7 +97,6 @@ typedef struct RenderViewBuffer
 typedef struct BuilderMeshEntry
 {
     uint32_t meshId;
-    uint32_t materialId;
     u32 instanceCount;
 } BuilderMeshEntry;
 
@@ -142,7 +140,7 @@ void* rview_buffer_destroy(struct RenderViewBuffer *rbuf);
 void rview_buffer_clear(struct RenderViewBuffer *rbuf);
 void rview_builder_reset(struct RenderViewBuilder *builder);
 void build_view(struct RenderViewBuilder *builder, struct RenderViewBuffer *buf);
-void add_mesh_instance(struct RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId, struct Mat4 *modelM, u32 objectId);
+void add_mesh_instance(struct RenderViewBuilder *builder, uint32_t meshId, struct Mat4 *modelM, u32 objectId);
 
 void swap_buffer_init(struct SwapBuffer *vb);
 void swap_buffer_destroy(struct SwapBuffer *sb);

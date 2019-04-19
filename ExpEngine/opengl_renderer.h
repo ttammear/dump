@@ -37,8 +37,8 @@ typedef struct GLMesh
     void *userData2;
     MReady_A onComplete;
 
-    uint32_t numVertices;
-    uint32_t numIndices;
+    uint32_t numVertices; // total number of vertices
+    uint32_t numIndices; // total number of indices
 
     GLuint glVbo;
     GLuint glEbo;
@@ -51,9 +51,10 @@ typedef struct GLMesh
     uint32_t vertexStride;
     uint32_t vertexBufferSize;
     uint32_t indexBufferSize;
+    // TODO: uint32_t indexStride;
 
-/*    uint32_t numMeshSections;
-    MeshSection sections[MAX_MESH_SECTIONS];*/
+    uint32_t numMeshSections;
+    MeshSection sections[MAX_MESH_SECTIONS];
 } GLMesh;
 
 typedef struct GLTexture
@@ -155,11 +156,20 @@ typedef struct OpenGLRenderer
     uint32_t syncPointFreeList[GL_RENDERER_MAX_SYNC_POINTS];
     GLSyncPoint syncPoints[GL_RENDERER_MAX_SYNC_POINTS];
 
-    struct GLMaterial *materials;
-    struct GLTexture *textures;
-    struct GLMesh *meshes;
+    khash_t(32) *meshMap;
+    khash_t(32) *materialMap;
+    khash_t(32) *textureMap;
 
+    struct GLMaterial *materialPool;
+    struct GLTexture *texturePool;
+    struct GLMesh *meshPool;
+
+    GLMesh defaultMesh;
+    uint32_t meshId;
+    GLTexture defaultTexture;
+    uint32_t textureId;
     GLMaterial fallbackMaterial;
+    uint32_t materialId;
 
     struct SwapBuffer *swapbuf;
     struct RenderViewBuffer *curView;

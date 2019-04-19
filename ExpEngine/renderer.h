@@ -80,12 +80,15 @@ enum RenderMessageType
     Render_Message_Mesh_Query_Result,
     Render_Message_Mesh_Update,
     Render_Message_Mesh_Ready,
+    Render_Message_Mesh_Destroy,
     Render_Message_Material_Query,
     Render_Message_Material_Ready,
+    Render_Message_Material_Destroy,
     Render_Message_Texture_Query,
     Render_Message_Texture_Query_Response,
     Render_Message_Texture_Update,
     Render_Message_Texture_Ready,
+    Render_Message_Texture_Destroy,
 
     Render_Message_Sample_Object_Id,
     Render_Message_Sample_Object_Ready,
@@ -163,7 +166,6 @@ typedef struct MeshSection
     uint32_t materialId;
 }MeshSection;
 
-#define MAX_MESH_SECTIONS 4
 
 typedef struct MeshQuery
 {
@@ -184,8 +186,8 @@ typedef struct MeshQueryResult
 typedef struct MeshUpdate
 {
     uint32_t meshId;
-/*    uint16_t numSections;
-    MeshSection sections[MAX_MESH_SECTIONS]; // TODO: this will make command union very large*/
+    uint16_t numSections;
+    MeshSection sections[MAX_MESH_SECTIONS]; // TODO: this might make command union too large, maybe there is some other way?
 } MeshUpdate;
 
 typedef struct MeshReady
@@ -275,12 +277,21 @@ typedef struct RenderMessage
         struct MeshQueryResult meshQueryResult;
         struct MeshUpdate meshUpdate;
         struct MeshReady meshR;
+        struct {
+            uint32_t meshId;
+        } meshD;
         struct MaterialQuery matQ;
         struct MaterialReady matR;
+        struct {
+            uint32_t materialId;
+        } matD;
         struct TextureQuery texQ;
         struct TextureQueryResponse texQR;
         struct TextureUpdate texU;
         struct TextureReady texR;
+        struct {
+            uint32_t textureId;
+        } texD;
         struct ScreenResize screenR;
         struct SampleObjectId sampleO;
         struct ObjectIDSamplesReady sampleOR;

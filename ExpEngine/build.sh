@@ -2,6 +2,7 @@ cd "$(dirname "$0")"
 
 STARTTIME=$(date +%s%N)
 
+
 cd AikePlatform
 git fetch
 git reset --hard origin/master
@@ -40,7 +41,6 @@ $CC -shared -O2 -gdwarf-4 -fPIC libs_static.c -o ../ExpEngineBuild/libAikeDeps.s
 echo "compiling libs $(($(($(date +%s%N) - $LIBTIME))/1000000))ms"
 fi
 
-#link engine
 LINKTIME=$(date +%s%N)
 $LINKER ./obj/engine.o ../ExpEngineBuild/libAikeDeps.so ./libs/libcoro/libcoro.a -shared -lenet -lm -fPIC $LFLAGS $COMFLAGS -g -o ../ExpEngineBuild/libAike.so
 echo "linking engine $(($(($(date +%s%N) - $LINKTIME))/1000000))ms"
@@ -54,5 +54,7 @@ cp ./Managed/bin/Debug/netstandard2.0/Managed.{dll,pdb} ../ExpEngineBuild/
 if [ "$1" == 'run' ]
 then
 #vblank_mode=0
+
 gnome-terminal -- ../ExpEngineBuild/Engine.out
+
 fi

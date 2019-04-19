@@ -69,6 +69,7 @@ ProfNode* prof_tree_node(ProfTree* tree, ProfNode *parent, int* eventIndex, int 
                 continue;
             case Debug_Event_Start_Block:
                 (*eventIndex)++;
+                assert(!open);
                 hash = e->uid^(uint64_t)parent;
                 k = kh_put(64, t_profState->profTreeHash, hash, &ret);
                 if(ret > 0) {
@@ -87,16 +88,21 @@ ProfNode* prof_tree_node(ProfTree* tree, ProfNode *parent, int* eventIndex, int 
                         lastSibling->nextSibling = newNode;
                     }
                 } else {
-                    assert(firstChild != NULL); // reapeating entry when no entries haven't even been checked
+                    prof_tree_node(tree, newNode, eventIndex, depth+1);
+                    //assert(firstChild != NULL); // reapeating entry when no entries haven't even been checked
                     newNode = kh_val(t_profState->profTreeHash, k);
+                    if(firstChild == NULL)
+                        firstChild = newNode;
                     newNode->numInvocations++;
                 }
                 startCycles = e->clock;
                 open = true;
                 break;
             case Debug_Event_End_Block:
-                if(!open)
+                if(!open) {
+                    // nothing open at this depth, tree doesn't go any deeper here (probably end of parent node)
                     return firstChild;
+                }
                 newNode->cycles += e->clock - startCycles;
                 newNode->ms += (float)newNode->cycles/2400000.f;
                 lastSibling = newNode;
@@ -117,6 +123,7 @@ void debug_end_frame()
     kh_clear(64, t_profState->profTreeHash);
     int idx = 0;
     tree->tree.firstChild = prof_tree_node(tree, &tree->tree, &idx, 0);
+    assert(idx == t_profState->eventIndex); // all nodes checked
 
     // generate event log
     // NOTE: reusing idx variable

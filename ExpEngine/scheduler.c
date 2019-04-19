@@ -3,6 +3,10 @@ struct TessScheduler *g_scheduler;
 
 void scheduler_start_pending_tasks();
 
+void* null_allocator(void *usrData, size_t size) {
+    return NULL;
+}
+
 // TODO: coro_destroy?
 void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *client, TessServer *server) {
     coro_create(&ctx->mainCtx, NULL, NULL, NULL, 0);
@@ -36,6 +40,7 @@ void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *clien
     ctx->yieldedTasksTail = NULL;
     ctx->freeTasks = NULL;
     pool_init_with_memory(ctx->ctxPool, malloc(pool_calc_size(ctx->ctxPool, maxTasks)), maxTasks);
+    pool_set_allocator(ctx->ctxPool, null_allocator); // TODO: review
     ctx->taskMemory = malloc(taskStackSize*maxTasks);
     ctx->taskMemorySize = taskStackSize;
 

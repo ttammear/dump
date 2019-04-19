@@ -347,20 +347,20 @@ void editor_draw_ui(TessEditor *editor)
             quat_euler_deg(&rotate, edEnt->eulerRotation);
             scale = make_v3(0.02f, 0.02f, 0.5f);
             mat4_trs(&trs, translate, rotate, scale);
-            render_system_render_mesh(editor->renderSystem, 0, 1, selObj|0x80000000, &trs);
+            render_system_render_mesh(editor->renderSystem, 0, selObj|0x80000000, &trs);
 
             Quat alignY;
             Quat rotate2 = rotate;
             quat_angle_axis(&rotate, 90.0f, make_v3(1.0f, 0.0f, 0.0f));
             quat_mul(&alignY, rotate2, rotate);
             mat4_trs(&trs, translate, alignY, scale);
-            render_system_render_mesh(editor->renderSystem, 0, 2, selObj|0x81000000, &trs);
+            render_system_render_mesh(editor->renderSystem, 0, selObj|0x81000000, &trs);
 
             Quat alignX;
             quat_angle_axis(&rotate, 90.0f, make_v3(0.0f, 1.0f, 0.0f));
             quat_mul(&alignX, rotate2, rotate);
             mat4_trs(&trs, translate, alignX, scale);
-            render_system_render_mesh(editor->renderSystem, 0, 3, selObj|0x82000000, &trs);
+            render_system_render_mesh(editor->renderSystem, 0, selObj|0x82000000, &trs);
 
             if(editor->cursorObjectId != 0xFFFFFFFF 
                     && (editor->cursorObjectId & 0x80000000) != 0)
@@ -454,6 +454,12 @@ void editor_connected(TessEditor *editor)
 
 }
 
+// NOTE: wrapper for profiling!
+bool editor_tcp_recv(AikePlatform *pl, AikeTCPConnection *con, uint8_t *buf, uint32_t *nBytes) {
+    PROF_BLOCK();
+    return pl->tcp_recv(pl, con, buf, sizeof(buf), nBytes);
+}
+
 void editor_client_update(TessEditor *editor)
 {
     PROF_BLOCK();
@@ -461,7 +467,7 @@ void editor_client_update(TessEditor *editor)
     AikeTCPConnection *con = editor->tcpCon;
     uint8_t buf[1024];
     uint32_t nBytes;
-    while(pl->tcp_recv(pl, con, buf, sizeof(buf), &nBytes))
+    while(editor_tcp_recv(pl, con, buf, &nBytes))
     {
         if(nBytes == 0)
         {
@@ -548,8 +554,8 @@ void editor_camera_update(TessEditor *editor, float dt)
         editor->camRot = make_v2(editor->camRot.x, MIN(editor->camRot.y, 90.0f));
     }
 
-    Quat xRot, yRot;
-    quat_euler_deg(&xRot, make_v3(0.0f, editor->camRot.y, editor->camRot.x));
+    Quat xRot;
+    quat_euler_deg(&xRot, make_v3(editor->camRot.y, editor->camRot.x, 0.0f));
     cam->rotation = xRot;
 }
 

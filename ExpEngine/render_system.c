@@ -21,6 +21,7 @@ void render_system_destroy(TessRenderSystem *rs)
 
 void process_render_messages(TessRenderSystem *rs)
 {
+    PROF_BLOCK();
     Renderer *renderer = rs->renderer;
     RenderMessage msg;
     while(renderer_next_message(renderer, &msg))
@@ -105,9 +106,9 @@ void render_system_begin_update(TessRenderSystem *rs)
     rs->viewBuilder->renderRect = make_v4(x, y, w, h);
 }
 
-void render_system_render_mesh(TessRenderSystem *rs, uint32_t meshId, uint32_t materialId, uint32_t objectId, Mat4 *objectToWorld)
+void render_system_render_mesh(TessRenderSystem *rs, uint32_t meshId, uint32_t objectId, Mat4 *objectToWorld)
 {
-    add_mesh_instance(rs->viewBuilder, meshId, materialId, objectToWorld, objectId);
+    add_mesh_instance(rs->viewBuilder, meshId, objectToWorld, objectId);
 }
 
 void render_system_end_update(TessRenderSystem *rs)

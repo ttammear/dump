@@ -4,6 +4,8 @@
 #include "libs/tt_types.h"
 
 #define DEG2RAD_F 0.0174532925f
+#define RAD2DEG_F 57.295779513f
+#define PI32 3.14159265359f
 
 typedef struct V2
 {
@@ -299,32 +301,54 @@ static inline void quat_angle_axis(struct Quat *q, r32 angleDeg, struct V3 axis)
     q->z = axis.z * sinHAR;
 }
 
-static inline void quat_euler(struct Quat *q, struct V3 euler)
+// https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+static inline void euler_from_quat(struct V3 *v, struct Quat q) 
 {
-	float cy = cosf(euler.x * 0.5f);
-	float sy = sinf(euler.x * 0.5f);
-	float cr = cosf(euler.y * 0.5f);
-	float sr = sinf(euler.y * 0.5f);
-	float cp = cosf(euler.z * 0.5f);
-	float sp = sinf(euler.z * 0.5f);
-	q->w = cy * cr * cp + sy * sr * sp;
-	q->x = cy * sr * cp - sy * cr * sp;
-	q->y = cy * cr * sp + sy * sr * cp;
-	q->z = sy * cr * cp - cy * sr * sp;
+    float sinr_cosp = 2.0f*(q.w*q.x + q.z*q.y);
+    float cosr_cosp = 1.0f - 2.0f*(q.x*q.x + q.z*q.z);
+    v->z = atan2f(sinr_cosp, cosr_cosp);
+
+    float sinp = 2.0f*(q.w*q.z - q.z*q.x);
+    if(fabs(sinp) >= 1.0f) {
+        v->x = sinp < 0 ? -PI32/2.0f : PI32/2.0f;
+    } else {
+        v->x = asinf(sinp);
+    }
+    float siny_cosp = 2.0f*(q.w*q.y + q.x*q.z);
+    float cosy_cosp = 1.0f - 2.0f*(q.z*q.z + q.y*q.y);
+    v->y = atan2f(siny_cosp, cosy_cosp);
 }
 
+static inline void euler_from_quat_deg(struct V3 *v, struct Quat q) 
+{
+    euler_from_quat(v, q);
+    v->x *= RAD2DEG_F;
+    v->y *= RAD2DEG_F;
+    v->z *= RAD2DEG_F;
+}
+
+// https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+static inline void quat_euler(struct Quat *q, struct V3 euler)
+{
+	float cy = cosf(euler.y * 0.5f);
+	float sy = sinf(euler.y * 0.5f);
+	float cp = cosf(euler.x * 0.5f);
+	float sp = sinf(euler.x * 0.5f);
+	float cr = cosf(euler.z * 0.5f);
+	float sr = sinf(euler.z * 0.5f);
+	q->w = cy * cp * cr + sy * sp * sr;
+	q->x = sy * cp * sr + cy * sp * cr;
+	q->y = sy * cp * cr - cy * sp * sr;
+	q->z = cy * cp * sr - sy * sp * cr;
+}
+
+// https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
 static inline void quat_euler_deg(struct Quat *restrict q, struct V3 euler)
 {
-	float cy = cosf(euler.x * 0.5f * DEG2RAD_F);
-	float sy = sinf(euler.x * 0.5f * DEG2RAD_F);
-	float cr = cosf(euler.y * 0.5f * DEG2RAD_F);
-	float sr = sinf(euler.y * 0.5f * DEG2RAD_F);
-	float cp = cosf(euler.z * 0.5f * DEG2RAD_F);
-	float sp = sinf(euler.z * 0.5f * DEG2RAD_F);
-	q->w = cy * cr * cp + sy * sr * sp;
-	q->x = cy * sr * cp - sy * cr * sp;
-	q->y = cy * cr * sp + sy * sr * cp;
-	q->z = sy * cr * cp - cy * sr * sp;
+    euler.x *= DEG2RAD_F;
+    euler.y *= DEG2RAD_F;
+    euler.z *= DEG2RAD_F;
+    quat_euler(q, euler);
 }
 
 static inline void quat_mul(Quat *restrict res, Quat l, Quat r)

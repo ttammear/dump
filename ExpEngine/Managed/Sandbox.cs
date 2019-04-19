@@ -69,7 +69,7 @@ public class Sandbox
             throw new FormatException("config.json could not be read!");
         }
         System.Console.WriteLine(config.ServerTitle);
-        AssetId sponza = new AssetId("Sponza", "Sponza");
+        AssetId sponza = new AssetId("ViceCity", "Airport");
         NativeSetMap(NativeGameServerContext, sponza.Handle);
     }
 

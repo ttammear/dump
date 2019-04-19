@@ -75,7 +75,7 @@ void aike_init(AikePlatform *platform)
     root->client.gameSystem.defaultCamera.aspectRatio = platform->mainWin.width/platform->mainWin.height;
     root->client.gameSystem.defaultCamera.FOV = 75.0f;
     root->client.gameSystem.defaultCamera.nearPlane = 0.1f;
-    root->client.gameSystem.defaultCamera.farPlane = 1000.0f;
+    root->client.gameSystem.defaultCamera.farPlane = 20000.0f;
     tess_update_camera_perspective(&root->client.gameSystem.defaultCamera);
 
     platform->make_window_current(platform, NULL);
@@ -132,6 +132,7 @@ void aike_deinit(AikePlatform *platform)
 void aike_update(AikePlatform *platform)
 {
     DEBUG_START_FRAME();
+    PROF_START_STR("aike_update");
 
     TessRoot *root = (TessRoot*)platform->userData;
     tess_process_io_events(&root->client.fileSystem);
@@ -160,6 +161,7 @@ void aike_update(AikePlatform *platform)
         scheduler_yield();
         tess_client_end_frame(&root->client);
     }
+    PROF_END(); // aike_update
     DEBUG_END_FRAME();
 }
 

@@ -1,6 +1,12 @@
+void *pool_arena_allocator(void *usrData, size_t size)
+{
+    TessFixedArena *arena = (TessFixedArena*)usrData; 
+    return fixed_arena_push_size(arena, size, 8);
+}
+
 void tess_strings_init(TessStrings *tstrings, TessFixedArena *arena)
 {
-    fixed_arena_init_from_arena(&tstrings->stringArena, arena, 64 * 1024);
+    fixed_arena_init_from_arena(&tstrings->stringArena, arena, 1* 1024 * 1024); // TODO: flex buffer
     tstrings->internedStrings = NULL;
     tstrings->empty = tess_intern_string(tstrings, "");
 }
@@ -12,18 +18,17 @@ void tess_strings_destroy(TessStrings *tstrings)
 
 void tess_file_system_init(TessFileSystem *fs, TessFixedArena *arena)
 {
-    POOL_FROM_ARENA(fs->loadedFilePool, arena, TESS_LOADED_FILE_POOL_SIZE);
+    POOL_FROM_ARENA(fs->loadedFilePool, arena, TESS_LOADED_FILE_POOL_INITIAL_SIZE);
 }
 
 void tess_asset_system_init(TessAssetSystem *as, TessFixedArena *arena)
 {
-    POOL_FROM_ARENA(as->meshPool, arena, TESS_MESH_POOL_SIZE);
-    POOL_FROM_ARENA(as->texturePool, arena, TESS_TEXTURE_POOL_SIZE);
-    POOL_FROM_ARENA(as->objectPool, arena, TESS_OBJECT_POOL_SIZE);
-    POOL_FROM_ARENA(as->loadingAssetPool, arena, TESS_LOADING_ASSET_POOL_SIZE);
-    POOL_FROM_ARENA(as->assetLookupCachePool, arena, TESS_ASSET_LOOKUP_CACHE_POOL_SIZE);
-    POOL_FROM_ARENA(as->assetLookupEntryPool, arena, TESS_ASSET_LOOKUP_ENTRY_POOL_SIZE);
-    as->loadedAssets = NULL;
+    POOL_FROM_ARENA(as->meshPool, arena, TESS_MESH_POOL_INITIAL_SIZE);
+    POOL_FROM_ARENA(as->texturePool, arena, TESS_TEXTURE_POOL_INITIAL_SIZE);
+    POOL_FROM_ARENA(as->objectPool, arena, TESS_OBJECT_POOL_INITIAL_SIZE);
+    POOL_FROM_ARENA(as->loadingAssetPool, arena, TESS_LOADING_ASSET_POOL_INITIAL_SIZE);
+    POOL_FROM_ARENA(as->assetLookupCachePool, arena, TESS_ASSET_LOOKUP_CACHE_POOL_INITIAL_SIZE);
+    POOL_FROM_ARENA(as->assetLookupEntryPool, arena, TESS_ASSET_LOOKUP_ENTRY_POOL_INITIAL_SIZE);
     as->loadingAssets = NULL;
     as->packageList = NULL;
     as->packageAssetMap = kh_init(str);
@@ -45,7 +50,6 @@ void tess_asset_system_init(TessAssetSystem *as, TessFixedArena *arena)
         .asset.assetId = emptyStr, 
         .asset.type = Tess_Asset_Object, 
         .mesh = &as->nullMesh, // TODO: everything should use ids not pointers?
-        .materialId = 0 // TODO: this material might not exist!
     };
 
     DELEGATE_INIT(as->onAssetLoaded);
@@ -85,7 +89,6 @@ void tess_asset_system_destroy(TessAssetSystem *as)
     kh_destroy(64, as->loadedAssetMap);
     kh_destroy(64, as->loadingAssetMap);
     kh_destroy(uint32, as->assetStatusMap);
-    buf_free(as->loadedAssets);
     buf_free(as->loadingAssets);
     buf_free(as->packageList);
 }
@@ -124,6 +127,7 @@ void tess_unload_file(TessFileSystem *fs, TessFile *tfile)
 
 void tess_process_io_events(TessFileSystem *fs)
 {
+    PROF_BLOCK();
     AikeIOEvent event;
     while(fs->platform->get_next_io_event(fs->platform, &event))
     {
@@ -166,6 +170,12 @@ TStr* tess_intern_string(TessStrings *tstrings, const char *string)
     return newstr;
 }
 
+int mystrlen(const char *str) {
+    int ret = 0;
+    while(str[ret++]);
+    return ret;
+}
+
 // TODO: i don't think this is any safer
 // also: NO LINEAR SEARCH !!!!!!!!!!!!!111111
 TStr* tess_intern_string_s(TessStrings *tstrings, const char *string, uint32_t maxlen)
@@ -178,7 +188,7 @@ TStr* tess_intern_string_s(TessStrings *tstrings, const char *string, uint32_t m
             return tstrings->internedStrings[i];
     }
     // if not found create new
-    uint32_t strZLen = MIN(strlen(string)+1, maxlen+1);
+    uint32_t strZLen = MIN(mystrlen(string)+1, maxlen+1);
     TStr *newstr = (TStr*)fixed_arena_push_size(&tstrings->stringArena, sizeof(TStr) + strZLen, 8);
     newstr->len = strZLen - 1;
     memcpy(newstr->cstr, string, strZLen-1);

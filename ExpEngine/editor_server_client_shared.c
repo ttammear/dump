@@ -346,6 +346,7 @@ void editor_flush_command(struct TessEditorCommandBuf *cmdbuf)
 
 void editor_append_cmd_data(struct TessEditorCommandBuf *cmdbuf, uint8_t *data, uint32_t nBytes)
 {
+    PROF_BLOCK();
     assert(nBytes != 0);
     uint32_t curCmdSize;
     if(cmdbuf->currentCommandBytes > sizeof(struct EditorCommandHeader))

@@ -6,7 +6,7 @@ enum ClientEntityFlag
 
 void tess_create_editor_server(struct TessEditorServer *eserver, struct TessFixedArena *arena);
 void tess_destroy_editor_server(struct TessEditorServer *eserver);
-uint32_t tess_editor_server_create_entity(struct TessEditorServer *server, uint32_t objectId, struct V3 position);
+uint32_t tess_editor_server_create_entity(struct TessEditorServer *server, uint32_t objectId, struct V3 position, struct V3 rotation);
 struct TessEditorServerEntity* tess_editor_server_get_entity(struct TessEditorServer *server, uint32_t entityId);
 
 void tess_server_init(struct TessServer *server, AikePlatform *platform)
@@ -14,7 +14,7 @@ void tess_server_init(struct TessServer *server, AikePlatform *platform)
     memset(server, 0, sizeof(struct TessServer));
     server->platform = platform;
 
-    fixed_arena_init(platform, &server->arena, 3 * 1024 * 1024); 
+    fixed_arena_init(platform, &server->arena, 30 * 1024 * 1024); 
     // init tempstack
     void *stackMem = arena_push_size(&server->arena, 1024*1024, 1);
     stack_init(&server->tempStack, stackMem, 1024*1024);
@@ -94,7 +94,7 @@ void tess_create_editor_server(struct TessEditorServer *eserver, struct TessFixe
 
     TessAssetSystem *as = eserver->assetSystem;
     TessStrings *strings = eserver->tstrings;
-    TStr *sponzaStr = tess_intern_string(strings, "Sponza/Sponza");
+    TStr *sponzaStr = tess_intern_string(strings, "ViceCity/Airport");
     tess_queue_asset(as, sponzaStr); 
     while(!tess_is_asset_loaded(as, sponzaStr)) {
         scheduler_yield();
@@ -111,7 +111,9 @@ void tess_create_editor_server(struct TessEditorServer *eserver, struct TessFixe
     }
     for(int i = 0; i < map->mapEntityCount; i++) {
         TessMapEntity *ent = map->entities + i;
-        uint32_t eid = tess_editor_server_create_entity(eserver, ent->objectId, ent->position);
+        V3 rotEuler;
+        euler_from_quat_deg(&rotEuler, ent->rotation);
+        uint32_t eid = tess_editor_server_create_entity(eserver, ent->objectId, ent->position, rotEuler);
         auto sent = tess_editor_server_get_entity(eserver, eid);
         sent->scale = ent->scale;
     }
@@ -144,7 +146,7 @@ static inline void tess_editor_server_send_stream(struct TessEditorServer *serve
     tess_editor_server_send_command(server, client, stream->start, stream_get_offset(stream));
 }
 
-uint32_t tess_editor_server_create_entity(struct TessEditorServer *server, uint32_t objectId, struct V3 position)
+uint32_t tess_editor_server_create_entity(struct TessEditorServer *server, uint32_t objectId, struct V3 position, struct V3 rotation)
 {
     struct TessEditorServerEntity *edEnt = pool_allocate(server->entityPool);
     if(edEnt == NULL)
@@ -158,7 +160,7 @@ uint32_t tess_editor_server_create_entity(struct TessEditorServer *server, uint3
         return 0;
     }
     edEnt->position = position;
-    edEnt->eulerRotation = make_v3(0.0f, 0.0f, 0.0f);
+    edEnt->eulerRotation = rotation;
     edEnt->scale = make_v3(1.0f, 1.0f, 1.0f);
     edEnt->objectId = objectId;
     edEnt->id = edEnt - server->entityPool;
@@ -389,7 +391,7 @@ void editor_server_process_client_command(struct TessEditorServer *server, struc
                     dataRead &= stream_read_v3(&stream, &scale);
                     if(!dataRead) return;
                     //printf("create entity obj: %d pos: %f %f %f rot %f %f %f sc %f %f %f\n", objectId, pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, scale.x, scale.y, scale.z);
-                    tess_editor_server_create_entity(server, objectId, pos);
+                    tess_editor_server_create_entity(server, objectId, pos, rot);
                 }
             }
             break;

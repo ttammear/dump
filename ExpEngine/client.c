@@ -3,7 +3,7 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     memset(tess, 0, sizeof(TessClient));
     tess->platform = platform;
 
-    fixed_arena_init(platform, &tess->arena, 8 * 1024 * 1024); 
+    fixed_arena_init(platform, &tess->arena, 30 * 1024 * 1024); 
 
     // Init strings
     //
@@ -113,6 +113,7 @@ void tess_client_destroy(TessClient *tess)
 
 void tess_client_begin_frame(TessClient *client)
 {
+    PROF_BLOCK();
     tess_input_begin(&client->inputSystem);
     render_system_begin_update(&client->renderSystem);
     tess_ui_begin(&client->uiSystem);
@@ -122,6 +123,7 @@ void tess_client_begin_frame(TessClient *client)
 
 void tess_client_end_frame(TessClient *client)
 {
+    PROF_BLOCK();
     tess_ui_end(&client->uiSystem);
     render_system_end_update(&client->renderSystem);
     tess_input_end(&client->inputSystem);

@@ -388,8 +388,8 @@ void play_update(TessClient *client, double dt, uint16_t frameId)
         camRot = make_v2(camRot.x, MAX(camRot.y, -90.0f));
         camRot = make_v2(camRot.x, MIN(camRot.y, 90.0f));
 
-    Quat xRot, yRot;
-    quat_euler_deg(&xRot, make_v3(0.0f, camRot.y, camRot.x));
+    Quat xRot;
+    quat_euler_deg(&xRot, make_v3(camRot.y, camRot.x, 0.0f));
     cam->rotation = xRot;
 
     if(key(input, AIKE_KEY_ESC))

@@ -81,6 +81,7 @@ void stop_renderer(struct Renderer *renderer)
 
 
 void renderer_async_message(struct Renderer *r, AsyncTask *task, RenderMessage *msg) {
+    PROF_BLOCK();
     msg->usrData = task;
     // for now, async stuff can only be done in tasks!
     assert(g_scheduler->state == SCHEDULER_STATE_TASK);

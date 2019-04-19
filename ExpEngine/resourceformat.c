@@ -8,6 +8,33 @@
 
 #define TTR_DELIM '/'
 
+enum TTRVertexAttributeType {
+    TTR_Vertex_Attribute_Type_None = 0,
+    TTR_Vertex_Attribute_Type_Vec4,
+    TTR_Vertex_Attribute_Type_Vec3,
+    TTR_Vertex_Attribute_Type_Vec2,
+    TTR_Vertex_Attribute_Type_Float,
+};
+
+enum TTRShaderType
+{
+    TTR_Shader_Type_None,
+    TTR_Shader_Type_Unlit_Color, // Color
+    TTR_Shader_Type_Unlit_Vertex_Color, // nothing
+    TTR_Shader_Type_Unlit_Textured, // texture, tint?
+    TTR_Shader_Type_Unlit_Fade, // texture RGB and A, tint
+    TTR_Shader_Type_Unlit_Textured_Cutout,
+    TTR_Shader_Type_Gizmo, // Color
+    TTR_Shader_Type_Count,
+};
+
+enum TTRTextureFormat
+{
+    TTR_Texture_Format_None,
+    TTR_Texture_Format_RGBA,
+};
+
+
 typedef struct TTRAssetRef
 {
     uint32_t tblIndex; // highest order bit - 0=descTbl 1=importTbl
@@ -52,10 +79,13 @@ typedef struct TTRImportTbl
     struct TTRImportTblEntry entries[];
 } TTRImportTbl;
 
+// mesh configuration
+// only specifies what types attributes are
+// what the attributes actually mean is determined by the material/shader
 typedef struct TTRMeshDesc
 {
     uint32_t indexSize;
-    uint32_t vertStride;
+    uint32_t vertStride; // TODO: technically redundant because it can be determined fro mattribute sizes?
     uint32_t numAttrs;
     uint8_t attrs[];
 } TTRMeshDesc;
@@ -102,7 +132,6 @@ typedef struct TTRMaterial
 typedef struct TTRObject
 {
     struct TTRAssetRef meshARef;
-    TTRRef materialRef;
     // TODO: collider?
     // something else?
 } TTRObject;
@@ -151,92 +180,4 @@ typedef struct TTRMapEntityTable
 #define STREAM_PUSH_FLEX(stream, type, arr, count) ({type* rettval = (type*)stream; (stream) += TTR_GET_SIZE(type, arr, (count)); rettval;})
 #define STREAM_PUSH_ALIGN(stream, align) (stream = (uint8_t*)ALIGN_UP_PTR(stream, (align)))
 
-/*typedef struct LoadMeshData
-{
-    // stage 0 - get data layout
-    struct Renderer *renderer;
-    void *fileMem;
-    size_t dataSize;
-    // stage 1 - copy data
-    struct TTRMesh *ttrMesh;
-    struct MeshQueryResult mqr;
-    // stage 2 - loaded
-    uint32_t meshId;
-} LoadMeshData;
 
-void ttr_load_first_mesh(LoadMeshData *data, uint32_t stage);
-
-void ttr_mesh_query_result(Renderer *renderer, MeshQueryResult *mqr, void *userData)
-{
-    LoadMeshData *lmdata = (LoadMeshData*)userData;
-    lmdata->mqr = *mqr;
-    lmdata->renderer = renderer;
-    ttr_load_first_mesh(lmdata, 1);
-}
-
-void ttr_mesh_ready(Renderer *renderer, MeshReady *mr, void *userData)
-{
-    LoadMeshData *lmdata = (LoadMeshData*)userData;
-    lmdata->meshId = mr->meshId;
-    ttr_load_first_mesh(lmdata, 2);
-}
-
-void ttr_load_first_mesh(LoadMeshData *data, uint32_t stage)
-{
-    switch(stage)
-    {
-        case 0:
-        {
-        TTRHeader *header = (TTRHeader*)data->fileMem;
-        TTRDescTbl *tbl = TTR_REF_TO_PTR(TTRDescTbl, header->descTblRef);
-        for(int i = 0; i < tbl->entryCount; i++)
-        {
-            if(tbl->entries[i].type == TTR_4CHAR("MESH"))
-            {
-                TTRMesh *ttrMesh = TTR_REF_TO_PTR(TTRMesh, tbl->entries[i].ref);
-                TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(TTRMeshDesc, ttrMesh->descRef);
-                data->ttrMesh = ttrMesh;
-                RenderMessage msg = {};
-                msg.type = Render_Message_Mesh_Query;
-                msg.meshQuery.userData = data;
-                msg.meshQuery.onComplete = ttr_mesh_query_result;
-                msg.meshQuery.meshId = 0;
-                msg.meshQuery.vertexCount = ttrMesh->numVertices;
-                msg.meshQuery.indexCount = ttrMesh->numIndices;
-                for(int j = 0; j < ttrMeshDesc->numAttrs; j++)
-                    msg.meshQuery.attributeTypes[j] = ttrMeshDesc->attrs[j];
-                renderer_queue_message(data->renderer, &msg);
-            }
-            else
-            {
-                fprintf(stderr, "No mesh found in file!\n");
-                return;
-            }
-        }
-        }
-        break;
-        case 1:
-        {
-            TTRMesh *ttrMesh = data->ttrMesh;
-            TTRBuffer *vbuf = TTR_REF_TO_PTR(TTRBuffer, ttrMesh->vertBufRef);
-            TTRBuffer *ibuf = TTR_REF_TO_PTR(TTRBuffer, ttrMesh->indexBufRef);
-            TTRMeshDesc *ttrMeshDesc = TTR_REF_TO_PTR(TTRMeshDesc, ttrMesh->descRef);
-            uint32_t stride = ttrMeshDesc->vertStride;
-            uint32_t vcount = ttrMesh->numVertices;
-            uint32_t icount = ibuf->size / 2;
-            memcpy(data->mqr.vertBufPtr, vbuf->data, stride*vcount);
-            memcpy(data->mqr.idxBufPtr, ibuf->data, 2*icount);
-            RenderMessage msg = {};
-            msg.type = Render_Message_Mesh_Update;
-            msg.meshUpdate.meshId = data->mqr.meshId;
-            msg.meshUpdate.onComplete = ttr_mesh_ready;
-            msg.meshUpdate.userData = data;
-            renderer_queue_message(data->renderer, &msg);
-        }
-        break;
-        case 2:
-        printf("Mesh load complete! %d\n", data->meshId);
-        free(data);
-        break;
-    }
-}*/

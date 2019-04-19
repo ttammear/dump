@@ -29,6 +29,7 @@ char* add_files_from_directory_tpa_list(AikePlatform *platform, const char *dire
             }
             char *filenameWithoutExt = malloc(extPos+1);
             strncpy(filenameWithoutExt, filename, extPos);
+            filenameWithoutExt[extPos] = 0;
             khiter_t k;
             if((k = kh_get(str, addedAssemblies, filenameWithoutExt)) == kh_end(addedAssemblies)) {
                 int ret;
@@ -66,7 +67,7 @@ static coreclr_create_delegate_ptr coreclr_create_delegate;
 
 // TODO: platform independent
 bool coreclr_loadlib() {
-    void *clrLib = dlopen("/usr/share/dotnet/shared/Microsoft.NETCore.App/2.2.2/libcoreclr.so",RTLD_NOW | RTLD_LOCAL);
+    void *clrLib = dlopen("/usr/share/dotnet/shared/Microsoft.NETCore.App/2.2.3/libcoreclr.so",RTLD_NOW | RTLD_LOCAL);
     // TODO: dlclose
     if(clrLib == NULL) {
         return false;
@@ -81,7 +82,7 @@ bool coreclr_loadlib() {
 }
 
 void coreclr_init(AikePlatform *platform, GameServer *gsCtx) {
-    const char *libsLoc = "/usr/share/dotnet/shared/Microsoft.NETCore.App/2.2.2/";
+    const char *libsLoc = "/usr/share/dotnet/shared/Microsoft.NETCore.App/2.2.3/";
     char *tpa = add_files_from_directory_tpa_list(platform, libsLoc);
     printf("TPALIST %s\n", tpa);
     const char *assemblyDir = "/keep/Projects/ExpEngineBuild/";

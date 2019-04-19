@@ -298,6 +298,7 @@ void server_process_packet(GameServer *gs, ServerPeer *sp, void* data, size_t da
 
 void game_server_update(GameServer *gs, double dt)
 {
+    PROF_BLOCK();
     if(NULL == gs->eServer)
         return;
 

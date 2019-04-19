@@ -1,15 +1,14 @@
-#define TESS_LOADED_FILE_POOL_SIZE 1000
-#define TESS_MESH_POOL_SIZE 500
-#define TESS_TEXTURE_POOL_SIZE 100
-#define TESS_OBJECT_POOL_SIZE 500
-#define TESS_LOADING_ASSET_POOL_SIZE 1000
-#define TESS_DEP_NODE_POOL_SIZE 1000
-#define TESS_ASSET_LOOKUP_ENTRY_POOL_SIZE 2500
-#define TESS_ASSET_LOOKUP_CACHE_POOL_SIZE 100
+#define TESS_LOADED_FILE_POOL_INITIAL_SIZE 100
+#define TESS_MESH_POOL_INITIAL_SIZE 100
+#define TESS_TEXTURE_POOL_INITIAL_SIZE 100
+#define TESS_OBJECT_POOL_INITIAL_SIZE 500
+#define TESS_LOADING_ASSET_POOL_INITIAL_SIZE 1000
+#define TESS_ASSET_LOOKUP_ENTRY_POOL_INITIAL_SIZE 1000
+#define TESS_ASSET_LOOKUP_CACHE_POOL_INITIAL_SIZE 100
 
-#define POOL_FROM_ARENA(pool, arena, size) (pool_init_with_memory((pool), arena_push_size((arena), pool_calc_size((pool), (size)), 8), (size)))
+#define POOL_FROM_ARENA(pool, arena, size) (pool_init_with_memory((pool), arena_push_size((arena), pool_calc_size((pool), (size)), 8), (size)), pool_set_allocator((pool), pool_arena_allocator), pool_set_user_data((pool), arena))
 
-#define TESS_MAX_OBJECTS 500
+#define TESS_MAX_OBJECTS 5000 // TODO: use hash table to lower this
 #define TESS_MAX_ENTITIES 1000
 
 #define TESS_SERVER_MAX_PEERS 64
@@ -17,9 +16,12 @@
 
 #define TESS_CLIENT_MAX_DYN_ENTITIES 128
 
+#define MAX_MESH_SECTIONS 48
+
 #define internal static
 #define global static
 
+void *pool_arena_allocator(void *usrData, size_t size);
 
 enum TessFilePipeline
 {
@@ -41,6 +43,14 @@ typedef struct TessFile
     void *userData;
     char filePath[AIKE_MAX_PATH];
 } TessFile;
+
+typedef struct TessTTRContext {
+    struct TessAssetSystem *as;
+    TTRHeader *header;
+    TTRDescTbl *tbl;
+    TTRImportTbl *imTbl;
+    TStr *package;
+} TessTTRContext;
 
 typedef struct LoadTTRJob
 {
@@ -175,32 +185,29 @@ enum TessObjectFlags
     Tess_Object_Flag_Loaded     = 1<<1,
 };
 
-typedef struct TessAsset
-{
+typedef struct TessAsset {
     TStr *assetId;
     uint32_t type;
+    uint32_t refCount;
 } TessAsset;
 
-typedef struct TessMeshAsset
-{
+typedef struct TessMeshAsset {
     // NOTE: asset is first for "inheritance"
     // (we can cast pointer of this structure to an TessAsset pointer)
     TessAsset asset; 
     uint32_t meshId;
+    uint32_t numSections;
+    uint32_t materials[MAX_MESH_SECTIONS];
 } TessMeshAsset;
 
-typedef struct TessTextureAsset
-{
+typedef struct TessTextureAsset {
     TessAsset asset;
     uint32_t textureId;
 } TessTextureAsset;
 
-typedef struct TessObjectAsset
-{
+typedef struct TessObjectAsset {
     TessAsset asset;
     TessMeshAsset *mesh;
-    uint32_t materialId;
-    // TODO: material?
 } TessObjectAsset;
 
 typedef struct TessMapObject {
@@ -269,15 +276,15 @@ typedef struct TessAssetSystem
     DELEGATE(onAssetLoaded, OnAssetLoaded_t, 4);
 
     struct TessFileSystem *fileSystem;
-    struct TessAsset **loadedAssets;
     struct TessMeshAsset *meshPool;
     struct TessTextureAsset *texturePool;
     struct TessObjectAsset *objectPool;
     struct TessLoadingAsset *loadingAssetPool;
     struct TessLoadingAsset **loadingAssets;
-    struct AssetLookupEntry *assetLookupEntryPool;
+    struct AssetLookupEntry *assetLookupEntryPool;    
     struct AssetLookupCache *assetLookupCachePool;
 
+    int numLoadedAssets;
     int numOpenAssetFiles;
     int totalFileLoads;
 

@@ -70,13 +70,13 @@ void rview_builder_reset(RenderViewBuilder *builder)
     builder->beginBatch = false;
 }
 
-int findEntry(RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId)
+int findEntry(RenderViewBuilder *builder, uint32_t meshId)
 {
     // TODO: NEED constant time lookup here
     int32_t count = buf_len(builder->meshBuf);
     for(int i = 0; i < count; i++)
     {
-        if(builder->meshBuf[i].meshId == meshId && builder->meshBuf[i].materialId == materialId)
+        if(builder->meshBuf[i].meshId == meshId)
             return i;
     }
     return -1;
@@ -144,14 +144,13 @@ void builder_new_vertex_stream(RenderViewBuilder *builder)
     builder->indexBase = buf_len(builder->vertices);
 }
 
-void add_mesh_instance(RenderViewBuilder *builder, uint32_t meshId, uint32_t materialId, Mat4 *modelM, u32 objectId)
+void add_mesh_instance(RenderViewBuilder *builder, uint32_t meshId, Mat4 *modelM, u32 objectId)
 {
-    int entryIdx = findEntry(builder, meshId, materialId);
+    int entryIdx = findEntry(builder, meshId);
     if(entryIdx < 0)
     {
         buf_push(builder->meshBuf, (BuilderMeshEntry){ 
                     .meshId = meshId,
-                    .materialId = materialId
             });
         entryIdx = buf_len(builder->meshBuf)-1;
     }
@@ -190,7 +189,6 @@ void build_view(RenderViewBuilder *builder, RenderViewBuffer *buf)
         RenderMeshEntry *entry = rview_buffer_allocate_from(buf, renderMeshEntrySize);
         assert(entry != NULL);
         entry->meshId = builder->meshBuf[i].meshId;
-        entry->materialId = builder->meshBuf[i].materialId;
         entry->numInstances = 0;
 
         space->meshEntries[i] = entry;
