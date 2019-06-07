@@ -90,7 +90,14 @@ typedef enum SchedulerEvent {
     SCHEDULER_EVENT_FILE_LOADED,
 } SchedulerEvent;
 
+typedef enum SchedulerTaskFlag {
+    Scheduler_Task_Flag_None = 0,
+    Scheduler_Task_Flag_Cancelled = 1<<0,
+    Scheduler_Task_Flag_Started = 1<<1,
+} SchedulerTaskFlag;
+
 typedef struct SchedulerTask {
+    uint32_t flags;
     TaskFunc func;
     void *data;
     struct SchedulerTask *next;
@@ -171,6 +178,7 @@ enum TessAssetType
     Tess_Asset_Map,
 };
 
+
 typedef enum TessAssetStatus
 {
     Tess_Asset_Status_None, // uninitialized state
@@ -178,18 +186,52 @@ typedef enum TessAssetStatus
     Tess_Asset_Status_Loading, // loading asset has started, but not yet finished
     Tess_Asset_Status_Loaded, // asset is ready
     Tess_Asset_Status_Fail, // failure, asset can not be loaded
+    Tess_Asset_Status_Pending_Destroy,
+
+
+    Tess_Asset_Status_Count, // must be last!
 } TessAssetStatus;
+
+typedef enum TessAssetAction {
+    A_Noop, // do nothing (wait)
+    A_Enqueue_Load, // enqueue asset to the load queue
+    A_Enqueue_Destroy, // enqueue asset to the destroy queue
+    A_Invalid_Target, // targeting intermediate statuses is not allowed (loading, inqueue etc)
+    A_Failure, // put the asset in failur state (as of now can not recover from that)
+    A_Cancel_Load, // cancel load task
+    A_Cancel_Destroy, // cancel destroy task
+} TessAssetAction;
+
 
 enum TessObjectFlags
 {
     Tess_Object_Flag_Loaded     = 1<<1,
 };
 
+// TODO: should get rid of this (uses malloc)
+struct UnloadAssetData {
+    struct TessAssetSystem *as;
+    TStr *assetId;
+    SchedulerTask *task;
+};
+
+
 typedef struct TessAsset {
     TStr *assetId;
     uint32_t type;
-    uint32_t refCount;
+    struct UnloadAssetData *ul;
 } TessAsset;
+
+// if someone loads an asset, they get this to let asset system
+// know once they're done with the asset (so it can be freed)
+typedef struct AssetReference {
+    TStr *assetId;
+} AssetReference;
+
+typedef struct TessMaterial {
+    uint32_t materialId;
+    AssetReference *texRef;
+} TessMaterial;
 
 typedef struct TessMeshAsset {
     // NOTE: asset is first for "inheritance"
@@ -197,7 +239,7 @@ typedef struct TessMeshAsset {
     TessAsset asset; 
     uint32_t meshId;
     uint32_t numSections;
-    uint32_t materials[MAX_MESH_SECTIONS];
+    TessMaterial materials[MAX_MESH_SECTIONS];
 } TessMeshAsset;
 
 typedef struct TessTextureAsset {
@@ -208,6 +250,7 @@ typedef struct TessTextureAsset {
 typedef struct TessObjectAsset {
     TessAsset asset;
     TessMeshAsset *mesh;
+    AssetReference *meshRef;
 } TessObjectAsset;
 
 typedef struct TessMapObject {
@@ -239,8 +282,8 @@ typedef struct TessLoadingAsset
 {
     struct TessAssetSystem *as;
     TStr *fileName;
-    AsyncTask *task;
     struct TessFile *file;
+    struct SchedulerTask *task;
     TStr *assetId;
     uint32_t type;
 }TessLoadingAsset;
@@ -267,6 +310,14 @@ typedef struct TessAssetSystemMetrics {
     int totalFileLoads;
 } TessAssetSystemMetrics;
 
+typedef struct TessListedAsset {
+    TStr *assetId;
+    TessAssetStatus status;
+    TessAssetStatus target;
+    enum TessAssetType type;
+    uint32_t refCount;
+} TessListedAsset;
+
 typedef struct TessAssetSystem
 {
     TessAsset nullAsset;
@@ -280,10 +331,12 @@ typedef struct TessAssetSystem
     struct TessTextureAsset *texturePool;
     struct TessObjectAsset *objectPool;
     struct TessLoadingAsset *loadingAssetPool;
-    struct TessLoadingAsset **loadingAssets;
     struct AssetLookupEntry *assetLookupEntryPool;    
     struct AssetLookupCache *assetLookupCachePool;
 
+    AssetReference *assetRefPool;
+
+    int numLoadingAssets;
     int numLoadedAssets;
     int numOpenAssetFiles;
     int totalFileLoads;
@@ -291,10 +344,13 @@ typedef struct TessAssetSystem
     khash_t(str) *packageAssetMap;
     // currenlty loaded assets
     khash_t(64) *loadedAssetMap; // TStr assetId, TessAsset*
-    // assets that have started loading, but have not yet finished
-    khash_t(64) *loadingAssetMap; // TStr assetId, TessLoadingAsset*
     // is asset loaded, failed, loading etc
     khash_t(uint32) *assetStatusMap; // TStr assetId, TessAssetStatus
+    khash_t(uint32) *assetTargetStatusMap; // assetId->TessAssetStatus
+    // this keeps track of how many things reference an asset
+    khash_t(ptrToU32) *refCountMap;
+    // AssetId -> TessLoadingAsset*
+    khash_t(64) *loadingAssetMap;
 
     TStr **packageList;
 
@@ -305,6 +361,7 @@ typedef struct TessAssetSystem
 typedef struct TessStrings
 {
     TessFixedArena stringArena;
+    khash_t(str) *stringHashMap;
     TStr **internedStrings;
     TStr *empty;
 } TessStrings;
@@ -316,6 +373,7 @@ typedef struct TessObject
     uint32_t id;
     uint32_t flags;
     TStr *assetId; // TessObjectAsset
+    AssetReference *ref;
     struct TessObjectAsset *asset;
 } TessObject;
 
@@ -584,6 +642,7 @@ typedef struct GameClient
 
     uint32_t flags;
     TStr *mapAssetId;
+    AssetReference *mapReference;
 
     GameClientDynEntity **dynEntities;
     GameClientDynEntity *dynEntityPool;
@@ -656,6 +715,7 @@ typedef struct TessEditorServer
 {
     AikeTCPServer *tcpServer;
 
+    AssetReference *mapReference;
     struct TessStrings *tstrings;
     AikePlatform *platform;
     TessAssetSystem *assetSystem;
@@ -767,13 +827,17 @@ TessAsset* tess_process_asset_from_ttr(struct TessAssetSystem *as, struct TessFi
 TStr* tess_intern_string_s(struct TessStrings *tstrings, const char *string, uint32_t maxlen);
 TStr* tess_intern_string(struct TessStrings *tstrings, const char *string);
 bool get_asset_file(struct TessAssetSystem *as, TStr *assetId, TStr **result);
-bool tess_queue_asset(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_id(struct TessAssetSystem *as, TStr *package, TStr *asset);
 TStr *tess_get_asset_name_from_id(struct TessAssetSystem *as, TStr *assetId);
 TStr *tess_get_asset_package_from_id(struct TessAssetSystem *as, TStr *assetId);
 TStr* intern_asset_id(TessAssetSystem *as, const char *package, const char *asset);
+AssetReference* add_asset_reference(TessAssetSystem *as, TStr *assetId);
+void remove_asset_reference(TessAssetSystem *as, AssetReference *ref);
+
 // for debug only
 void tess_get_asset_metrics(struct TessAssetSystem *as, struct TessAssetSystemMetrics *tasm);
+uint32_t tess_get_asset_list(struct TessAssetSystem *as, TessListedAsset* listedAssets);
+
 internal inline bool tess_is_asset_loaded(TessAssetSystem *as, TStr *assetId)
 {
     khiter_t k = kh_get(64, as->loadedAssetMap, (intptr_t)assetId);
@@ -783,6 +847,12 @@ internal inline TessAssetStatus tess_get_asset_status(TessAssetSystem *as, TStr 
 {
     khiter_t k = kh_get(uint32, as->assetStatusMap, (intptr_t)assetId);
     return k == kh_end(as->assetStatusMap) ? Tess_Asset_Status_None : kh_value(as->assetStatusMap, k);
+}
+
+internal inline TessAssetStatus tess_get_asset_target_status(TessAssetSystem *as, TStr *assetId) {
+
+    khiter_t k = kh_get(uint32, as->assetTargetStatusMap, (intptr_t)assetId);
+    return k == kh_end(as->assetTargetStatusMap) ? Tess_Asset_Status_None : kh_value(as->assetTargetStatusMap, k);
 }
 
 TessAsset* tess_get_asset(TessAssetSystem *as, TStr *assetId);
@@ -817,9 +887,10 @@ void scheduler_set_mode(u32 mode);
 void scheduler_event(u32 type, void *data, struct AsyncTask *usrPtr);
 void scheduler_wait_for(struct AsyncTask *task);
 void scheduler_task_end();
-void scheduler_queue_task_(TaskFunc func, void *usrData, const char *name);
+SchedulerTask* scheduler_queue_task_(TaskFunc func, void *usrData, const char *name);
 void scheduler_assert_task();
 #define scheduler_queue_task(func, usrData) scheduler_queue_task_(func, usrData, #func)
+void scheduler_cancel_task(SchedulerTask *task);
 
 extern struct TessVtable *g_tessVtbl;
 

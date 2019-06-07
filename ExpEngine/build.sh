@@ -11,17 +11,17 @@ cd ..
 
 set -e
 
-CFLAGS='-Wno-multichar -pthread -std=c11 -ffast-math -O0 -ggdb3 -DAIKE_X86'
+CFLAGS='-Wno-multichar -pthread -std=c11 -ffast-math -O0 -g3 -DAIKE_X86'
 LFLAGS=''
 COMFLAGS=''
-CC='clang'
-LINKER='clang'
+CC='gcc'
+LINKER='ld'
 
 # compile platform
 if [ "$1" == 'platform' ]
 then
 PLATTIME=$(date +%s%N)
-$CC ./AikePlatform/linux_main.c $CFLAGS $COMFLAGS -D AIKE_DEBUG -D AIKE_AIO -lm -lX11 -ldl -lGL -linput -ludev -rdynamic -o ../ExpEngineBuild/Engine.out
+$CC ./AikePlatform/linux_main.c $CFLAGS $COMFLAGS -D AIKE_DEBUG -D AIKE_AIO -lm -lX11 -ldl -lGL -linput -ludev -rdynamic -lrt -o ../ExpEngineBuild/Engine.out
 echo "compiling platform $(($(($(date +%s%N) - $PLATTIME))/1000000))ms"
 fi
 

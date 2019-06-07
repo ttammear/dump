@@ -16,6 +16,8 @@ void tess_main_menu_init(struct TessMainMenu *menu)
     menu->statusStr = "";
 }
 
+void draw_game_debug_ui(TessClient *client);
+
 void draw_main_menu(struct TessMainMenu *menu, struct nk_context *ctx)
 {
     int32_t width = 400;
@@ -42,6 +44,8 @@ void draw_main_menu(struct TessMainMenu *menu, struct nk_context *ctx)
         }
     }
     nk_end(ctx);
+
+    draw_game_debug_ui(menu->client);
 }
 
 void draw_editor_connect_menu(struct TessMainMenu *menu, struct nk_context *ctx)

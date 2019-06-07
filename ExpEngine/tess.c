@@ -7,6 +7,7 @@ void *pool_arena_allocator(void *usrData, size_t size)
 void tess_strings_init(TessStrings *tstrings, TessFixedArena *arena)
 {
     fixed_arena_init_from_arena(&tstrings->stringArena, arena, 1* 1024 * 1024); // TODO: flex buffer
+    tstrings->stringHashMap = kh_init(str);
     tstrings->internedStrings = NULL;
     tstrings->empty = tess_intern_string(tstrings, "");
 }
@@ -29,12 +30,15 @@ void tess_asset_system_init(TessAssetSystem *as, TessFixedArena *arena)
     POOL_FROM_ARENA(as->loadingAssetPool, arena, TESS_LOADING_ASSET_POOL_INITIAL_SIZE);
     POOL_FROM_ARENA(as->assetLookupCachePool, arena, TESS_ASSET_LOOKUP_CACHE_POOL_INITIAL_SIZE);
     POOL_FROM_ARENA(as->assetLookupEntryPool, arena, TESS_ASSET_LOOKUP_ENTRY_POOL_INITIAL_SIZE);
-    as->loadingAssets = NULL;
+    POOL_FROM_ARENA(as->assetRefPool, arena, 1000);
+    //as->loadingAssets = NULL;
     as->packageList = NULL;
     as->packageAssetMap = kh_init(str);
     as->loadedAssetMap = kh_init(64);
-    as->loadingAssetMap = kh_init(64);
     as->assetStatusMap = kh_init(uint32);
+    as->assetTargetStatusMap = kh_init(uint32);
+    as->refCountMap = kh_init(ptrToU32);
+    as->loadingAssetMap = kh_init(64);
 
     TStr *emptyStr = tess_intern_string(as->tstrings, "");
     as->nullAsset = (TessAsset){
@@ -87,9 +91,11 @@ void tess_asset_system_destroy(TessAssetSystem *as)
     }
     kh_destroy(str, as->packageAssetMap);
     kh_destroy(64, as->loadedAssetMap);
-    kh_destroy(64, as->loadingAssetMap);
     kh_destroy(uint32, as->assetStatusMap);
-    buf_free(as->loadingAssets);
+    kh_destroy(uint32, as->assetTargetStatusMap);
+    kh_destroy(ptrToU32, as->refCountMap);
+    kh_destroy(64, as->loadingAssetMap);
+    //buf_free(as->loadingAssets);
     buf_free(as->packageList);
 }
 
@@ -105,7 +111,8 @@ bool tess_load_file(TessFileSystem *fs, const char* fileName, uint32_t pipeline,
     AikeIORequest *req = &tfile->req;
     req->type = Aike_IO_Request_Read;
     req->file = file;
-    req->buffer = aligned_alloc(4096, file->size);
+    /*req->buffer = aligned_alloc(4096, file->size);*/
+    req->buffer = malloc(file->size);
     assert(req->buffer);
     req->bufferSize = file->size;
     req->fileOffset = 0;
@@ -152,8 +159,9 @@ void tess_process_io_events(TessFileSystem *fs)
 }
 
 // TODO: NO LINEAR SEARCH!!!!!!!!!!!!1
-TStr* tess_intern_string(TessStrings *tstrings, const char *string)
+/*TStr* tess_intern_string(TessStrings *tstrings, const char *string)
 {
+    PROF_BLOCK();
     // try to find the string
     int count = buf_len(tstrings->internedStrings);
     for(int i = 0; i < count; i++)
@@ -168,7 +176,33 @@ TStr* tess_intern_string(TessStrings *tstrings, const char *string)
     memcpy(newstr->cstr, string, strZLen);
     buf_push(tstrings->internedStrings, newstr);
     return newstr;
+}*/
+
+TStr* tess_intern_string(TessStrings *tstrings, const char *string)
+{
+    PROF_BLOCK();
+    // try to find the string
+    khiter_t k = kh_get(str, tstrings->stringHashMap, string);
+    int ret = 1;
+    if(k == kh_end(tstrings->stringHashMap)) {
+
+        uint32_t strZLen = strlen(string) + 1;
+        TStr *newstr = (TStr*)fixed_arena_push_size(&tstrings->stringArena, sizeof(TStr) + strZLen, 8);
+        newstr->len = strZLen - 1;
+        memcpy(newstr->cstr, string, strZLen);
+        //buf_push(tstrings->internedStrings, newstr);
+
+        // NOTE: the pointer you put MUST be permanent (used for equality check!)
+        khiter_t k2 = kh_put(str, tstrings->stringHashMap, newstr->cstr, &ret);
+        assert(ret != 0);
+        kh_val(tstrings->stringHashMap, k2) = newstr;
+        return newstr;
+    } else {
+        auto ret = (TStr*)kh_val(tstrings->stringHashMap, k);
+        return ret;
+    }
 }
+
 
 int mystrlen(const char *str) {
     int ret = 0;
@@ -178,8 +212,9 @@ int mystrlen(const char *str) {
 
 // TODO: i don't think this is any safer
 // also: NO LINEAR SEARCH !!!!!!!!!!!!!111111
-TStr* tess_intern_string_s(TessStrings *tstrings, const char *string, uint32_t maxlen)
+/*TStr* tess_intern_string_s(TessStrings *tstrings, const char *string, uint32_t maxlen)
 {
+    PROF_BLOCK();
      // try to find the string
     int count = buf_len(tstrings->internedStrings);
     for(int i = 0; i < count; i++)
@@ -195,4 +230,34 @@ TStr* tess_intern_string_s(TessStrings *tstrings, const char *string, uint32_t m
     newstr->cstr[strZLen-1] = 0; // always null terminate
     buf_push(tstrings->internedStrings, newstr);
     return newstr;
+}*/
+
+TStr* tess_intern_string_s(TessStrings *tstrings, const char *string, uint32_t maxlen)
+{
+    PROF_BLOCK();
+    // try to find the string
+    char copy[1024];
+    assert(sizeof(copy) >= maxlen+1);
+    memcpy(copy, string, maxlen);
+    copy[maxlen] = 0;
+    khiter_t k = kh_get(str, tstrings->stringHashMap, copy);
+    int ret = 1;
+    if(k == kh_end(tstrings->stringHashMap)) {
+        uint32_t strZLen = strlen(copy) + 1;
+        TStr *newstr = (TStr*)fixed_arena_push_size(&tstrings->stringArena, sizeof(TStr) + strZLen, 8);
+        newstr->len = strZLen - 1;
+        memcpy(newstr->cstr, copy, strZLen);
+        //buf_push(tstrings->internedStrings, newstr);
+
+
+        // NOTE: the pointer you put MUST be permanent (used for equality check!)
+        khiter_t k2 = kh_put(str, tstrings->stringHashMap, newstr->cstr, &ret);
+        assert(ret != 0); 
+        kh_val(tstrings->stringHashMap, k2) = newstr;
+
+        return newstr;
+    } else {
+        auto ret = (TStr*)kh_val(tstrings->stringHashMap, k);
+        return ret;
+    }
 }

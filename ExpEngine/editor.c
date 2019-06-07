@@ -138,6 +138,7 @@ void editor_disconnect(TessEditor *editor)
     editor->platform->tcp_close_connection(editor->platform, editor->tcpCon);
     editor->tcpCon = NULL;
     editor->connected = false;
+    editor_reset(editor);
     // TODO: should be more like scheduler_end_current_mode or something
     scheduler_set_mode(Tess_Client_Mode_Menu);
 }
@@ -573,6 +574,12 @@ void editor_flush_console_command(TessEditor *editor)
     else if(strcmp(editor->cmdStr, "asset create") == 0)
     {
         editor->assetWinOpen = !editor->assetWinOpen;
+    }
+    else if(strcmp(editor->cmdStr, "numassets") == 0)
+    {
+        TessAssetSystemMetrics asMetrics;
+        tess_get_asset_metrics(&editor->client->assetSystem, &asMetrics);
+        printf("num assets: %d\n", asMetrics.numLoadedAssets);
     }
     editor->cmdStr[0] = 0;
 }

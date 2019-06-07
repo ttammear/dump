@@ -40,6 +40,7 @@ void test_task(void *data) {
 void aike_init(AikePlatform *platform)
 {
     DEBUG_INIT("Main thread");
+    DEBUG_START_FRAME();
 
     tess_reload_vtable();
 
@@ -104,6 +105,10 @@ void aike_init(AikePlatform *platform)
         fprintf (stderr, "An error occurred while initializing ENet.\n");
         assert(0);
     }
+
+    printf("client as %p server as %p\r\n", &root->client.assetSystem, &root->server.assetSystem);
+
+    DEBUG_END_FRAME();
 
     /*for(int i = 0; i < 1000; i++) {
         scheduler_queue_task(test_task, (void*)i);

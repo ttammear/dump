@@ -57,7 +57,8 @@
 KHASH_MAP_INIT_STR(str, void*)
 KHASH_MAP_INIT_INT64(64, void*)
 KHASH_MAP_INIT_INT64(32, void*)
-KHASH_MAP_INIT_INT(uint32, uint32_t)
+KHASH_MAP_INIT_INT64(ptrToU32, uint32_t)
+KHASH_MAP_INIT_INT64(uint32, uint32_t)
 
 #include "debug.h"
 #ifdef _DEBUG

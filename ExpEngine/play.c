@@ -116,7 +116,7 @@ game_client_start:
 
         TessAssetSystem *as = gclient->assetSystem;
         TessStrings *strings = gclient->strings;
-        tess_queue_asset(as, gclient->mapAssetId);
+        gclient->mapReference = add_asset_reference(as, gclient->mapAssetId);
         TessAssetStatus mapStatus;
         do{
             scheduler_yield();
@@ -150,6 +150,7 @@ game_client_start:
         game_client_yield(gclient);
     }
 
+    tess_reset_world(&gclient->client->gameSystem);
     enet_host_destroy(gclient->eClient);
 game_client_done:
     gclient->init = false;
@@ -341,6 +342,49 @@ void process_packet(GameClient *gc, void *data, size_t dataLen)
     }
 }
 
+char *asset_status_to_string(enum TessAssetStatus status) {
+    switch(status) {
+        case Tess_Asset_Status_None: // uninitialized state
+            return "Tess_Asset_Status_None";
+        case Tess_Asset_Status_InQueue: // the task to load the asset has been queued, but not started yet
+            return "Tess_Asset_Status_InQueue";
+        case Tess_Asset_Status_Loading: // loading asset has started, but not yet finished
+            return "Tess_Asset_Status_Loading";
+        case Tess_Asset_Status_Loaded: // asset is ready
+            return "Tess_Asset_Status_Loaded";
+        case Tess_Asset_Status_Fail: // failure, asset can not be loaded
+            return "Tess_Asset_Status_Fail";
+        case Tess_Asset_Status_Pending_Destroy:
+            return "Tess_Asset_Status_Pendind_Destroy";
+        default:
+            return "N/A";
+    }
+}
+
+char *asset_type_to_string(enum TessAssetType type) {
+    switch(type) {
+        case Tess_Asset_None:
+            return "Tess_Asset_None";
+        case Tess_Asset_Unknown:
+            return "Tess_Asset_Unknown";
+        case Tess_Asset_Mesh:
+            return "Tess_Asset_Mesh";
+        case Tess_Asset_Texture:
+            return "Tess_Asset_Texture";
+        case Tess_Asset_Material:
+            return "Tess_Asset_Material";
+        case Tess_Asset_Sound:
+            return "Tess_Asset_Sound";
+        case Tess_Asset_Object:
+            return "Tess_Asset_Object";
+        case Tess_Asset_Map:
+            return "Tess_Asset_Map";
+        default:
+            return "N/A";
+    }
+}
+
+
 void draw_game_debug_ui(TessClient *client) {
     struct nk_context *ctx = &client->uiSystem.nk_ctx; 
     char buf[512];
@@ -361,6 +405,26 @@ void draw_game_debug_ui(TessClient *client) {
         nk_label(ctx, buf, NK_TEXT_ALIGN_CENTERED);
     }
     nk_end(ctx);
+
+    uint32_t count = tess_get_asset_list(&client->assetSystem, NULL);
+    TessListedAsset *assets = malloc(count * sizeof(TessListedAsset));
+    uint32_t count2 = tess_get_asset_list(&client->assetSystem, assets);
+    assert(count2 == count);
+
+    if(nk_begin(ctx, "Asset list", nk_rect(0, 350, 900, 600),
+                NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE|NK_WINDOW_SCALABLE)) {
+        for(int i = 0; i < count2; i++) {
+            nk_layout_row_dynamic(ctx, 15, 5);
+            nk_label(ctx, assets[i].assetId->cstr, NK_TEXT_ALIGN_LEFT);
+            nk_label(ctx, asset_status_to_string(assets[i].status), NK_TEXT_ALIGN_LEFT);
+            nk_label(ctx, asset_status_to_string(assets[i].target), NK_TEXT_ALIGN_LEFT);
+            nk_label(ctx, asset_type_to_string(assets[i].type), NK_TEXT_ALIGN_LEFT);
+            nk_labelf(ctx, NK_TEXT_LEFT, "%d", assets[i].refCount); 
+        }
+    }
+    nk_end(ctx);
+    free(assets);
+
 }
 
 void play_update(TessClient *client, double dt, uint16_t frameId)

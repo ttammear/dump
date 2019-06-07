@@ -31,7 +31,7 @@ void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *clien
     // TODO: this is only so high because the asset system is too dumb to resolve
     // dependency graphs in a resource friendly manner!
     // SO CHANGE THIS ONCE THAT IS NO LONGER TRUE
-    const int maxTasks = 50;
+    const int maxTasks = 300;
     // TODO: use protected stack in debug builds!
     const int taskStackSize = 20*4096;
     ctx->taskQueueHead = NULL;
@@ -184,7 +184,7 @@ void scheduler_event(u32 type, void *data, AsyncTask *task) {
 }
 
 // TODO: when a task is started from within a task, just do it inside the task?
-void scheduler_queue_task_(TaskFunc func, void *usrData, const char* name) {
+SchedulerTask* scheduler_queue_task_(TaskFunc func, void *usrData, const char* name) {
     TessScheduler *s = g_scheduler;
     SchedulerTask* task;
     if(s->freeTasks != NULL) { // try to reuse previously allocated task
@@ -198,6 +198,7 @@ void scheduler_queue_task_(TaskFunc func, void *usrData, const char* name) {
     task->func = func;
     task->data = usrData;
     task->name = name;
+    task->flags = 0;
 
     task->next = NULL;
     if(s->taskQueueTail == NULL) {
@@ -209,6 +210,12 @@ void scheduler_queue_task_(TaskFunc func, void *usrData, const char* name) {
     s->taskQueueTail = task;
 
     DEBUG_TASK_EVENT(Debug_Event_Queue_Task, __COUNTER__, "Queue task", name);
+    return task;
+}
+
+void scheduler_cancel_task(SchedulerTask *task) {
+    assert((task->flags & Scheduler_Task_Flag_Started) == 0); // can only cancel tasks that have not been started yet (the ones still in queue)
+    task->flags |= Scheduler_Task_Flag_Cancelled;
 }
 
 // TODO: find an "automated" way of doing this, like seeding a return address to task stack
@@ -238,25 +245,37 @@ void scheduler_start_pending_tasks() {
     assert(s->state == SCHEDULER_STATE_MAIN);
         
     // start as many queued tasks as possible
-    while(true) {
+    while(  true) {
         if(s->taskQueueTail == NULL) // no tasks
+        {
             break;
+        }
         TaskContext *ctx = pool_allocate(s->ctxPool);
-        if(!ctx) // no more tasks
+        if(ctx == NULL) // no more tasks
+        {
             break;
+        }
         SchedulerTask *task = s->taskQueueHead;
 
-        DEBUG_TASK_EVENT(Debug_Event_Queue_Task, __COUNTER__, "Start task", task->name);
-        coro_create(&ctx->ctx, task->func, task->data, s->taskMemory+s->taskMemorySize*(ctx - s->ctxPool), s->taskMemorySize);
-        s->state = SCHEDULER_STATE_TASK;
-        s->curTaskCtx = ctx;
-        ctx->name = task->name;
-        coro_transfer(&s->mainCtx, &ctx->ctx);
+        // only start job if it has not been cancelled
+        if((task->flags & Scheduler_Task_Flag_Cancelled) == 0) {
+           
+            DEBUG_TASK_EVENT(Debug_Event_Queue_Task, __COUNTER__, "Start task", task->name);
+            coro_create(&ctx->ctx, task->func, task->data, s->taskMemory+s->taskMemorySize*(ctx - s->ctxPool), s->taskMemorySize);
+            s->state = SCHEDULER_STATE_TASK;
+            s->curTaskCtx = ctx;
+            ctx->name = task->name;
+            coro_transfer(&s->mainCtx, &ctx->ctx);
+        } else {
+            pool_free(s->ctxPool, ctx);
+        }
 
+        // update linked list and put task memory back to freelist
         s->taskQueueHead = s->taskQueueHead->next;
         if(s->taskQueueHead == NULL) {
             s->taskQueueTail = NULL;
         }
+        task->flags |= Scheduler_Task_Flag_Started;
         task->next = s->freeTasks;
         s->freeTasks = task;
     }
@@ -266,6 +285,7 @@ void scheduler_start_pending_tasks() {
     // tasks that yield again will readd themselves in scheduler_yield()
     struct YieldedTask *yieldedTasksHead = s->yieldedTasksHead;
     struct YieldedTask *cur = yieldedTasksHead;
+    struct YieldedTask *next;
     s->yieldedTasksHead = NULL;
     s->yieldedTasksTail = NULL;
     if(cur == NULL) {
@@ -273,11 +293,12 @@ void scheduler_start_pending_tasks() {
     }
     do {
         TaskContext *ctx = cur->ctx;
+        next = cur->next; // do this because we free before post condition
         s->state = SCHEDULER_STATE_TASK;
         s->curTaskCtx = ctx;
         DEBUG_TASK_EVENT(Debug_Event_Queue_Task, __COUNTER__, "Resume yielded task", ctx->name);
         coro_transfer(&s->mainCtx, &ctx->ctx);
         //TODO: no malloc, no free
         free(cur);
-    } while((cur = cur->next) != NULL);
+    } while((cur = next) != NULL);
 }

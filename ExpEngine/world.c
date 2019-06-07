@@ -32,7 +32,10 @@ void tess_register_object(TessGameSystem *gs, uint32_t id, TStr *assetId)
     obj->id = id;
     
     // TODO: remove once you can load assets on demand
-    bool loaded = tess_queue_asset(gs->assetSystem, assetId);
+    //bool loaded = tess_queue_asset(gs->assetSystem, assetId);
+
+    obj->ref = add_asset_reference(gs->assetSystem, assetId);
+    bool loaded = tess_is_asset_loaded(gs->assetSystem, assetId);
     
     if(loaded)
     {
@@ -73,6 +76,10 @@ void tess_unregister_object(TessGameSystem *gs, uint32_t id)
 {
     TessObject *obj = &gs->objectTable[id];
     assert(obj->id == id);
+    if(obj->ref != NULL) {
+        remove_asset_reference(gs->assetSystem, obj->ref);
+        obj->ref = NULL;
+    }
     obj->assetId = gs->tstrings->empty;
     obj->asset = &gs->assetSystem->nullObject;
     SET_BIT(obj->flags, Tess_Object_Flag_Loaded); // the null object is loaded
@@ -165,6 +172,12 @@ void tess_render_entities(TessGameSystem *gs)
 
 void tess_reset_world(TessGameSystem *gs)
 {
+    /*for(int i = 0; i < buf_len(gs->activeEntities); i++) {
+        tess_destroy_entity(gs, gs->activeEntities[i]->id);
+    }*/
+    for(int i = 0; i < TESS_MAX_OBJECTS; i++) {
+        tess_unregister_object(gs, i);
+    }
     pool_clear(gs->entityPool);
     buf_clear(gs->activeEntities);
 }

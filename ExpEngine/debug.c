@@ -78,6 +78,7 @@ ProfNode* prof_tree_node(ProfTree* tree, ProfNode *parent, int* eventIndex, int 
                     assert(newNode - tree->nodes < PROF_TREE_MAX_NODES);
                     if(firstChild == NULL)
                         firstChild = newNode;
+                    // TODO: this overwrites children if multiple calls!
                     newNode->firstChild = prof_tree_node(tree, newNode, eventIndex, depth+1);
                     newNode->name = e->name;
                     newNode->nextSibling = NULL;
@@ -104,7 +105,7 @@ ProfNode* prof_tree_node(ProfTree* tree, ProfNode *parent, int* eventIndex, int 
                     return firstChild;
                 }
                 newNode->cycles += e->clock - startCycles;
-                newNode->ms += (float)newNode->cycles/2400000.f;
+                newNode->ms = (float)newNode->cycles/2400000.f;
                 lastSibling = newNode;
                 open = false;
                 (*eventIndex)++;
@@ -123,7 +124,7 @@ void debug_end_frame()
     kh_clear(64, t_profState->profTreeHash);
     int idx = 0;
     tree->tree.firstChild = prof_tree_node(tree, &tree->tree, &idx, 0);
-    assert(idx == t_profState->eventIndex); // all nodes checked
+    //assert(idx == t_profState->eventIndex); // all nodes checked
 
     // generate event log
     // NOTE: reusing idx variable
@@ -133,8 +134,7 @@ void debug_end_frame()
             DebugEvent *e = t_profState->events + i;
             if(e->type < Debug_Event_Queue_Task)
                 continue;
-            assert(e->name);
-            t_profState->eventLog[idx].name = e->name;
+            t_profState->eventLog[idx].name = e->name == NULL ? "" : e->name;
             t_profState->eventLog[idx].func = e->taskFunc;
             t_profState->eventLog[idx].frameId = t_profState->frameId;
             idx = (idx+1)%EVENT_LOG_STORED_EVENTS;

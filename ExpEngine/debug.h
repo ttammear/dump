@@ -1,7 +1,7 @@
 #pragma once
 
 #define PROF_TREE_MAX_NODES 1024
-#define PROFILE_TREE_STORED_FRAMES 60
+#define PROFILE_TREE_STORED_FRAMES 120
 #define EVENT_LOG_STORED_EVENTS 65536
 
 typedef struct DebugEvent {
@@ -89,18 +89,19 @@ static_assert(Debug_Event_Count < 256, "With that many events, make sure you use
 
 #define DEBUG_EVENT(etype, guid, ename) \
     uint32_t _eIdx = __atomic_fetch_add(&t_profState->eventIndex, 1, __ATOMIC_ACQ_REL);\
-    assert(_eIdx < ARRAY_COUNT(t_profState->events)); \
-    DebugEvent *_evnt = t_profState->events + _eIdx; \
+    DebugEvent *_evnt = NULL; \
+    if(_eIdx < ARRAY_COUNT(t_profState->events)) { \
+    _evnt = t_profState->events + _eIdx; \
     _evnt->threadId = 0; \
     _evnt->clock = __rdtsc(); \
     _evnt->type = etype; \
     _evnt->uid = guid; \
     _evnt->name = ename; \
-    _evnt->data = NULL
+    _evnt->data = NULL; }
 
 #define DEBUG_TASK_EVENT(etype, guid, ename, name) \
-    DEBUG_EVENT(etype, guid, ename); \
-    _evnt->taskFunc = name
+    DEBUG_EVENT(etype, guid, ename) \
+    if(_evnt != NULL) _evnt->taskFunc = name
 
 #define PROF__GET_ENTRY_GUID() (&t_profState->entries[t_profState->curFrame][__COUNTER__ % PROFILER_MAX_ENTRIES_PER_FRAME])
 

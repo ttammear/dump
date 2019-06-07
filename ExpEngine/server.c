@@ -94,8 +94,8 @@ void tess_create_editor_server(struct TessEditorServer *eserver, struct TessFixe
 
     TessAssetSystem *as = eserver->assetSystem;
     TessStrings *strings = eserver->tstrings;
-    TStr *sponzaStr = tess_intern_string(strings, "ViceCity/Airport");
-    tess_queue_asset(as, sponzaStr); 
+    TStr *sponzaStr = tess_intern_string(strings, "ViceCity/Mall");
+    eserver->mapReference = add_asset_reference(as, sponzaStr);
     while(!tess_is_asset_loaded(as, sponzaStr)) {
         scheduler_yield();
     }

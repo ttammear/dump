@@ -322,6 +322,7 @@ internal void opengl_notify_sync(OpenGLRenderer *renderer, GLsync *sync, OnSyncA
 
 internal void opengl_trigger_sync(OpenGLRenderer *renderer, uint32_t syncId)
 {
+    PROF_BLOCK();
     printf("Trigger sync at frame %d\n", frameId);
     assert(renderer->numFreeSyncPoints < GL_RENDERER_MAX_SYNC_POINTS);
     GLSyncPoint *syncp = &renderer->syncPoints[syncId];
@@ -534,6 +535,7 @@ internal int new_mesh(OpenGLRenderer *renderer)
         .state = 0,
     };
     printf("Renderer: new mesh id %d\n", ret);
+    khiter_t k2 = kh_get(32, renderer->meshMap, ret);
     khiter_t k = kh_put(32, renderer->meshMap, ret, &putcode);
     assert(putcode != 0); // already exists in map??
     kh_value(renderer->meshMap, k) = (void*)mesh;
@@ -660,6 +662,7 @@ internal void opengl_handle_mesh_update(OpenGLRenderer *renderer, MeshUpdate *mu
     mesh->numMeshSections = mu->numSections;
     for(int i = 0; i < mu->numSections; i++)
     {
+        PROF_BLOCK();
         if(mu->sections[i].offset + mu->sections[i].count*sizeof(uint16_t) > mesh->numIndices*sizeof(uint16_t)) // TODO: configurable index stride
         {
             fprintf(stderr, "Mesh section out of range (%d-%d, but max %d)\n", mu->sections[i].offset, mu->sections[i].offset + mu->sections[i].count, mesh->numIndices);
@@ -733,7 +736,9 @@ internal void opengl_handle_mesh_destroy(OpenGLRenderer *renderer, uint32_t mesh
         mesh->glVao = 0;
     }
     pool_free(renderer->meshPool, mesh);
-    kh_del(32, renderer->meshMap, meshId);
+    khiter_t k = kh_get(32, renderer->meshMap, meshId);
+    assert(k != kh_end(renderer->meshMap));
+    kh_del(32, renderer->meshMap, k);
 }
 
 internal GLMaterial *get_material(OpenGLRenderer *renderer, uint32_t matId) {
@@ -811,7 +816,9 @@ internal void opengl_handle_material_destroy(OpenGLRenderer *renderer, uint32_t 
         return;
     }
     pool_free(renderer->materialPool, mat);
-    kh_del(32, renderer->materialMap, materialId);
+    khiter_t k = kh_get(32, renderer->materialMap, materialId);
+    assert(k != kh_end(renderer->materialMap));
+    kh_del(32, renderer->materialMap, k);
 }
 
 static inline GLTexture *get_texture(OpenGLRenderer *renderer, uint32_t texId)
@@ -1009,7 +1016,9 @@ internal void opengl_handle_texture_destroy(OpenGLRenderer *renderer, uint32_t t
     }
     // TODO: handle fence
     pool_free(renderer->texturePool, texture); 
-    kh_del(32, renderer->textureMap, textureId);
+    khiter_t k = kh_get(32, renderer->textureMap, textureId);
+    assert(k != kh_end(renderer->textureMap)); // trying to delete texture that doesn't exist!
+    kh_del(32, renderer->textureMap, k);
 }
 
 internal void opengl_handle_object_id_samples(OpenGLRenderer *renderer, SampleObjectId *soid)
@@ -1785,10 +1794,14 @@ internal void *opengl_proc(void *data)
             running = opengl_process_messages(renderer);
             if(!running)
                 break;
+
             check_sync_points(renderer);
-            renderer->curView = swap_view_if_newer(viewSwapBuffer, renderer->curView);
-            if(oldView == (uintptr_t)renderer->curView)
+            PROF_START_STR("Wait for frame");
+            while(oldView == (uintptr_t)(renderer->curView = swap_view_if_newer(viewSwapBuffer, renderer->curView))) {
+                check_sync_points(renderer);
                 renderer->renderer.platform->sleep(1000);
+            }
+            PROF_END();
         }
         PROF_END(); // opengl process msg and wait view
 
