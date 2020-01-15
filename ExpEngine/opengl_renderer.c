@@ -20,15 +20,18 @@ static_assert(UNIFORM_BUFFER_COUNT <= 36, "OpenGL does not guarantee more than 3
 static const char *fallbackVert =
 "#version 330 core\n"
 "attribute vec4 coordinates;\n"
+"out vec4 v2f_Pos;\n"
 "layout (std140) uniform matrixBlock\n"
 "{\n"
     "mat4 matrices[128];\n"
 "};\n"
 "void main(void) {\n"
-    "gl_Position = matrices[gl_InstanceID] * coordinates;\n"
+    "v2f_Pos = matrices[gl_InstanceID]*coordinates;\n"
+    "gl_Position = v2f_Pos;\n"
 "}\n";
 static const char *fallbackFrag = 
 "#version 330 core\n"
+"in vec4 v2f_Pos;\n"
 "out vec4 outColor;\n"
 "void main(void) {\n"
     "outColor = vec4(1.0, 0.0, 1.0, 1.0);\n"
@@ -54,10 +57,12 @@ static const char *vertShaderSrc =  "#version 330 core\n"
 ""
 "varying vec2 v_texcoord;\n"
 "varying vec4 v_color;\n"
+"varying vec4 v_position;\n"
 "flat out int v_objectId;\n"
 "uniform int instId;\n"
 "void main(void) {\n"\
    "int id = gl_InstanceID;"
+   "v_position = a_position;\n"
    "gl_Position = matrices[id] * a_position;\n"
    "v_texcoord = vec2(a_user0.x, 1.0 - a_user0.y);\n"
    "v_color = pow(a_user1 * instanceColors[id], vec4(2.2));\n"
@@ -143,11 +148,12 @@ static const char *fragShaderCutoutSrc = "#version 330 core\n"
 
 static const char *fragShaderSolidSrc = "#version 330 core\n"
 "varying vec4 v_color;\n"
+"varying vec4 v_position;\n"
 "flat in int v_objectId;\n"
 "out vec4 outColor;\n"
 "layout(location = 1) out int outObjectId;\n"
 "void main(void) {\n"
-   "outColor = v_color;\n"
+   "outColor = v_color*abs(v_position.y-(1.0*floor(v_position.y)));\n"
    "outObjectId = v_objectId;\n"
 "}";
 
@@ -310,7 +316,7 @@ internal const char *opengl_type_to_str(GLint type)
 
 internal void opengl_notify_sync(OpenGLRenderer *renderer, GLsync *sync, OnSyncAction_t action, void* userData)
 {
-    printf("Notify sync at frame %d\n", frameId);
+    //printf("Notify sync at frame %d\n", frameId);
     assert(renderer->numFreeSyncPoints > 0);
     uint32_t freeIdx = renderer->syncPointFreeList[--renderer->numFreeSyncPoints];
     GLSyncPoint *syncp = &renderer->syncPoints[freeIdx];
@@ -323,7 +329,7 @@ internal void opengl_notify_sync(OpenGLRenderer *renderer, GLsync *sync, OnSyncA
 internal void opengl_trigger_sync(OpenGLRenderer *renderer, uint32_t syncId)
 {
     PROF_BLOCK();
-    printf("Trigger sync at frame %d\n", frameId);
+    //printf("Trigger sync at frame %d\n", frameId);
     assert(renderer->numFreeSyncPoints < GL_RENDERER_MAX_SYNC_POINTS);
     GLSyncPoint *syncp = &renderer->syncPoints[syncId];
     syncp->onSync(renderer, syncp->userData);
@@ -534,7 +540,7 @@ internal int new_mesh(OpenGLRenderer *renderer)
         .id = ret,
         .state = 0,
     };
-    printf("Renderer: new mesh id %d\n", ret);
+    //printf("Renderer: new mesh id %d\n", ret);
     khiter_t k2 = kh_get(32, renderer->meshMap, ret);
     khiter_t k = kh_put(32, renderer->meshMap, ret, &putcode);
     assert(putcode != 0); // already exists in map??
@@ -593,7 +599,7 @@ internal void opengl_handle_mesh_query(OpenGLRenderer *renderer, MeshQuery *mq, 
     }
     // TODO: if the mesh is being draw we might need sync (defer this command)
     void *vertPtr = glMapBufferRange(GL_ARRAY_BUFFER, 0, vertBufSize, GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
-    printf("buf size %d\n", vertBufSize);
+    //printf("buf size %d\n", vertBufSize);
 
     GLuint ebo = (GLuint)mesh->glEbo;
     if(ebo == 0)
@@ -760,7 +766,7 @@ internal uint32_t new_material(OpenGLRenderer *renderer) {
     *material = (GLMaterial) {
         .id = ret,
     };
-    printf("Renderer: new material id %d\n", ret);
+    //printf("Renderer: new material id %d\n", ret);
     khiter_t k = kh_put(32, renderer->materialMap, ret, &putcode);
     kh_value(renderer->materialMap, k) = (void*)material;
     return ret;
@@ -853,7 +859,7 @@ static inline uint32_t new_texture(OpenGLRenderer *renderer)
     *texture = (GLTexture) {
         .id = ret
     };
-    printf("Renderer: new texture id %d\n", ret);
+    //printf("Renderer: new texture id %d\n", ret);
     khiter_t k = kh_put(32, renderer->textureMap, ret, &putcode);
     assert(putcode != 0); // already exists in map
     kh_value(renderer->textureMap, k) = (void*)texture;
@@ -1080,35 +1086,35 @@ internal bool opengl_process_messages(OpenGLRenderer *renderer)
         switch(msg.type)
         {
             case Render_Message_Mesh_Query:
-                printf("OpenGL received mesh query!\n");
+                //printf("OpenGL received mesh query!\n");
                 opengl_handle_mesh_query(renderer, &msg.meshQuery, msg.usrData);
                 break;
             case Render_Message_Mesh_Update:
-                printf("OpenGL received mesh update!\n");
+                //printf("OpenGL received mesh update!\n");
                 opengl_handle_mesh_update(renderer, &msg.meshUpdate, msg.usrData);
                 break;
             case Render_Message_Mesh_Destroy:
-                printf("OpenGL received mesh destroy!\n");
+                //printf("OpenGL received mesh destroy!\n");
                 opengl_handle_mesh_destroy(renderer, msg.meshD.meshId);
                 break;
             case Render_Message_Material_Query:
-                printf("OpenGL received material query!\n");
+                //printf("OpenGL received material query!\n");
                 opengl_handle_material_query(renderer, &msg.matQ, msg.usrData);
                 break;
             case Render_Message_Material_Destroy:
-                printf("OpenGL received material destroy!\n");
+                //printf("OpenGL received material destroy!\n");
                 opengl_handle_material_destroy(renderer, msg.matD.materialId);
                 break;
             case Render_Message_Texture_Query:
-                printf("OpenGL recived texture query!\n");
+                //printf("OpenGL recived texture query!\n");
                 opengl_handle_texture_query(renderer, &msg.texQ, msg.usrData);
                 break;
             case Render_Message_Texture_Update:
-                printf("OpenGL received texture update!\n");
+                //printf("OpenGL received texture update!\n");
                 opengl_handle_texture_update(renderer, &msg.texU, msg.usrData);
                 break;
             case Render_Message_Texture_Destroy:
-                printf("OpenGL received texture destroy!\n");
+                //printf("OpenGL received texture destroy!\n");
                 opengl_handle_texture_destroy(renderer, msg.texD.textureId);
                 break;
             case Render_Message_Sample_Object_Id:
@@ -1470,7 +1476,6 @@ internal void opengl_init(OpenGLRenderer *renderer)
     uint32_t height = renderer->renderer.platform->mainWin.height;
     renderer->fboWidth = width;
     renderer->fboHeight = height;
-    printf("fbo %d %d\n", renderer->fboWidth, renderer->fboHeight);
     glGenTextures(1, &renderer->fboColorTex);
     glBindTexture(GL_TEXTURE_2D, renderer->fboColorTex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);

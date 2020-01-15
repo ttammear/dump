@@ -6,7 +6,7 @@ void *pool_arena_allocator(void *usrData, size_t size)
 
 void tess_strings_init(TessStrings *tstrings, TessFixedArena *arena)
 {
-    fixed_arena_init_from_arena(&tstrings->stringArena, arena, 1* 1024 * 1024); // TODO: flex buffer
+    fixed_arena_init_from_arena(&tstrings->stringArena, arena, 5 * 1024 * 1024); // TODO: flex buffer
     tstrings->stringHashMap = kh_init(str);
     tstrings->internedStrings = NULL;
     tstrings->empty = tess_intern_string(tstrings, "");

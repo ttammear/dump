@@ -1,3 +1,4 @@
+#pragma once
 #pragma pack(push, 1)
 
 #define TTR_MAX_NAME_LEN 64
@@ -37,6 +38,7 @@ enum TTRTextureFormat
 
 typedef struct TTRAssetRef
 {
+    // 0xFFFFFFFF - not assigned (for example objects might not have colliders)
     uint32_t tblIndex; // highest order bit - 0=descTbl 1=importTbl
 } TTRAssetRef;
 
@@ -103,6 +105,18 @@ typedef struct TTRBuffer
     uint8_t data[];
 } TTRBuffer;
 
+typedef struct TTRSphereCollider
+{
+    V3 pos; 
+    float radius;
+} TTRSphereCollider;
+
+typedef struct TTRBoxCollider
+{
+    V3 min;
+    V3 max;
+} TTRBoxCollider;
+
 typedef struct TTRMesh
 {
     TTRRef descRef;
@@ -113,6 +127,18 @@ typedef struct TTRMesh
     uint32_t numSections;
     struct TTRMeshSection sections[];
 } TTRMesh;
+
+typedef struct TTRCollider
+{
+    TTRRef vertBufRef;
+    TTRRef indexBufRef;
+    TTRRef sphereBufRef;
+    TTRRef boxBufRef;
+    uint32_t numVertices;
+    uint32_t numIndices;
+    uint32_t numSpheres;
+    uint32_t numBoxes;
+} TTRCollider;
 
 typedef struct TTRTexture
 {
@@ -132,7 +158,7 @@ typedef struct TTRMaterial
 typedef struct TTRObject
 {
     struct TTRAssetRef meshARef;
-    // TODO: collider?
+    struct TTRAssetRef colliderARef;
     // something else?
 } TTRObject;
 
@@ -180,4 +206,4 @@ typedef struct TTRMapEntityTable
 #define STREAM_PUSH_FLEX(stream, type, arr, count) ({type* rettval = (type*)stream; (stream) += TTR_GET_SIZE(type, arr, (count)); rettval;})
 #define STREAM_PUSH_ALIGN(stream, align) (stream = (uint8_t*)ALIGN_UP_PTR(stream, (align)))
 
-
+#define TTR_AREF_EMPTY(x) ((x).tblIndex == 0xFFFFFFFF)

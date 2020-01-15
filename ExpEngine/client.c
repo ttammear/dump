@@ -1,7 +1,8 @@
-void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *renderer)
+void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *renderer, TessServer *server)
 {
     memset(tess, 0, sizeof(TessClient));
     tess->platform = platform;
+    tess->server = server;
 
     fixed_arena_init(platform, &tess->arena, 30 * 1024 * 1024); 
 
@@ -23,6 +24,8 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess->assetSystem.fileSystem = &tess->fileSystem;
     tess->assetSystem.tstrings = &tess->strings;
     tess->assetSystem.renderer = renderer;
+    tess->assetSystem.physics = NULL; 
+    tess->assetSystem.isServer = false;
     tess_asset_system_init(&tess->assetSystem, &tess->arena);
 
     // Init game system
@@ -38,6 +41,7 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess->gameSystem.renderSystem = &tess->renderSystem;
     tess->gameSystem.activeCamera = &tess->gameSystem.defaultCamera;
     tess->gameSystem.tstrings = &tess->strings;
+    tess->gameSystem.physics = NULL;
     tess_world_init(&tess->gameSystem);
 
     // Init input
@@ -63,6 +67,7 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess->mainMenu.uiSystem = &tess->uiSystem;
     tess->mainMenu.inputSystem = &tess->inputSystem;
     tess->mainMenu.client = tess;
+    tess->mainMenu.server = server;
     tess_main_menu_init(&tess->mainMenu);
 
     // Init editor

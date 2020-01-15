@@ -55,9 +55,32 @@ void tess_register_object(TessGameSystem *gs, uint32_t id, TStr *assetId)
     }
 }
 
+void create_physics_body(TessPhysicsSystem *p, TessEntity *ent, TessColliderAsset *col) {
+    void *usrPtr = (void*)((uintptr_t)ent->id | 0x80000000);
+    auto actor = physx_create_static_body_with_shapes(p, ent->pos, ent->rot, ent->scale, col->shapeCount, col->shapes, usrPtr);
+    physx_add_body_to_scene(p, actor);
+    //printf("entity at %f %f %f\r\n", ent->pos.x, ent->pos.y, ent->pos.z);
+}
+
+void entity_loaded(TessGameSystem *gs, TessEntity *entity, TessObjectAsset *asset) {
+    auto col = asset->collider;
+    if(gs->physics != NULL && col != NULL) {
+        // TODO: this is never deleted
+        create_physics_body(gs->physics, entity, col);
+    }
+}
+
+void entity_destroyed(TessGameSystem *gs, TessEntity *entity) {
+
+}
+
 void world_asset_loaded(TessGameSystem *gs, TessAssetSystem *as, TessAsset *asset)
 {
     // @OPTIMIZE (create mapping assetId -> objectids)
+    // TODO: O(N^2) is not acceptable!!!!
+    // NOTE: maybe a linked list starting from object->entity->entity.... ?
+    // would have to be doubly linked list though... (for removal)
+    // (a list per object doesn't sound attractive because most objects will be unique)
     int count = ARRAY_COUNT(gs->objectTable);
     for(int i = 0; i < count; i ++)
     {
@@ -66,6 +89,13 @@ void world_asset_loaded(TessGameSystem *gs, TessAssetSystem *as, TessAsset *asse
                 && asset->type == Tess_Asset_Object
                 && obj->assetId == asset->assetId)
         {
+            auto col = ((TessObjectAsset*)asset)->collider;
+            for(int j = 0; j < buf_len(gs->activeEntities); j++) {
+                auto ent = gs->activeEntities[j];
+                if(ent->objectId == i) {
+                    entity_loaded(gs, ent, (TessObjectAsset*)asset);
+                }
+            }
             gs->objectTable[i].asset = (TessObjectAsset*)asset;
             SET_BIT(obj->flags, Tess_Object_Flag_Loaded);
         }
@@ -85,7 +115,7 @@ void tess_unregister_object(TessGameSystem *gs, uint32_t id)
     SET_BIT(obj->flags, Tess_Object_Flag_Loaded); // the null object is loaded
 }
 
-uint32_t tess_create_entity(TessGameSystem *gs, uint32_t id, Mat4 *modelMatrix)
+uint32_t tess_create_entity(TessGameSystem *gs, uint32_t id, V3 pos, Quat rot, V3 scale, Mat4 *modelMatrix)
 {
     assert(id < ARRAY_COUNT(gs->objectTable));
     TessObject *obj = &gs->objectTable[id];
@@ -94,13 +124,23 @@ uint32_t tess_create_entity(TessGameSystem *gs, uint32_t id, Mat4 *modelMatrix)
     entity->id = entity - gs->entityPool;
     entity->objectId = id;
     entity->objectToWorld = *modelMatrix;
+    entity->pos = pos;
+    entity->rot = rot;
+    entity->scale = scale;
+    entity->physicsActor = NULL;
     buf_push(gs->activeEntities, entity);
+    if(obj->asset != &gs->assetSystem->nullObject) {
+        entity_loaded(gs, entity, obj->asset);
+    }
     return entity->id;
 }
 
 void tess_destroy_entity(TessGameSystem *gs, uint32_t id)
 {
     auto entity = tess_get_entity(gs, id);
+    if(entity->physicsActor != NULL) {
+        physx_destroy_body(gs->physics, entity->physicsActor);
+    }
     int index = buf_find_idx(gs->activeEntities, entity);
     assert(index != -1);
     buf_remove_at(gs->activeEntities, index);

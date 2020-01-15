@@ -1,3 +1,12 @@
+#pragma once
+
+#include <stdint.h>
+#include "libs/klib/khash.h"
+#include "ttmath.h"
+#include "resourceformat.c"
+//#include <coro.h>
+#include <enet/enet.h>
+
 #define TESS_LOADED_FILE_POOL_INITIAL_SIZE 100
 #define TESS_MESH_POOL_INITIAL_SIZE 100
 #define TESS_TEXTURE_POOL_INITIAL_SIZE 100
@@ -125,7 +134,7 @@ typedef struct TaskContext {
 } TaskContext;
 
 typedef struct TessScheduler {
-    u32 mode;
+    uint32_t mode;
     SchedulerState state;
 
     TaskContext *curTaskCtx;
@@ -140,7 +149,7 @@ typedef struct TessScheduler {
     SchedulerTask *freeTasks;
     TaskContext *ctxPool;
     uint8_t *taskMemory;
-    u32 taskMemorySize;
+    uint32_t taskMemorySize;
 
     struct TessClient *client;
 
@@ -176,6 +185,7 @@ enum TessAssetType
     Tess_Asset_Sound,
     Tess_Asset_Object,
     Tess_Asset_Map,
+    Tess_Asset_Collider,
 };
 
 
@@ -247,10 +257,18 @@ typedef struct TessTextureAsset {
     uint32_t textureId;
 } TessTextureAsset;
 
+typedef struct TessColliderAsset {
+    TessAsset asset;
+    uint32_t shapeCount;
+    CPxShape *shapes;
+} TessColliderAsset;
+
 typedef struct TessObjectAsset {
     TessAsset asset;
     TessMeshAsset *mesh;
+    TessColliderAsset *collider;
     AssetReference *meshRef;
+    AssetReference *colliderRef;
 } TessObjectAsset;
 
 typedef struct TessMapObject {
@@ -323,6 +341,7 @@ typedef struct TessAssetSystem
     TessAsset nullAsset;
     TessObjectAsset nullObject;
     TessMeshAsset nullMesh;
+    bool isServer;
 
     DELEGATE(onAssetLoaded, OnAssetLoaded_t, 4);
 
@@ -356,6 +375,7 @@ typedef struct TessAssetSystem
 
     struct TessStrings *tstrings;
     struct Renderer *renderer;
+    struct TessPhysicsSystem *physics;
 } TessAssetSystem;
 
 typedef struct TessStrings
@@ -381,6 +401,11 @@ typedef struct TessEntity
 {
     uint32_t id;
     uint32_t objectId;
+    // TODO: should either be pos,rot,scale OR Mat4 to keep the structure lean
+    V3 pos;
+    Quat rot;
+    V3 scale;
+    CPxRigidActor physicsActor;
     struct Mat4 objectToWorld;
 } TessEntity;
 
@@ -409,6 +434,7 @@ typedef struct TessGameSystem
 
     struct TessRenderSystem *renderSystem;
     struct TessStrings *tstrings;
+    struct TessPhysicsSystem *physics;
 } TessGameSystem;
 
 // --------------- INPUT -------------------
@@ -424,6 +450,8 @@ typedef struct TessInputSystem
     V2 normMousePos;
     V2 mousePrev;
     V2 scroll;
+
+    bool headless;
 
     AikePlatform *platform;
     struct TessRenderSystem *renderSystem;
@@ -489,6 +517,10 @@ typedef struct TessUISystem
     struct AikePlatform *platform;
 } TessUISystem;
 
+// --------------- PHYSICS ----------------
+
+#include "physics.h"
+
 // --------------- MENU -------------------
 
 typedef struct TessMainMenu
@@ -508,6 +540,7 @@ typedef struct TessMainMenu
     struct TessUISystem *uiSystem;
     struct TessInputSystem *inputSystem;
     struct TessClient *client;
+    struct TessServer *server;
 } TessMainMenu;
 
 // --------------- EDITOR ------------------
@@ -608,9 +641,11 @@ typedef struct TessEditor
 //
 
 #define NTRANS_BUF_SIZE 4
+#define GAME_CLIENT_MAX_EVENTS_PER_FRAME 256
 
 typedef struct NetworkedTransform
 {
+    V3 scale;
     V3 positions[NTRANS_BUF_SIZE];
     Quat rotations[NTRANS_BUF_SIZE];
     uint16_t seqs[NTRANS_BUF_SIZE];
@@ -630,6 +665,20 @@ typedef enum GameClientFlags {
     Game_Client_Flag_Have_Map_AssetId = 1<<0,
 } GameClientFlags;
 
+typedef enum GameClientEventType {
+    Game_Client_Event_Key_Down,
+    Game_Client_Event_Key_Up,
+} GameClientEventType;
+
+typedef struct GameClientEvent {
+    uint8_t type;
+    union {
+        struct {
+            uint8_t serverInputId;
+        } keyEdge;
+    };
+} GameClientEvent;
+
 typedef struct GameClient
 {
     ENetHost *eClient;
@@ -637,17 +686,31 @@ typedef struct GameClient
     bool init;
     bool connected;
 
+    double tickRate;
+    double tickProgress;
+    int tickId;
+
     char ipStr[256];
     uint16_t port;
+
+    uint32_t frameClientEventCount;
+    GameClientEvent frameClientEvents[GAME_CLIENT_MAX_EVENTS_PER_FRAME];
 
     uint32_t flags;
     TStr *mapAssetId;
     AssetReference *mapReference;
+    ClientInputConfig inputConfig;
+
+    V2 camRot;
 
     GameClientDynEntity **dynEntities;
     GameClientDynEntity *dynEntityPool;
 
     khash_t(uint32) *serverDynEntityMap; // serverId -> dynEntityId
+
+    // NOTE: this is input system for server tracked inputs
+    // local client uses different input system (to decouple from server tickrate)
+    TessInputSystem inputSystem;
 
     struct TessStrings *strings;
     struct TessAssetSystem *assetSystem;
@@ -685,6 +748,9 @@ typedef struct TessClient
     TessFixedArena arena;
 
     AikePlatform *platform;
+
+    // TODO: get rid??
+    struct TessServer *server;
 } TessClient;
 
 // Server
@@ -730,9 +796,13 @@ typedef struct TessEditorServer
 } TessEditorServer;
 
 typedef enum GameClientCommand {
+    Game_Client_Command_Get_Server_Inputs,
     Game_Client_Command_Get_Server_Properties,
     Game_Client_Command_World_Ready,
+    Game_Client_Command_Update_Unreliable,
+    Game_Client_Command_Update_Reliable,
 } GameClientCommand;
+
 
 enum GameServerDataType {
     Game_Server_Data_Type_None,
@@ -759,15 +829,57 @@ enum GameServerCommand
     Game_Server_Command_Destroy_DynEntities,
     Game_Server_Command_Update_DynEntities,
     Game_Server_Command_Server_Property_Response,
+    Game_Server_Command_Server_Input_Config,
+    Game_Server_Command_Player_Reflection,
 };
 
 enum ServerPeerFlag {
     Server_Peer_Flag_World_Ready = 1<<0,
 };
 
+enum ServerClientType {
+    Server_Client_Type_None,
+    Server_Client_Type_Player,
+    Server_Client_Type_Count,
+} ServerClientType;
+
+enum ServerPlayerStatus {
+    Server_Player_Status_None,
+    Server_Player_Status_Created,
+    Server_Player_Status_Count,
+} ServerPlayerStatus;
+
+typedef struct FirstPersonControls {
+    bool forward;
+    bool backward;
+    bool right;
+    bool left;
+    bool jump;
+    float yawRad;
+}FirstPersonControls;
+
+typedef struct FirstPersonController {
+    V3 velocity;
+    CPxController characterController;
+    TessPhysicsSystem *phys;
+} FirstPersonController;
+
+typedef struct ServerPlayer
+{
+    uint32_t status;
+    ServerPlayerInput input; 
+    FirstPersonController fpc;
+    uint32_t dynId;
+} ServerPlayer;
+
 typedef struct ServerPeer
 {
     ENetPeer *ePeer;
+    uint32_t clientType;
+    // TODO: pointer makes more sense
+    union {
+        ServerPlayer player;
+    };
     uint32_t flags;
 } ServerPeer;
 
@@ -777,6 +889,7 @@ typedef struct GameServerDynEntity
     uint32_t objectId;
     uint32_t updateSeq;
     V3 position;
+    V3 scale;
     Quat rotation;
 } GameServerDynEntity;
 
@@ -790,8 +903,14 @@ typedef struct GameServer
     ServerPeer **connectedPeers;
     ServerPeer *peerPool;
 
+    TessPhysicsSystem *physics;
+
     uint32_t flags;
     TStr *mapAssetId;
+    uint32_t mapStatus; // 1 - map asset loaded, 2 - load kicked off
+
+    AssetReference *mapReference;
+    ServerInputConfig inputConfig;
 
     GameServerDynEntity **dynEntities;
     GameServerDynEntity *dynEntityPool;
@@ -800,6 +919,8 @@ typedef struct GameServer
 
     double updateProgress;
     TessStack *tempStack;
+
+    TessGameSystem gameSystem;
 } GameServer;
 
 
@@ -807,7 +928,6 @@ typedef struct TessServer
 {
     TessFileSystem fileSystem;
     TessAssetSystem assetSystem;
-    TessGameSystem gameSystem;
 
     TessEditorServer editorServer;
     GameServer gameServer;
@@ -857,10 +977,13 @@ internal inline TessAssetStatus tess_get_asset_target_status(TessAssetSystem *as
 
 TessAsset* tess_get_asset(TessAssetSystem *as, TStr *assetId);
 
+void tess_refresh_package_list(TessAssetSystem *as);
+void tess_gen_lookup_cache_for_package(TessAssetSystem *as, TStr *packageName);
+
 void tess_world_init(TessGameSystem *gs);
 TessEntity* tess_get_entity(TessGameSystem *gs, uint32_t id);
 void tess_register_object(TessGameSystem *gs, uint32_t id, TStr *assetId);
-uint32_t tess_create_entity(TessGameSystem *gs, uint32_t id, Mat4 *modelMatrix);
+uint32_t tess_create_entity(TessGameSystem *gs, uint32_t id, V3 pos, Quat rot, V3 scale, Mat4 *modelMatrix);
 void tess_destroy_entity(TessGameSystem *gs, uint32_t id);
 void tess_reset_world(TessGameSystem *gs);
 
@@ -883,8 +1006,8 @@ void editor_reset(TessEditor *editor);
 
 void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *client, TessServer *server);
 void scheduler_yield();
-void scheduler_set_mode(u32 mode);
-void scheduler_event(u32 type, void *data, struct AsyncTask *usrPtr);
+void scheduler_set_mode(uint32_t mode);
+void scheduler_event(uint32_t type, void *data, struct AsyncTask *usrPtr);
 void scheduler_wait_for(struct AsyncTask *task);
 void scheduler_task_end();
 SchedulerTask* scheduler_queue_task_(TaskFunc func, void *usrData, const char *name);

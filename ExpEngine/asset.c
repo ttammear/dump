@@ -71,7 +71,7 @@ internal void tess_asset_action(TessAssetSystem *as, TStr *assetId, TessAssetAct
             assert(k != kh_end(as->loadingAssetMap));
             lasset = kh_value(as->loadingAssetMap, k);
             scheduler_cancel_task(lasset->task);
-            printf("cancel %p\r\n", lasset);
+            //printf("cancel %p\r\n", lasset);
             tess_loading_asset_done(as, lasset, NULL, Tess_Asset_Status_None, false);
             break;
         case A_Cancel_Destroy:
@@ -127,7 +127,6 @@ internal void tess_set_asset_target_status(TessAssetSystem *as, TStr *assetId, u
         }
     }
     status = tess_get_asset_status(as, assetId);
-    printf("%s target %d from %d\r\n", assetId->cstr, target, status);
     a = assetActionMatrix[status][target];
     tess_asset_action(as, assetId, a);
 }
@@ -179,7 +178,7 @@ uint32_t tess_get_asset_list(struct TessAssetSystem *as, TessListedAsset* listed
 void tess_finalize_asset(TessAssetSystem *as, TessLoadingAsset *lasset, TessAsset *asset, TStr *assetId, enum TessAssetType type) {
     asset->assetId = assetId;
     asset->type = type;
-    printf("Asset loaded! %s\n", lasset->assetId->cstr);
+    //printf("Asset loaded! %s\n", lasset->assetId->cstr);
     tess_loading_asset_done(as, lasset, asset, Tess_Asset_Status_Loaded, true);
     as->numLoadedAssets++;
 }
@@ -270,7 +269,6 @@ ASYNC TessMeshAsset* tess_load_mesh(TessTTRContext *tctx, TessLoadingAsset *lass
             case Shader_Type_Unlit_Textured:
                 aref = ttrMat->albedoTexARef;
                 textureAssetId = tess_asset_id_from_aref(tctx->as, tctx->tbl, tctx->imTbl, aref, tctx->package);
-                printf("mesh %s tex %s\r\n", lasset->assetId->cstr, textureAssetId->cstr);
                 break;
         }
     }
@@ -332,7 +330,6 @@ ASYNC void fill_material_query(RenderMessage *msg, TTRMaterial *ttrMat, TessTTRC
         case Shader_Type_Unlit_Textured:
         aref = ttrMat->albedoTexARef;
         textureAssetId = tess_asset_id_from_aref(ttrCtx->as, ttrCtx->tbl, ttrCtx->imTbl, aref, ttrCtx->package);
-        printf("OBJECT TEXTURE %s (%s)\n", textureAssetId->cstr, parentId->cstr); 
         *ref = add_asset_reference(ttrCtx->as, textureAssetId);
         texAsset = tess_force_load_asset(ttrCtx->as, textureAssetId);
         break;
@@ -385,28 +382,41 @@ ASYNC void fill_material_query(RenderMessage *msg, TTRMaterial *ttrMat, TessTTRC
 ASYNC TessObjectAsset* tess_load_object(TessTTRContext *tctx, TessLoadingAsset *lasset, TTRObject *tobj) {
     scheduler_assert_task(); // async function
     AsyncTask task;
-    TessAsset *meshAsset;
+    TessAsset *meshAsset, *colliderAsset;
     TessObjectAsset *tessObj = pool_allocate(tctx->as->objectPool);
+    assert(tessObj);
     TTRAssetRef aref = tobj->meshARef;
     TStr *curPackage = tess_get_asset_package_from_id(tctx->as, lasset->assetId);
+
     TStr *meshAssetId = tess_asset_id_from_aref(tctx->as, tctx->tbl, tctx->imTbl, aref, curPackage);
     TStr *textureAssetId;
-    tessObj->meshRef = add_asset_reference(tctx->as, meshAssetId);
-    printf("%s forced %s\r\n", lasset->assetId->cstr, meshAssetId->cstr);
-    meshAsset = tess_force_load_asset(tctx->as, meshAssetId);
-    
+    if(!tctx->as->isServer) {
+        tessObj->meshRef = add_asset_reference(tctx->as, meshAssetId);
+        meshAsset = tess_force_load_asset(tctx->as, meshAssetId);
+        assert(meshAsset != NULL);
+        lasset->type = Tess_Asset_Object;
+        meshAsset = tess_get_asset(lasset->as, meshAssetId);
+        assert(meshAsset && meshAsset->type == Tess_Asset_Mesh);
+        tessObj->asset.assetId = lasset->assetId;
+        tessObj->mesh = (TessMeshAsset*)meshAsset;
+    } else {
+        tessObj->meshRef = NULL;
+        tessObj->mesh = NULL;
+    }
 
-    assert(meshAsset != NULL);
-    lasset->type = Tess_Asset_Object;
+    aref = tobj->colliderARef;
+    TStr *colliderAssetId = tess_asset_id_from_aref(tctx->as, tctx->tbl, tctx->imTbl, aref, curPackage);
+    if(!TTR_AREF_EMPTY(aref) && tctx->as->physics != NULL) {
+        tessObj->colliderRef = add_asset_reference(tctx->as, colliderAssetId);
+        colliderAsset = tess_force_load_asset(tctx->as, colliderAssetId);
+        assert(colliderAsset != NULL && colliderAsset->type == Tess_Asset_Collider);
+        tessObj->collider = (TessColliderAsset*)colliderAsset;
+    } else {
+        tessObj->colliderRef = NULL;
+        tessObj->collider = NULL;
+    }
 
-    meshAsset = tess_get_asset(lasset->as, meshAssetId);
-    assert(meshAsset && meshAsset->type == Tess_Asset_Mesh);
-
-    assert(tessObj);
-    tessObj->asset.assetId = lasset->assetId;
     tessObj->asset.type = Tess_Asset_Object;
-    tessObj->mesh = (TessMeshAsset*)meshAsset;
-
     tess_finalize_asset(tctx->as, lasset, &tessObj->asset, lasset->assetId, Tess_Asset_Object);
 
     return tessObj;
@@ -415,12 +425,102 @@ ASYNC TessObjectAsset* tess_load_object(TessTTRContext *tctx, TessLoadingAsset *
 ASYNC void tess_unload_object(TessAssetSystem *as, TessObjectAsset *obj) {
     scheduler_assert_task(); // this is an async function 
 
-    remove_asset_reference(as, obj->meshRef);
+    if(obj->meshRef != NULL) {
+        remove_asset_reference(as, obj->meshRef);
+    }
+    if(obj->colliderRef != NULL) {
+        remove_asset_reference(as, obj->colliderRef);
+    }
     tess_unlist_asset(as, &obj->asset);
     
     pool_free(as->objectPool, obj);
 }
 
+ASYNC TessColliderAsset* tess_load_collider_asset(TessAssetSystem *as, TessLoadingAsset *lasset, TTRCollider *collider) {
+    TessColliderAsset *ret = malloc(sizeof(TessColliderAsset));
+
+    // TODO: client needs physics too!
+    if(as->physics != NULL) {
+        TTRBuffer *sphereBuffer = TTR_REF_TO_PTR(TTRBuffer, collider->sphereBufRef);
+        TTRBuffer *boxBuffer = TTR_REF_TO_PTR(TTRBuffer, collider->boxBufRef);
+        TTRBuffer *vBuffer = TTR_REF_TO_PTR(TTRBuffer, collider->vertBufRef);
+        TTRBuffer *iBuffer = TTR_REF_TO_PTR(TTRBuffer, collider->indexBufRef);
+        TTRSphereCollider *spheres = (TTRSphereCollider*)sphereBuffer->data;
+        TTRBoxCollider *boxes = (TTRBoxCollider*)boxBuffer->data;
+        V3 *verts = (V3*)vBuffer->data;
+        uint32_t *indices = (uint32_t*)iBuffer->data;
+        int totalShapes = collider->numSpheres + collider->numBoxes + ((collider->numVertices > 0)?1:0);
+
+        assert(collider->numBoxes < 100);
+        assert(collider->numSpheres < 100);
+        TTRBoxCollider *boxes2 = malloc(100*sizeof(TTRBoxCollider));
+        TTRSphereCollider *spheres2 = malloc(100*sizeof(TTRSphereCollider));
+        for(int i = 0; i < collider->numBoxes; i++) {
+            boxes2[i].min.x = boxes[i].min.x;
+            boxes2[i].min.y = boxes[i].min.z;
+            boxes2[i].min.z = boxes[i].min.y;
+            boxes2[i].max.x = boxes[i].max.x;
+            boxes2[i].max.y = boxes[i].max.z;
+            boxes2[i].max.z = boxes[i].max.y;
+        }
+        for(int i = 0; i < collider->numSpheres; i++) {
+            spheres2[i].radius = spheres[i].radius;
+            spheres2[i].pos.x = spheres[i].pos.x;
+            spheres2[i].pos.y = spheres[i].pos.z;
+            spheres2[i].pos.z = spheres[i].pos.y;
+        }
+        for(int i = 0; i < collider->numVertices; i++) {
+            float temp = verts[i].y;
+            verts[i].y = verts[i].z;
+            verts[i].z = temp;
+        }
+
+        ret->shapeCount = totalShapes;
+        ret->shapes = calloc(totalShapes, sizeof(CPxShape)); 
+        int idx = 0;
+        for(int i = 0; i < collider->numSpheres; i++) {
+            // TODO: check bounds!
+            auto s = spheres2 + i;
+            ret->shapes[idx] = physx_create_sphere_shape(as->physics, s->pos, s->radius);
+            idx++;
+        }
+        for(int i = 0; i < collider->numBoxes; i++) {
+            auto b = boxes2 + i;
+            ret->shapes[idx] = physx_create_box_shape(as->physics, b->min, b->max);
+            idx++;
+        }
+        free(boxes2);
+        free(spheres2);
+        if(collider->numVertices > 0) {
+            ret->shapes[idx] = physx_create_mesh_shape(as->physics, collider->numVertices, verts, collider->numIndices, indices);
+            idx++;
+        }
+        assert(idx == totalShapes);
+    } else {
+        ret->shapes = NULL;
+        ret->shapeCount = 0;
+    }
+
+    tess_finalize_asset(as, lasset, &ret->asset, lasset->assetId, Tess_Asset_Collider);
+    return ret;
+}
+
+ASYNC void tess_unload_collider_asset(TessAssetSystem *as, TessColliderAsset *col) {
+    scheduler_assert_task();
+
+    int count = col->shapeCount;
+    for(int i = 0; i < count; i++) {
+        physx_release_shape(as->physics, col->shapes[i]);
+    }
+    col->shapeCount = 0;
+
+    if(col->shapes != NULL) {
+        free(col->shapes);
+        col->shapes = NULL;
+    }
+    tess_unlist_asset(as, &col->asset);
+    free(col);
+}
 
 ASYNC TessMapAsset* tess_load_map_asset(TessAssetSystem *as, TessLoadingAsset *lasset, TTRMap *map) {
     TTRMapObjectTable *mapObjTbl = TTR_REF_TO_PTR(TTRMapObjectTable, map->objectTableRef);
@@ -470,10 +570,10 @@ ASYNC TessAsset* tess_load_asset(TessLoadingAsset *lasset) {
     AsyncTask task;
     TessAssetStatus status = tess_get_asset_status(lasset->as, lasset->assetId);
     // TODO: in case the status is InQueue, remove it from queue
-    printf("status %s %d\n", lasset->assetId->cstr, status);
+    //printf("status %s %d\n", lasset->assetId->cstr, status);
     assert(status == Tess_Asset_Status_None || status == Tess_Asset_Status_Loading);
     tess_set_asset_status(lasset->as, lasset->assetId, Tess_Asset_Status_Loading);
-    printf("Load asset %s\n", lasset->assetId->cstr);
+    //printf("Load asset %s\n", lasset->assetId->cstr);
     TessAssetSystem *as = lasset->as;
     TStr *packageName = tess_get_asset_package_from_id(as, lasset->assetId);
     assert(lasset);
@@ -489,7 +589,7 @@ ASYNC TessAsset* tess_load_asset(TessLoadingAsset *lasset) {
     as->totalFileLoads++;
     tess_async_load_file(as->fileSystem, buf, &task);
     scheduler_wait_for(&task);
-    printf("Asset %s file ready \n", lasset->assetId->cstr);
+    //printf("Asset %s file ready \n", lasset->assetId->cstr);
     return tess_process_asset_from_ttr(as, task.file, lasset);
 }
 
@@ -509,6 +609,9 @@ ASYNC void tess_unload_asset(TessAssetSystem *as, TStr *assetId) {
             case Tess_Asset_Map:
                 tess_unload_map_asset(as, (TessMapAsset*)asset);
                 break;
+            case Tess_Asset_Collider:
+                tess_unload_collider_asset(as, (TessColliderAsset*)asset);
+                break;
             default:
                 assert(0); // how did unknown asset type even get loaded?
                 break;
@@ -527,15 +630,15 @@ ASYNC void tess_unlist_asset(TessAssetSystem *as, TessAsset *asset) {
 
 ASYNC TessAsset* tess_force_load_asset(TessAssetSystem *as, TStr *assetId) {
     int dummy;
-    printf("Force load asset %s\n", assetId->cstr);
+    //printf("Force load asset %s\n", assetId->cstr);
     // TODO: event based, no polling!
     int i = 0;
     while(tess_is_asset_loading(as, assetId)) {
-        printf("still loading.... %s\n", assetId->cstr);
+        //printf("still loading.... %s\n", assetId->cstr);
         scheduler_yield();
     }
     if(tess_is_asset_loaded(as, assetId)) {
-        printf("Forced and already loaded %s\n", assetId->cstr);
+        //printf("Forced and already loaded %s\n", assetId->cstr);
         return tess_get_asset(as, assetId);
     }
     assert(!tess_is_asset_loaded(as, assetId));
@@ -551,12 +654,12 @@ ASYNC TessAsset* tess_force_load_asset(TessAssetSystem *as, TStr *assetId) {
             assert(tess_get_asset_status(as, assetId) == Tess_Asset_Status_InQueue);
             lasset = kh_value(as->loadingAssetMap, k);
             scheduler_cancel_task(lasset->task);
-            printf("cancel %p (forced before dequeue)\r\n", lasset);
+            //printf("cancel %p (forced before dequeue)\r\n", lasset);
             tess_set_asset_status(as, assetId, Tess_Asset_Status_Loading);
         }
-        printf("Forced and begin load %s\n", assetId->cstr);
+        //printf("Forced and begin load %s\n", assetId->cstr);
         TessAsset *ret = tess_load_asset(lasset);
-        printf("Forced and end load %s\n", assetId->cstr);
+        //printf("Forced and end load %s\n", assetId->cstr);
         return ret;
     } else {
         tess_set_asset_target_status(as, assetId, Tess_Asset_Status_Fail);
@@ -569,7 +672,7 @@ ASYNC void tess_task_load_asset(void *data) {
 
     TessLoadingAsset *lasset = (TessLoadingAsset*)data;
     lasset->task = NULL;
-    printf("load %p\r\n", data);
+    //printf("load %p\r\n", data);
     // TODO: why is it here? (removing triggers assert!)
     tess_set_asset_status(lasset->as, lasset->assetId, Tess_Asset_Status_Loading);
     tess_load_asset(lasset);
@@ -584,7 +687,7 @@ ASYNC void tess_task_unload_asset(void *data) {
     asset->ul = NULL;
     scheduler_assert_task();
     assert(tess_get_asset_status(ul->as, ul->assetId) == Tess_Asset_Status_Pending_Destroy);
-    printf("Unload task started for %s\n", ul->assetId->cstr);
+    //printf("Unload task started for %s\n", ul->assetId->cstr);
     tess_unload_asset(ul->as, ul->assetId);
     free(ul); // TODO: get rid of this!
     scheduler_task_end();
@@ -655,7 +758,15 @@ ASYNC TessAsset* tess_process_asset_from_ttr(TessAssetSystem *as, TessFile *tfil
                         asset = (TessAsset*)tess_load_map_asset(as, lasset, tmap);
                         found = true;
                     } break;
+                case ' LOC':
+                    {
+                        TTRCollider *tcol = TTR_REF_TO_PTR(TTRCollider, tctx.tbl->entries[i].ref);
+                        lasset->type = Tess_Asset_Collider;
+                        asset = (TessAsset*)tess_load_collider_asset(as, lasset, tcol);
+                        found = true;
+                    } break;
                 default:
+                    assert(0);
                     fprintf(stderr, "Trying to load unknown asset type!\n");
                     break;
             }
@@ -672,10 +783,15 @@ ASYNC TessAsset* tess_process_asset_from_ttr(TessAssetSystem *as, TessFile *tfil
     return asset;
 }
 
+// TODO: invalid Aref results in segfault, add protection
 TStr* tess_asset_id_from_aref(TessAssetSystem *as, TTRDescTbl *tbl, TTRImportTbl *imTbl, TTRAssetRef aref, TStr *currentPackage)
 {
     uint32_t meshEntryIdx = (aref.tblIndex & ~TTR_AREF_EXTERN_MASK);
     TStr *meshAssetName, *meshPackageName;
+    // special code for unset asset ids
+    if(TTR_AREF_EMPTY(aref)) {
+        return as->tstrings->empty;
+    }
     if(TTR_IS_EXTERN_AREF(aref))
     {
         TTRImportTblEntry *imEnt = &imTbl->entries[meshEntryIdx];
@@ -743,7 +859,7 @@ internal bool tess_queue_asset(TessAssetSystem *as, TStr *assetId)
     if(tess_is_asset_loading(as, assetId))
         return false;
     
-    printf("Queue asset %s\n", assetId->cstr);
+    //printf("Queue asset %s\n", assetId->cstr);
 
     TStr *fileName;
     TStr *packageName = tess_get_asset_package_from_id(as, assetId);
@@ -852,7 +968,7 @@ TStr* intern_asset_id(TessAssetSystem *as, const char *package, const char *asse
     return tess_get_asset_id(as, internedPackage, internedName);
 }
 
-internal void tess_refresh_package_list(TessAssetSystem *as)
+void tess_refresh_package_list(TessAssetSystem *as)
 {
     char pdirPath[AIKE_MAX_PATH];
     AikeFileEntry entries[64];
@@ -880,7 +996,7 @@ internal void tess_refresh_package_list(TessAssetSystem *as)
     platform->close_directory(platform, dir);
 }
 
-internal void tess_gen_lookup_cache_for_package(TessAssetSystem *as, TStr *packageName)
+void tess_gen_lookup_cache_for_package(TessAssetSystem *as, TStr *packageName)
 {
     char pdirPath[AIKE_MAX_PATH];
     AikeFileEntry entries[64];

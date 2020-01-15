@@ -2,7 +2,9 @@ void play_update(TessClient *client, double dt, uint16_t frameId);
 void update_transform(GameClient *gc, uint16_t frameId, void *data, uint32_t dataLen);
 void process_packet(GameClient *gc, void *data, size_t dataLen);
 void query_required_server_properties(GameClient *gc);
+void query_server_inputs(GameClient *gc);
 void notify_world_ready(GameClient *gc);
+void game_client_tick(GameClient *client);
 
 void load_map(TessClient *client, TessMapAsset *map) {
     printf("Game client load map %s with %d object and %d entities\n", map->asset.assetId->cstr, map->mapObjectCount, map->mapEntityCount);
@@ -15,7 +17,7 @@ void load_map(TessClient *client, TessMapAsset *map) {
         Mat4 modelToWorld;
         TessMapEntity *ent = map->entities + i;
         mat4_trs(&modelToWorld, ent->position, ent->rotation, ent->scale);
-        tess_create_entity(&client->gameSystem, ent->objectId, &modelToWorld);
+        tess_create_entity(&client->gameSystem, ent->objectId, ent->position, ent->rotation, ent->scale, &modelToWorld);
     }
 }
 
@@ -53,8 +55,15 @@ void game_client_coroutine(GameClient *gclient)
 game_client_start:
     gclient->init = true;
     gclient->serverDynEntityMap = kh_init(uint32);
+    gclient->tickRate = 10.0;
+    gclient->tickProgress = 0.0;
+    gclient->inputSystem.headless = true;
+    gclient->inputSystem.platform = gclient->platform;
+    tess_input_init(&gclient->inputSystem);
 
-    gclient->eClient = enet_host_create(NULL, 1, 2, 0, 0);
+    memset(&gclient->inputConfig, 0, sizeof(ClientInputConfig));
+
+    gclient->eClient = enet_host_create(NULL, 1, 3, 0, 0);
     if(NULL == gclient->eClient)
     {
         fprintf(stderr, "Failed to create ENet client for gameClient!\n");
@@ -71,7 +80,7 @@ game_client_start:
     int retries = 3;
     while(retries > 0) // reconnect loop
     {
-        peer = enet_host_connect(gclient->eClient, &address, 2, 0);
+        peer = enet_host_connect(gclient->eClient, &address, 3, 0);
         assert(NULL != peer);
         enet_peer_timeout(peer, 0, 0, 5000);
 
@@ -108,6 +117,7 @@ game_client_start:
     if(gclient->connected)
     {
         query_required_server_properties(gclient);
+        query_server_inputs(gclient);
         while((gclient->flags & Game_Client_Flag_Have_Map_AssetId) == 0) {
             // TODO: option to cancel or at least a timeout!
             game_client_yield(gclient);
@@ -144,8 +154,16 @@ game_client_start:
         double dt = aike_timedif_sec(start, curTime);
         start = curTime;
 
-        if(gclient->connected)
+        gclient->tickProgress += dt;
+        const double tickTime = 1.0/gclient->tickRate;
+        while(gclient->tickProgress >= tickTime) {
+            game_client_tick(gclient);
+            gclient->tickProgress -= tickTime;
+        }
+
+        if(gclient->connected) {
             play_update(gclient->client, dt, frameId);
+        }
         frameId++;
         game_client_yield(gclient);
     }
@@ -166,8 +184,8 @@ void game_exit(GameClient *gclient)
 {
     if(gclient->connected)
     {
-        enet_peer_disconnect(gclient->eServerPeer, 0);
         // this should raise disconnect event and that should terminate client
+        enet_peer_disconnect(gclient->eServerPeer, 0);
     }
 }
 
@@ -189,6 +207,54 @@ void game_client_destroy_dyn_ent(GameClient *gc, uint32_t id)
     }
 }
 
+uint16_t defaultKeycodeByTag(uint8_t tag) {
+    switch(tag) {
+        case SERVER_INPUT_TAG_WALK_FORWARD:
+            return AIKE_KEY_W;
+        case SERVER_INPUT_TAG_WALK_BACKWARD:
+            return AIKE_KEY_S;
+        case SERVER_INPUT_TAG_WALK_RIGHT:
+            return AIKE_KEY_D;
+        case SERVER_INPUT_TAG_WALK_LEFT:
+            return AIKE_KEY_A;
+        case SERVER_INPUT_TAG_WALK_JUMP:
+            return AIKE_KEY_SPACE; 
+        case SERVER_INPUT_TAG_WALK_ACTION:
+            return AIKE_KEY_E;
+        default:
+            return AIKE_KEY_RESERVED;
+    }
+}
+
+void game_client_start_tracking_input(GameClient *gc) {
+    auto ic = &gc->inputConfig;
+    for(int i = 0; i < ic->inputCount; i++) {
+        auto inpt = ic->serverInputs[i];
+        switch(inpt.type) {
+            case SERVER_INPUT_TYPE_KEY:
+                if(inpt.flags&SERVER_INPUT_KEY_FLAG_TRACK_STATE) {
+                    int id = ic->trackedKeyCount++;
+                    ic->trackedKeys[id].inputId = i;
+                    ic->trackedKeys[id].platformKeycode = defaultKeycodeByTag(inpt.tag);
+                }
+                if(inpt.flags&(SERVER_INPUT_KEY_FLAG_TRACK_DOWN_EVENT|SERVER_INPUT_KEY_FLAG_TRACK_UP_EVENT)) {
+                    int id = ic->eventKeyCount++;
+                    ic->eventKeys[id].inputId = i;
+                    ic->eventKeys[id].platformKeycode = defaultKeycodeByTag(inpt.tag);
+                }
+                break;
+            case SERVER_INPUT_TYPE_ANALOG:
+                // TODO: implement
+                break;
+            case SERVER_INPUT_TYPE_SPHERICAL:
+                // TODO: implement
+                break;
+            default:
+                break;
+        };
+    }
+}
+
 // TODO: just have a string library with len+string?
 void process_server_property_string(GameClient *gc, uint32_t property, const char *str, uint32_t len) {
     switch(property) {
@@ -204,6 +270,7 @@ void process_server_property_string(GameClient *gc, uint32_t property, const cha
 void query_required_server_properties(GameClient *gc) {
     // format: id (uint16_t), count(uint8_t), [array of properties](uint8_t)
     // mapAssetId
+    // TODO: dont use program stack
     uint8_t mem[300];
     ByteStream stream;
     init_byte_stream(&stream, mem, sizeof(mem));
@@ -214,7 +281,18 @@ void query_required_server_properties(GameClient *gc) {
     enet_peer_send(gc->eServerPeer, 0, packet);
 }
 
+void query_server_inputs(GameClient *gc) {
+    // TODO: dont use program stack
+    uint8_t mem[300];
+    ByteStream stream;
+    init_byte_stream(&stream, mem, sizeof(mem));
+    stream_write_uint16(&stream, Game_Client_Command_Get_Server_Inputs);
+    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), ENET_PACKET_FLAG_RELIABLE);
+    enet_peer_send(gc->eServerPeer, 0, packet);
+}
+
 void notify_world_ready(GameClient *gc) {
+    // TODO: dont use program stack
     uint8_t mem[64];
     ByteStream stream;
     init_byte_stream(&stream, mem, sizeof(mem));
@@ -260,13 +338,40 @@ void process_packet(GameClient *gc, void *data, size_t dataLen)
                         break;
                 }
             } break;
+        case Game_Server_Command_Server_Input_Config:
+            {
+                uint8_t icount;
+                uint8_t type;
+                uint8_t tag;
+                uint8_t flags;
+                success = stream_read_uint8(&stream, &icount);
+                auto ic = &gc->inputConfig;
+                if(success) {
+                    for(int iidx = 0; iidx < icount; iidx++) {
+                        success &= stream_read_uint8(&stream, &type);
+                        success &= stream_read_uint8(&stream, &tag);
+                        success &= stream_read_uint8(&stream, &flags);
+                        if(!success)
+                            break;
+                        else {
+                            ic->serverInputs[iidx].type = type;
+                            ic->serverInputs[iidx].tag = tag;
+                            ic->serverInputs[iidx].flags = flags;
+                        }
+                    }
+                }
+                if(success) {
+                    ic->inputCount = icount;
+                    game_client_start_tracking_input(gc);
+                }
+            } break;
         case Game_Server_Command_Create_DynEntities:
             {
                 uint16_t count;
                 success &= stream_read_uint16(&stream, &count);
                 if(!success) break;
                 printf("Client create %hu dynamic entities, size: %zu\n", count, dataLen);
-                V3 pos; Quat rot;
+                V3 pos, scale; Quat rot;
                 Mat4 mat;
                 uint32_t entityId, objectId;
                 for(int i = 0; i < count; i++)
@@ -274,18 +379,19 @@ void process_packet(GameClient *gc, void *data, size_t dataLen)
                     success &= stream_read_uint32(&stream, &objectId);
                     success &= stream_read_uint32(&stream, &entityId);
                     success &= stream_read_v3(&stream, &pos);
+                    success &= stream_read_v3(&stream, &scale);
                     success &= stream_read_quat(&stream, &rot);
                     if(!success)
                         break;
 
-                    mat4_trs(&mat, pos, rot, (V3){1.0f, 1.0f, 1.0f});
+                    mat4_trs(&mat, pos, rot, scale);
                     auto dynEnt = pool_allocate(gc->dynEntityPool);
                     assert(dynEnt);
                     dynEnt->id = dynEnt - gc->dynEntityPool;
                     dynEnt->serverId = entityId;
-                    dynEnt->entityId = tess_create_entity(gc->world, objectId, &mat);
+                    dynEnt->entityId = tess_create_entity(gc->world, objectId, pos, rot, scale, &mat);
                     assert(dynEnt->entityId != 0); // world in invalid state, possibly world not reset before started loading?
-                    transform_init(&dynEnt->ntransform, pos, rot);
+                    transform_init(&dynEnt->ntransform, pos, rot, scale);
                     buf_push(gc->dynEntities, dynEnt);
 
                     int dummy;
@@ -316,7 +422,9 @@ void process_packet(GameClient *gc, void *data, size_t dataLen)
                     //printf("update %d seq %hu pos %f %f %f\n", entityId, seq, pos.x, pos.y, pos.z);
 
                     khiter_t k = kh_get(uint32, gc->serverDynEntityMap, entityId);
-                    if(k == kh_end(gc->serverDynEntityMap)) break;
+                    // not created, skip
+                    if(k == kh_end(gc->serverDynEntityMap)) 
+                        continue;
                     uint32_t dynEntId = kh_val(gc->serverDynEntityMap, k);
                     auto dynEnt = game_client_get_dynamic_entity(gc, dynEntId);
                     assert(dynEnt);
@@ -334,8 +442,16 @@ void process_packet(GameClient *gc, void *data, size_t dataLen)
                     success &= stream_read_uint32(&stream, &entityId);
                     if(!success) break;
                     game_client_destroy_dyn_ent(gc, entityId);
-                    printf("destroy %d\n", entityId);
+                    printf("client destroy dyn entityid %d\n", entityId);
                 }
+            } break;
+        case Game_Server_Command_Player_Reflection:
+            {
+                V3 pos;
+                success &= stream_read_v3(&stream, &pos);
+                v3_add(&pos, pos, (V3){0.0f, 1.5f, 0.0f});
+                TessCamera *cam = &gc->client->gameSystem.defaultCamera;
+                cam->position = pos;
             } break;
         default:
             break;
@@ -379,13 +495,15 @@ char *asset_type_to_string(enum TessAssetType type) {
             return "Tess_Asset_Object";
         case Tess_Asset_Map:
             return "Tess_Asset_Map";
+        case Tess_Asset_Collider:
+            return "Tess_Asset_Collider";
         default:
             return "N/A";
     }
 }
 
 
-void draw_game_debug_ui(TessClient *client) {
+void draw_game_debug_ui(TessClient *client, TessServer *server) {
     struct nk_context *ctx = &client->uiSystem.nk_ctx; 
     char buf[512];
     TessAssetSystemMetrics asMetrics;
@@ -413,32 +531,147 @@ void draw_game_debug_ui(TessClient *client) {
 
     if(nk_begin(ctx, "Asset list", nk_rect(0, 350, 900, 600),
                 NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_CLOSABLE|NK_WINDOW_SCALABLE)) {
-        for(int i = 0; i < count2; i++) {
-            nk_layout_row_dynamic(ctx, 15, 5);
-            nk_label(ctx, assets[i].assetId->cstr, NK_TEXT_ALIGN_LEFT);
-            nk_label(ctx, asset_status_to_string(assets[i].status), NK_TEXT_ALIGN_LEFT);
-            nk_label(ctx, asset_status_to_string(assets[i].target), NK_TEXT_ALIGN_LEFT);
-            nk_label(ctx, asset_type_to_string(assets[i].type), NK_TEXT_ALIGN_LEFT);
-            nk_labelf(ctx, NK_TEXT_LEFT, "%d", assets[i].refCount); 
-        }
-    }
-    nk_end(ctx);
-    free(assets);
 
+        if(nk_tree_push(ctx, NK_TREE_TAB, "clientxx", NK_MINIMIZED)) {
+            for(int i = 0; i < count2; i++) {
+                nk_layout_row_dynamic(ctx, 15, 5);
+                nk_label(ctx, assets[i].assetId->cstr, NK_TEXT_ALIGN_LEFT);
+                nk_label(ctx, asset_status_to_string(assets[i].status), NK_TEXT_ALIGN_LEFT);
+                nk_label(ctx, asset_status_to_string(assets[i].target), NK_TEXT_ALIGN_LEFT);
+                nk_label(ctx, asset_type_to_string(assets[i].type), NK_TEXT_ALIGN_LEFT);
+                nk_labelf(ctx, NK_TEXT_LEFT, "%d", assets[i].refCount); 
+            }
+            nk_tree_pop(ctx);
+        }
+        count = tess_get_asset_list(&client->server->assetSystem, NULL);
+        TessListedAsset *assets2 = malloc(count * sizeof(TessListedAsset));
+        count2 = tess_get_asset_list(&client->server->assetSystem, assets2);
+        if(nk_tree_push(ctx, NK_TREE_TAB, "serverxx", NK_MINIMIZED)) {
+            for(int i = 0; i < count2; i++) {
+                nk_layout_row_dynamic(ctx, 15, 5);
+                nk_label(ctx, assets2[i].assetId->cstr, NK_TEXT_ALIGN_LEFT);
+                nk_label(ctx, asset_status_to_string(assets2[i].status), NK_TEXT_ALIGN_LEFT);
+                nk_label(ctx, asset_status_to_string(assets2[i].target), NK_TEXT_ALIGN_LEFT);
+                nk_label(ctx, asset_type_to_string(assets2[i].type), NK_TEXT_ALIGN_LEFT);
+                nk_labelf(ctx, NK_TEXT_LEFT, "%d", assets2[i].refCount); 
+            }
+            nk_tree_pop(ctx);
+        }
+        free(assets2);
+    }
+    free(assets);
+    nk_end(ctx);
 }
 
+void game_client_add_event(GameClient *gclient, GameClientEvent *event) {
+    uint32_t id = gclient->frameClientEventCount++;
+    assert(id < GAME_CLIENT_MAX_EVENTS_PER_FRAME);
+    if(id < GAME_CLIENT_MAX_EVENTS_PER_FRAME) {
+        gclient->frameClientEvents[id] = *event;
+    }
+}
+
+// this is game logic update (synced to server tickrate)
+void game_client_tick(GameClient *gclient) {
+    TessInputSystem *in = &gclient->inputSystem;
+    tess_input_begin(in);
+
+    // TODO: compose update packet (input, events)
+
+    ClientInputConfig *ic = &gclient->inputConfig;
+    int inputBitfieldLen = (ic->trackedKeyCount/8) + (ic->trackedKeyCount%8 != 0);
+    uint8_t bitfield[256];
+    memset(bitfield, 0, inputBitfieldLen);
+    for(int i = 0; i < ic->trackedKeyCount; i++) {
+        int idx = i/8;
+        int bit = i%8;
+        auto val = in->keyStates[ic->trackedKeys[i].platformKeycode] != 0; 
+        bitfield[idx] |= (val<<bit);
+        //printf("%d", val);
+    }
+    //printf(" (%d bytes)\r\n", inputBitfieldLen);
+
+    GameClientEvent e;
+    for(int i = 0; i < ic->eventKeyCount; i++) {
+        uint8_t serverId = ic->eventKeys[i].inputId;
+        uint8_t flags = ic->serverInputs[serverId].flags;
+        uint8_t keycode = ic->eventKeys[i].platformKeycode;
+        if(flags&SERVER_INPUT_KEY_FLAG_TRACK_UP_EVENT){ 
+            if(in->keyStates[keycode] == 0 && in->keyStatesPrev[keycode] != 0) {
+                //printf("tracked key up\r\n");
+                e.type = Game_Client_Event_Key_Up;
+                e.keyEdge.serverInputId = serverId;
+                game_client_add_event(gclient, &e);
+            }
+        }
+        if(flags&SERVER_INPUT_KEY_FLAG_TRACK_DOWN_EVENT) {
+            if(in->keyStates[keycode] != 0 && in->keyStatesPrev[keycode] == 0) {
+                // TODO: queue event
+                //printf("tracked key down\r\n");
+                e.type = Game_Client_Event_Key_Down;
+                e.keyEdge.serverInputId = serverId;
+                game_client_add_event(gclient, &e);
+            }
+        }
+    }
+
+
+    // TODO: use temp memory
+    uint8_t mem[1024];
+    ByteStream stream;
+
+    // send update data that does not need to be resent if lost
+    init_byte_stream(&stream, mem, sizeof(mem));
+    stream_write_uint16(&stream, Game_Client_Command_Update_Unreliable);
+    stream_write_uint16(&stream, (uint16_t)gclient->tickId);
+    stream_write_uint8(&stream, inputBitfieldLen);
+    for(int i = 0; i < inputBitfieldLen; i++) {
+        stream_write_uint8(&stream, bitfield[i]);
+    }
+    stream_write_v2(&stream, gclient->camRot);
+    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), 0);
+    enet_peer_send(gclient->eServerPeer, 1, packet);
+
+    // send data that needs to be reliable
+    init_byte_stream(&stream, mem, sizeof(mem));
+    stream_write_uint16(&stream, Game_Client_Command_Update_Reliable);
+    stream_write_uint16(&stream, (uint16_t)gclient->tickId);
+    stream_write_uint8(&stream, gclient->frameClientEventCount);
+    // TODO: just split into multiple packets when this happens
+    assert(gclient->frameClientEventCount <= 255);
+    for(int i = 0; i < gclient->frameClientEventCount; i++) {
+        auto e = &gclient->frameClientEvents[i];
+        stream_write_uint8(&stream, e->type);
+        switch(e->type) {
+            case Game_Client_Event_Key_Up:
+            case Game_Client_Event_Key_Down:
+                stream_write_uint8(&stream, e->keyEdge.serverInputId);
+                break;
+        }
+    }
+    if(stream_get_offset(&stream) > 5) { // no point sending empty packet!
+        packet = enet_packet_create(stream.start, stream_get_offset(&stream), ENET_PACKET_FLAG_RELIABLE);
+        enet_peer_send(gclient->eServerPeer, 0, packet);
+    }
+
+    tess_input_end(in);
+    gclient->tickId++;
+    gclient->frameClientEventCount = 0;
+}
+
+// this is visual/render update
 void play_update(TessClient *client, double dt, uint16_t frameId)
 {
-    static V2 camRot;
-
     TessCamera *cam = &client->gameSystem.defaultCamera;
     TessInputSystem *input = &client->inputSystem;
+    GameClient *gc = &client->gameClient;
 
     V3 forward = make_v3(0.0f, 0.0f, 0.1f);
     V3 right;
     quat_v3_mul_dir(&forward, cam->rotation, make_v3(0.0f, 0.0f, 0.01f));
     quat_v3_mul_dir(&right, cam->rotation, make_v3(0.01f, 0.0f, 0.0f));
 
+    if(key(input, AIKE_KEY_TAB)) {
         if(key(input, AIKE_KEY_W))
             v3_add(&cam->position, cam->position, forward);
         if(key(input, AIKE_KEY_S))
@@ -447,13 +680,18 @@ void play_update(TessClient *client, double dt, uint16_t frameId)
             v3_add(&cam->position, cam->position, right);
         if(key(input, AIKE_KEY_A))
             v3_sub(&cam->position, cam->position, right);
+    }
 
-        v2_add(&camRot, camRot, input->mouseDelta);
-        camRot = make_v2(camRot.x, MAX(camRot.y, -90.0f));
-        camRot = make_v2(camRot.x, MIN(camRot.y, 90.0f));
+    V2 scaledMouseD;
+    v2_scale(&scaledMouseD, TT_PI32/180.0f, input->mouseDelta);
+    v2_add(&gc->camRot, gc->camRot, scaledMouseD);
+    gc->camRot = make_v2(gc->camRot.x, MAX(gc->camRot.y, -90.0f*TT_DEG2RAD_F));
+    gc->camRot = make_v2(gc->camRot.x, MIN(gc->camRot.y, 90.0f*TT_DEG2RAD_F));
+    gc->camRot.x = fmodf(gc->camRot.x, TT_PI32*2.0f);
+    gc->camRot.y = fmodf(gc->camRot.y, TT_PI32*2.0f);
 
     Quat xRot;
-    quat_euler_deg(&xRot, make_v3(camRot.y, camRot.x, 0.0f));
+    quat_euler(&xRot, make_v3(gc->camRot.y, gc->camRot.x, 0.0f));
     cam->rotation = xRot;
 
     if(key(input, AIKE_KEY_ESC))
@@ -461,19 +699,17 @@ void play_update(TessClient *client, double dt, uint16_t frameId)
         game_exit(&client->gameClient);
     }
 
-    GameClient *gc = &client->gameClient;
     int count = buf_len(gc->dynEntities);
     for(int i = 0; i < count; i++)
     {
         GameClientDynEntity *dent = gc->dynEntities[i];
         transform_advance(&dent->ntransform, dt, frameId);
         TessEntity *ent = tess_get_entity(gc->world, dent->entityId);
-        Quat rot = {1.0f, 0.0f, 0.0f, 0.0f};
-        V3 npos; Quat nrot;
-        transform_get(&dent->ntransform, &npos, &nrot);
+        V3 npos, nscale; Quat nrot;
+        transform_get(&dent->ntransform, &npos, &nrot, &nscale);
         //printf("pos %f %f %f\n", npos.x, npos.y, npos.z);
-        mat4_trs(&ent->objectToWorld, npos, rot, (V3){1.0f, 1.0f, 1.0f});
+        mat4_trs(&ent->objectToWorld, npos, nrot, nscale);
     }
-    draw_game_debug_ui(client);
+    draw_game_debug_ui(client, client->server);
 }
 

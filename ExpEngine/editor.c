@@ -172,7 +172,7 @@ TessEditorEntity* editor_create_object(TessEditor *editor, uint32_t objectId)
 {
     Mat4 identity;
     mat4_identity(&identity);
-    uint32_t entityId = tess_create_entity(editor->world, objectId, &identity);
+    uint32_t entityId = tess_create_entity(editor->world, objectId, V3_ZERO, QUAT_IDENTITY, V3_ONE, &identity);
     TessEditorEntity *edEnt = pool_allocate(editor->edEntityPool);
     assert(edEnt); // TODO: deal with this properly!
     edEnt->entityId = entityId;
@@ -673,6 +673,8 @@ void editor_update(TessEditor *editor)
             quat_euler_deg(&rotation, edEnt->eulerRotation);
             mat4_trs(&objectToWorld, edEnt->position, rotation, edEnt->scale);
             ent->objectToWorld = objectToWorld;
+            ent->pos = edEnt->position;
+            ent->rot = rotation;
             edEnt->localDirty = false;
         }
     }

@@ -158,6 +158,17 @@ static inline bool stream_advance(struct ByteStream *stream, uint32_t count)
     return true;
 }
 
+static inline bool stream_write_v2(struct ByteStream *stream, struct V2 vec) {
+    if(stream->cur + 8 > stream->end)
+        return false;
+    uint8_t *vdata = (uint8_t*)&vec;
+    for(int i = 0; i < 8; i++) {
+        stream->cur[i] = vdata[i];
+    }
+    stream->cur += 8;
+    return true;
+}
+
 static inline bool stream_write_v3(struct ByteStream *stream, struct V3 vec)
 {
     if(stream->cur + 12 > stream->end)
@@ -219,6 +230,19 @@ static inline bool stream_write_str(struct ByteStream *stream, const char *str, 
     for(int i = 0; i < len; i++)
         stream->cur[i] = str[i];
     stream->cur += len;
+    return true;
+}
+
+static inline bool stream_read_v2(struct ByteStream *stream, struct V2 *value)
+{
+    static_assert(sizeof(struct V2) == 8, "V2 assumed to have size 8!");
+    if(stream->cur + 8 > stream->end)
+        return false;
+    // TODO: is this safe on all platforms?
+    uint8_t *valB = (uint8_t*)value;
+    for(int i = 0; i < 8; i++)
+        valB[i] = stream->cur[i];
+    stream->cur += 8;
     return true;
 }
 

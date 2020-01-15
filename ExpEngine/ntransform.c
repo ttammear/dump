@@ -17,8 +17,9 @@ static inline int seq16_sdif(uint16_t a, uint16_t b)
 
 #define ABS(x) ((x)<0?-(x):(x))
 
-void transform_init(NetworkedTransform *t, V3 pos, Quat rot)
+void transform_init(NetworkedTransform *t, V3 pos, Quat rot, V3 scale)
 {
+    t->scale = scale;
     t->fromSeq = 65534;
     t->progress = 0.0;
     t->seqs[65534%NTRANS_BUF_SIZE] = 65534;
@@ -72,10 +73,12 @@ void transform_advance(NetworkedTransform *t, double dt, uint16_t frameId)
     t->progress += progress;
 }
 
-void transform_get(NetworkedTransform *t, V3 *pos, Quat *rot)
+void transform_get(NetworkedTransform *t, V3 *pos, Quat *rot, V3 *scale)
 {
     V3 startPos = t->positions[t->fromSeq%NTRANS_BUF_SIZE];
     V3 endPos = t->positions[(t->fromSeq+1)%NTRANS_BUF_SIZE];
+    Quat startRot = t->rotations[t->fromSeq%NTRANS_BUF_SIZE];
+    Quat endRot = t->rotations[(t->fromSeq+1)%NTRANS_BUF_SIZE];
     if(t->seqs[t->fromSeq%NTRANS_BUF_SIZE] != t->seqs[(t->fromSeq+1)%NTRANS_BUF_SIZE]-1)
     {
         static int last;
@@ -87,5 +90,6 @@ void transform_get(NetworkedTransform *t, V3 *pos, Quat *rot)
         }
     }
     *pos = v3_lerp(startPos, endPos, t->progress); 
-    quat_identity(rot);
+    *rot = quat_nlerp(startRot, endRot, t->progress);
+    *scale = t->scale;
 }

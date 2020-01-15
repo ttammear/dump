@@ -65,10 +65,15 @@ KHASH_MAP_INIT_INT64(uint32, uint32_t)
 #include "debug.c"
 #endif
 
-#include "mathsc.h"
+#define TTMATH_IMPLEMENTATION
+#include "ttmath.h"
+#undef TTMATH_IMPLEMENTATION
+//#include "mathsc.h"
 #include "test.h"
 #include "memory.h"
 #include "resourceformat.c"
+#include "networkinput.h"
+#include "physics.h"
 #include "tess.h"
 
 #include "renderer.h"
@@ -97,6 +102,8 @@ KHASH_MAP_INIT_INT64(uint32, uint32_t)
 #include "coreclrhost.h"
 #include "coreclr_host.c"
 
+
+#include "firstpersoncontroller.c"
 #include "gameserver.c"
 #include "server.c"
 

@@ -11,11 +11,13 @@ cd ..
 
 set -e
 
-CFLAGS='-Wno-multichar -pthread -std=c11 -ffast-math -O0 -g3 -DAIKE_X86'
+CFLAGS='-Wno-multichar -pthread -std=c11 -ffast-math -O0 -gdwarf-5 -DAIKE_X86'
 LFLAGS=''
 COMFLAGS=''
-CC='gcc'
-LINKER='ld'
+CC='clang'
+CXX='clang++-7'
+LINKER='clang'
+AR='ar'
 
 # compile platform
 if [ "$1" == 'platform' ]
@@ -28,6 +30,11 @@ fi
 # compile engine
 ENGTIME=$(date +%s%N)
 $CC -I./AikePlatform -I./libs/libcoro unitybuild.c $CFLAGS $COMFLAGS -fPIC -c -o ./obj/engine.o -D_DEBUG -D AIKE_AIO
+
+$CXX -c -O0 -fPIC -stdlib=libc++ -IPhysX/physx/include -IPhysX/pxshared/include physics_system_physx.cpp -IPhysX/physx/source/foundation/include  -D_DEBUG -o ./obj/physics.o
+
+$AR rcs ./obj/libtessphysics.a ./obj/physics.o
+
 echo "compiling engine $(($(($(date +%s%N) - $ENGTIME))/1000000))ms"
 
 #compile libs
@@ -41,8 +48,10 @@ $CC -shared -O2 -gdwarf-4 -fPIC libs_static.c -o ../ExpEngineBuild/libAikeDeps.s
 echo "compiling libs $(($(($(date +%s%N) - $LIBTIME))/1000000))ms"
 fi
 
+PHYSXLIBS='-LPhysX/physx/bin/linux.clang/release -lPhysX_static_64 -lSnippetUtils_static_64 -lPhysXCooking_static_64 -lPhysXPvdSDK_static_64 -lPhysXCharacterKinematic_static_64 -lPhysXExtensions_static_64 -lPhysXVehicle_static_64 -lPhysXCommon_static_64 -lPhysXFoundation_static_64'
+
 LINKTIME=$(date +%s%N)
-$LINKER ./obj/engine.o ../ExpEngineBuild/libAikeDeps.so ./libs/libcoro/libcoro.a -shared -lenet -lm -fPIC $LFLAGS $COMFLAGS -g -o ../ExpEngineBuild/libAike.so
+$LINKER ./obj/engine.o ./obj/physics.o ../ExpEngineBuild/libAikeDeps.so ./libs/libcoro/libcoro.a -shared $PHYSXLIBS -lenet -lm  -lpthread -fno-threadsafe-statics -fPIC $LFLAGS $COMFLAGS -g -o ../ExpEngineBuild/libAike.so
 echo "linking engine $(($(($(date +%s%N) - $LINKTIME))/1000000))ms"
 
 CURTIME=$(date +%s%N)

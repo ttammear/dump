@@ -36,18 +36,76 @@ Command update dynamic entities
 
 */
 
+void game_server_update_input_config(ServerInputConfig *si) {
+    int tid = 0;
+    for(int i = 0; i < SERVER_MAX_INPUTS; i++) {
+        if(i < si->inputCount && si->inputs[i].type == SERVER_INPUT_TYPE_KEY 
+                && (si->inputs[i].flags&SERVER_INPUT_KEY_FLAG_TRACK_STATE)) {
+            si->trackedKeyToInputId[tid++] = i; 
+        }    
+    }
+    for(int i = tid; i < SERVER_MAX_INPUTS; i++) {
+        si->trackedKeyToInputId[i] = 255;
+    }
+    si->trackedKeyCount = tid;
+}
+
+void game_server_default_input_config(ServerInputConfig *si) {
+    si->inputCount = 7;
+
+    si->inputs[0].type = SERVER_INPUT_TYPE_KEY;
+    si->inputs[0].tag = SERVER_INPUT_TAG_WALK_FORWARD;
+    si->inputs[0].flags = SERVER_INPUT_KEY_FLAG_TRACK_STATE;
+
+    si->inputs[1].type = SERVER_INPUT_TYPE_KEY;
+    si->inputs[1].tag = SERVER_INPUT_TAG_WALK_BACKWARD;
+    si->inputs[1].flags = SERVER_INPUT_KEY_FLAG_TRACK_STATE;
+
+    si->inputs[2].type = SERVER_INPUT_TYPE_KEY;
+    si->inputs[2].tag = SERVER_INPUT_TAG_WALK_RIGHT;
+    si->inputs[2].flags = SERVER_INPUT_KEY_FLAG_TRACK_STATE;
+
+    si->inputs[3].type = SERVER_INPUT_TYPE_KEY;
+    si->inputs[3].tag = SERVER_INPUT_TAG_WALK_LEFT;
+    si->inputs[3].flags = SERVER_INPUT_KEY_FLAG_TRACK_STATE;
+
+    si->inputs[4].type = SERVER_INPUT_TYPE_KEY;
+    si->inputs[4].tag = SERVER_INPUT_TAG_WALK_ACTION;
+    si->inputs[4].flags = SERVER_INPUT_KEY_FLAG_TRACK_UP_EVENT;
+
+    si->inputs[5].type = SERVER_INPUT_TYPE_KEY;
+    si->inputs[5].tag = SERVER_INPUT_TAG_WALK_JUMP;
+    si->inputs[5].flags = SERVER_INPUT_KEY_FLAG_TRACK_STATE;
+
+    si->inputs[6].type = SERVER_INPUT_TYPE_SPHERICAL;
+    si->inputs[6].tag = SERVER_INPUT_TAG_WALK_MOUSELOOK;
+    si->inputs[6].flags = SERVER_INPUT_SPHERE_FLAG_TRACK_STATE;
+
+    game_server_update_input_config(si);
+}
+
 
 void game_server_init(GameServer *gs)
 {
     coreclr_init(gs->platform, gs);
 
+    game_server_default_input_config(&gs->inputConfig);
+
+    uint32_t size = create_physx_physics(NULL);
+    gs->physics = malloc(size);
+    create_physx_physics(gs->physics);
+    gs->physics->init(gs->physics);
+
     assert(gs->mapAssetId); // Managed code should set map assetId
+    // load map (colliders and other server side stuff)
+    gs->mapReference = add_asset_reference(gs->assetSystem, gs->mapAssetId);    
+    gs->mapStatus = 1;
 
     ENetAddress address;
     address.host = ENET_HOST_ANY;
     address.port = 7777;
 
-    gs->eServer = enet_host_create(&address, 32, 2, 0, 0);
+    gs->eServer = enet_host_create(&address, 32, 3, 0, 0);
     if(NULL == gs->eServer)
     {
         fprintf(stderr, "Failed to create ENet host for server! Assuming server is already up...\n");
@@ -62,18 +120,41 @@ void game_server_init(GameServer *gs)
 
     gs->updateProgress = 0.0;
 
+    // box from sky
     __auto_type ent = pool_allocate(gs->dynEntityPool);
     ent->id = 0;
-    ent->objectId = 2;
-    ent->position = (V3){0.0f, 0.0f, 0.0f};
+    ent->objectId = 10;
+    ent->position = (V3){0.0f, 110.0f, 0.0f};
     ent->rotation = (Quat){1.0f, 0.0f, 0.0f, 0.0f};
+    ent->scale = (V3){1.0f, 1.0f, 1.0f};
     buf_push(gs->dynEntities, ent);
+    TessPhysicsSystem *p = gs->physics;
+    auto body = physx_create_dynamic_body(p, ent->position, ent->rotation, 1.0f, (void*)(0x80000000|0));
+    physx_attach_box_collider(p, body, V3_ZERO, QUAT_IDENTITY, (V3){0.5f, 0.5f, 0.5f});
+    physx_add_body_to_scene(p, body);
+
+    // ground
     ent = pool_allocate(gs->dynEntityPool);
     ent->id = 1;
-    ent->objectId = 2;
+    ent->objectId = 100;
     ent->position = (V3){0.0f, 0.0f, 0.0f};
     ent->rotation = (Quat){1.0f, 0.0f, 0.0f, 0.0f};
+    ent->scale = (V3){100.0f, 0.5f, 100.0f};
     buf_push(gs->dynEntities, ent);
+    body = physx_create_static_body(p, ent->position, ent->rotation, (void*)(0x80000000|1));
+    physx_attach_box_collider(p, body, V3_ZERO, QUAT_IDENTITY, (V3){50.0f, 0.25f, 50.0f});
+    physx_add_body_to_scene(p, body);
+
+    // dummy player
+    ent = pool_allocate(gs->dynEntityPool);
+    ent->id = 2;
+    ent->objectId = 100;
+    ent->position = (V3){0.0f, 5.0f, 0.0f};
+    ent->rotation = QUAT_IDENTITY;
+    ent->scale = (V3){0.5f, 1.8f, 0.5f};
+    buf_push(gs->dynEntities, ent);
+    auto controller = physx_create_capsule_controller(p, ent->position, (void*)(0x80000000|2));
+
 }
 
 void game_server_destroy(GameServer *gs)
@@ -85,6 +166,7 @@ void game_server_destroy(GameServer *gs)
     }
     buf_free(gs->connectedPeers);
     buf_free(gs->dynEntities);
+    gs->physics->destroy(gs->physics);
 }
 
 void game_server_send_all_dyn_create(GameServer *gs, ServerPeer *speer)
@@ -104,14 +186,20 @@ void game_server_send_all_dyn_create(GameServer *gs, ServerPeer *speer)
     {
         bool success = true;
         GameServerDynEntity *ent = gs->dynEntities[i];
-        success &= stream_write_uint32(&stream, ent->objectId);
-        success &= stream_write_uint32(&stream, ent->id);
-        success &= stream_write_v3(&stream, ent->position);
-        success &= stream_write_quat(&stream, ent->rotation);
-        if(success)
-        {
-            size = stream_get_offset(&stream);
-            writtenCount++;
+        // player self server state is sent separately
+        bool send =  speer->player.status != Server_Player_Status_Created
+                || speer->player.dynId != ent->id;
+        if(send) {
+            success &= stream_write_uint32(&stream, ent->objectId);
+            success &= stream_write_uint32(&stream, ent->id);
+            success &= stream_write_v3(&stream, ent->position);
+            success &= stream_write_v3(&stream, ent->scale);
+            success &= stream_write_quat(&stream, ent->rotation);
+            if(success)
+            {
+                size = stream_get_offset(&stream);
+                writtenCount++;
+            }
         }
         if(!success || i+1 >= count) // if did not fit or last element, send packet
         {
@@ -132,6 +220,10 @@ void game_server_send_all_dyn_create(GameServer *gs, ServerPeer *speer)
 
 void game_server_send_dyn_create(GameServer *gs, ServerPeer *speer, GameServerDynEntity *entity)
 {
+    /*if(speer->player.status == Server_Player_Status_Created
+            && speer->player.dynId == entity->id) {
+        return;
+    }*/
     uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
 
     ByteStream stream;
@@ -141,6 +233,7 @@ void game_server_send_dyn_create(GameServer *gs, ServerPeer *speer, GameServerDy
     stream_write_uint32(&stream, entity->objectId);
     stream_write_uint32(&stream, entity->id);
     stream_write_v3(&stream, entity->position);
+    stream_write_v3(&stream, entity->scale);
     stream_write_quat(&stream, entity->rotation);
     ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), ENET_PACKET_FLAG_RELIABLE);
     enet_peer_send(speer->ePeer, 1, packet);
@@ -163,6 +256,22 @@ void game_server_send_dyn_destroy(GameServer *gs, ServerPeer *speer, GameServerD
     stack_pop(gs->tempStack); 
 }
 
+void game_server_send_player_reflection(GameServer *gs, ServerPeer *peer) {
+    ServerPlayer *p = &peer->player;
+    if(p->status != Server_Player_Status_Created) {
+        return;
+    }
+    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
+    auto entity = gs->dynEntityPool + p->dynId;
+    ByteStream stream;
+    init_byte_stream(&stream, mem, 65536);
+    stream_write_uint16(&stream, Game_Server_Command_Player_Reflection);
+    stream_write_v3(&stream, entity->position);
+    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), 0);
+    enet_peer_send(peer->ePeer, 2, packet);
+    stack_pop(gs->tempStack);
+}
+
 GameServerDynEntity* game_server_create_dyn(GameServer *gs, uint32_t objectId, V3 pos, Quat rot)
 {
     auto ent = pool_allocate(gs->dynEntityPool);
@@ -181,16 +290,15 @@ GameServerDynEntity* game_server_create_dyn(GameServer *gs, uint32_t objectId, V
     return ent;
 }
 
-void game_server_destroy_dyn(GameServer *gs, GameServerDynEntity *entity)
+void game_server_destroy_dyn(GameServer *gs, uint32_t id)
 {
     int count = buf_len(gs->connectedPeers);
+    GameServerDynEntity *entity = gs->dynEntityPool + id;
     for(int i = 0; i < count; i++)
     {
         game_server_send_dyn_destroy(gs, gs->connectedPeers[i], entity);
     }
-    int index = buf_find_idx(gs->dynEntities, entity);
-    assert(index != -1);
-    buf_remove_at(gs->dynEntities, index);
+    buf_remove_at(gs->dynEntities, id);
     pool_free(gs->dynEntityPool, entity);
 }
 
@@ -216,6 +324,7 @@ void game_server_send_dyn_updates(GameServer *gs, ServerPeer *speer)
         success &= stream_write_uint16(&stream, ent->updateSeq);
         success &= stream_write_v3(&stream, ent->position);
         success &= stream_write_quat(&stream, ent->rotation);
+       
         if(success)
         {
             size = stream_get_offset(&stream);
@@ -262,6 +371,66 @@ void server_send_property(GameServer *gs, ServerPeer *sp, uint8_t prop) {
     stack_pop(gs->tempStack);
 }
 
+void server_send_input_config(GameServer *gs, ServerPeer *sp) {
+    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
+    ByteStream stream;
+    init_byte_stream(&stream, mem, 65536);
+    stream_write_uint16(&stream, Game_Server_Command_Server_Input_Config);
+    uint8_t count = gs->inputConfig.inputCount;
+    stream_write_uint8(&stream, count);
+    for(int i = 0; i < count; i++) {
+        stream_write_uint8(&stream, gs->inputConfig.inputs[i].type);
+        stream_write_uint8(&stream, gs->inputConfig.inputs[i].tag);
+        stream_write_uint8(&stream, gs->inputConfig.inputs[i].flags);
+    }
+    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), ENET_PACKET_FLAG_RELIABLE);
+    enet_peer_send(sp->ePeer, 1, packet);
+    stack_pop(gs->tempStack);
+}
+
+void server_queue_input_event(GameServer *gs, ServerPeer *sp, ServerPlayerInputEvent* e) {
+    // TODO: implement this
+    if(sp->player.input.pendingEventCount < SERVER_PLAYER_INPUT_MAX_EVENTS) {
+        uint32_t id = sp->player.input.pendingEventCount++;
+        // TODO: additional checks ?
+        sp->player.input.pendingEvents[id] = *e;
+    }
+}
+
+void game_server_create_player(GameServer *gs, ServerPlayer *sp) {
+    assert(sp->status == Server_Player_Status_None);
+    //V3 pos = (V3){-1500.0f, 50.0f, -900.0f};
+    V3 pos = (V3) {-1245.153320, 100.902983, -1070.290527};
+    TessPhysicsSystem *p = gs->physics;
+
+    GameServerDynEntity *ent = game_server_create_dyn(gs, 200, pos, QUAT_IDENTITY);
+    ent->scale = (V3){0.5f, 1.8f, 0.5f};
+    auto controller = physx_create_capsule_controller(p, pos, (void*)(intptr_t)(0x80000000|ent->id));
+    sp->fpc.phys = p;
+    sp->fpc.characterController = controller;
+    sp->fpc.velocity = (V3){0.0f, 0.0f, 0.0f};
+    sp->status = Server_Player_Status_Created;
+    sp->dynId = ent->id;
+    
+    // reset input
+    sp->input.sphericalState = (V2){0.0f, 0.0f};
+    memset(sp->input.keyStates, 0, sizeof(sp->input.keyStates));
+    sp->input.pendingEventCount = 0;
+}
+
+void game_server_destroy_player(GameServer *gs, ServerPlayer *sp) {
+    TessPhysicsSystem *p = gs->physics;
+
+    //game_server_destroy_dyn(gs, entity);
+    assert(sp->status == Server_Player_Status_Created);
+    physx_destroy_capsule_controller(p, sp->fpc.characterController);
+    sp->fpc.characterController = NULL;
+    game_server_destroy_dyn(gs, sp->dynId);
+    sp->dynId = -1;
+
+    sp->status = Server_Player_Status_None;
+}
+
 void server_process_packet(GameServer *gs, ServerPeer *sp, void* data, size_t dataLen) {
     ByteStream stream;
     init_byte_stream(&stream, data, dataLen);
@@ -286,13 +455,96 @@ void server_process_packet(GameServer *gs, ServerPeer *sp, void* data, size_t da
             } break;
         case Game_Client_Command_World_Ready:
             {
+                if(sp->player.status == Server_Player_Status_None) {
+                    game_server_create_player(gs, &sp->player);
+                }
                 if((sp->flags&Server_Peer_Flag_World_Ready) == 0) {
                     game_server_send_all_dyn_create(gs, sp);
                     sp->flags |= Server_Peer_Flag_World_Ready;
                 }
             } break;
+        case Game_Client_Command_Get_Server_Inputs:
+            {
+                server_send_input_config(gs, sp);
+            } break;
+        case Game_Client_Command_Update_Reliable:
+            {
+                // 2 byte tickId
+                // 1 byte clientEventCount
+                // [ client events ]
+                uint16_t tickId;
+                uint8_t eventCount;
+                ServerPlayerInputEvent e;
+                ServerInputConfig *ic = &gs->inputConfig;
+                success &= stream_read_uint16(&stream, &tickId);
+                success &= stream_read_uint8(&stream, &eventCount);
+                for(int i = 0; i < eventCount && success; i++) {
+                    uint8_t eventId;
+                    uint8_t inputId;
+                    success &= stream_read_uint8(&stream, &eventId);
+                    if(!success) break;
+                    switch(eventId) {
+                        case Game_Client_Event_Key_Down:
+                        case Game_Client_Event_Key_Up:
+                            e.type = eventId == Game_Client_Event_Key_Up ? Server_Player_Input_Event_Key_Up : Server_Player_Input_Event_Key_Down;
+                            success &= stream_read_uint8(&stream, &inputId);
+                            if(success && inputId < ic->inputCount) {
+                                e.keyEdge.serverInputId = inputId;
+                                server_queue_input_event(gs, sp, &e);
+                            }
+                            break;
+                        default:
+                            goto reliable_update_done;
+                    }
+                }
+            } 
+reliable_update_done:
+            break;
+        case Game_Client_Command_Update_Unreliable:
+            {
+                // 2 byte tickId
+                // 1 byte input bitfield length
+                // [ bitfield bytes ]
+                uint16_t tickId;
+                V2 camRot;
+                ServerInputConfig *ic = &gs->inputConfig;
+                ServerPlayerInput *spi = &sp->player.input;
+                uint8_t bcount;
+                success &= stream_read_uint16(&stream, &tickId);
+                success &= stream_read_uint8(&stream, &bcount);
+                uint8_t safeBcount = MIN(SERVER_MAX_INPUTS/8, bcount);
+                uint8_t bitfield[SERVER_MAX_INPUTS/8];
+                for(int i = 0; i < safeBcount && success; i++){ 
+                    success &= stream_read_uint8(&stream, bitfield + i);
+                }
+                success &= stream_read_v2(&stream, &camRot);
+                if(success) {
+                    for(int i = 0; i < ic->trackedKeyCount; i++) {
+                        uint32_t b = (bitfield[i/8]>>(i%8)) & 1;
+                        uint32_t inputId = ic->trackedKeyToInputId[i];
+                        if(inputId < ic->inputCount) {
+                            spi->keyStates[inputId] = b;
+                        }
+                    }
+                    spi->sphericalState = camRot;
+                }
+            } break;
         default:
             return;
+    }
+}
+
+void game_server_load_map(GameServer *gs, TessMapAsset *map) {
+    tess_reset_world(&gs->gameSystem);
+    for(int i = 0; i < map->mapObjectCount; i++) {
+        TessMapObject *obj = map->objects + i;
+        tess_register_object(&gs->gameSystem, obj->objectid, obj->assetId);
+    }
+    for(int i = 0; i < map->mapEntityCount; i++) {
+        Mat4 modelToWorld;
+        TessMapEntity *ent = map->entities + i;
+        mat4_trs(&modelToWorld, ent->position, ent->rotation, ent->scale);
+        tess_create_entity(&gs->gameSystem, ent->objectId, ent->position, ent->rotation, ent->scale, &modelToWorld);
     }
 }
 
@@ -301,6 +553,25 @@ void game_server_update(GameServer *gs, double dt)
     PROF_BLOCK();
     if(NULL == gs->eServer)
         return;
+
+    // TODO: just use coroutine ?
+    if(gs->mapStatus == 1) {
+        TessAssetStatus status = tess_get_asset_status(gs->assetSystem, gs->mapAssetId);
+        if(status == Tess_Asset_Status_Fail || status == Tess_Asset_Status_Loaded) {
+            TessAsset *map = tess_get_asset(gs->assetSystem, gs->mapAssetId);
+            if(map == NULL) {
+                fprintf(stderr, "Map asset could not be loaded!\r\n");
+                assert(0);
+            } else {
+                gs->mapStatus = 2;
+                game_server_load_map(gs, (TessMapAsset*)map);
+            }
+        }
+        return;
+    }
+
+    static double physicsTime;
+    const double physicsTimestep = 1.0/60.0;
 
     ENetEvent event;
     while(enet_host_service(gs->eServer, &event, 0) > 0)
@@ -323,10 +594,10 @@ void game_server_update(GameServer *gs, double dt)
                         printf("Server full, connect denied!\n");
                         enet_peer_disconnect(event.peer, 0);
                     }
-                }break;
+                } break;
             case ENET_EVENT_TYPE_RECEIVE:
                 {
-                    printf("Received packet. Size: %zu\n", event.packet->dataLength);
+                    //printf("Server received packet. Size: %zu\n", event.packet->dataLength);
                     ServerPeer *speer = (ServerPeer*)event.peer->data;
                     server_process_packet(gs, speer, event.packet->data, event.packet->dataLength);
                     enet_packet_destroy(event.packet);
@@ -335,6 +606,11 @@ void game_server_update(GameServer *gs, double dt)
                 {
                     ServerPeer *speer = (ServerPeer*)event.peer->data;
                     printf("Game client disconnected: %x:%u\n", event.peer->address.host, event.peer->address.port);
+
+                    if(speer->player.status == Server_Player_Status_Created) {
+                        game_server_destroy_player(gs, &speer->player);
+                    }
+
                     int idx = buf_find_idx(gs->connectedPeers, speer);
                     if(idx != -1)
                     {
@@ -342,10 +618,80 @@ void game_server_update(GameServer *gs, double dt)
                         pool_free(gs->peerPool, speer);
                     }
                     event.peer->data = NULL;
-                }
-                break;
+                } break;
             default: 
                 break;
+        }
+    }
+
+    // process player input events
+    for(int i = 0; i < buf_len(gs->connectedPeers); i++) {
+        auto peer = gs->connectedPeers[i];
+        auto spi = &peer->player.input;
+        for(int j = 0; j < spi->pendingEventCount; j++) {
+            auto e = &spi->pendingEvents[j];
+            switch(e->type) {
+                case Server_Player_Input_Event_Key_Up:
+                    break;
+                case Server_Player_Input_Event_Key_Down:
+                    break;
+                default:
+                    break;
+            }
+        }
+        spi->pendingEventCount = 0;
+    }
+
+    TessPhysicsSystem *p = gs->physics;
+
+    // move players
+    for(int i = 0; i < buf_len(gs->connectedPeers); i++) {
+        auto peer = gs->connectedPeers[i];
+        auto sp = &peer->player;
+        auto spi = &peer->player.input;
+        if(peer->player.status == Server_Player_Status_Created) {
+
+            FirstPersonControls ctrl = {
+                .forward = spi->keyStates[0] != 0,
+                .backward = spi->keyStates[1] != 0,
+                .right = spi->keyStates[2] != 0,
+                .left = spi->keyStates[3] != 0,
+                .jump = spi->keyStates[5] != 0,
+                .yawRad = spi->sphericalState.x,
+            };
+
+
+            first_person_update(&peer->player.fpc, dt, &ctrl);
+        }
+    }
+
+    // simulate physics
+    physicsTime += dt;
+    while(physicsTime >= physicsTimestep) {
+        physx_simulate(p, physicsTimestep);
+        physicsTime -= physicsTimestep;
+
+        V3 pos[10];
+        Quat rot[10];
+        void *usrPtr[10];
+        uint32_t c = physx_get_active_bodies(p, pos, rot, usrPtr, 10);
+        //printf("%d active bodies\r\n", c);
+        for(int i = 0; i < c; i++) {
+            uint32_t id = (uint32_t)usrPtr[i];
+            if(id&0x80000000) {
+                id &= 0x7FFFFFFF;
+                gs->dynEntities[id]->position = pos[i];
+                gs->dynEntities[id]->rotation = rot[i];
+            }
+            //printf("%d (%.2f %.2f %.2f) (%.2f %.2f %.2f %.2f)\r\n", i, pos[i].x, pos[i].y, pos[i].z, rot[i].w, rot[i].x, rot[i].y, rot[i].z);
+        }
+        c = physx_get_controllers(p, pos, usrPtr, 10);
+        for(int i = 0; i < c; i++) {
+            uint32_t id = (uint32_t)usrPtr[i];
+            if(id&0x80000000) {
+                id &= 0x7FFFFFFF;
+                gs->dynEntities[id]->position = pos[i];
+            }
         }
     }
 
@@ -360,10 +706,8 @@ void game_server_update(GameServer *gs, double dt)
         {
             ServerPeer *speer = gs->connectedPeers[i];
 
-            gs->dynEntities[0]->position.x = sinf(elapsed)*10.0f;
-            gs->dynEntities[1]->position.z = cosf(elapsed)*10.0f;
-
             game_server_send_dyn_updates(gs, speer);
+            game_server_send_player_reflection(gs, speer);
 
             enet_host_flush(gs->eServer);
         }

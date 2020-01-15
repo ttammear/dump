@@ -31,12 +31,6 @@ void aike_update_window(AikePlatform *platform, AikeWindow *win)
     }
 }
 
-// TODO: delete?
-void test_task(void *data) {
-    printf("Task %p\n", data);
-    scheduler_task_end();
-}
-
 void aike_init(AikePlatform *platform)
 {
     DEBUG_INIT("Main thread");
@@ -63,15 +57,17 @@ void aike_init(AikePlatform *platform)
     root->loaded = false;
     platform->userData = root;
 
-    tess_client_init(&root->client, platform, renderer);
+    tess_client_init(&root->client, platform, renderer, &root->server);
 
     // TODO: ... no
     root->client.renderSystem.rtW = platform->mainWin.width;
     root->client.renderSystem.rtH = platform->mainWin.height;
 
+    // TODO: scheduler should not use client's arena
+    scheduler_init(&root->scheduler, &root->client.arena, &root->client, &root->server);
+
     tess_server_init(&root->server, platform);
 
-    scheduler_init(&root->scheduler, &root->client.arena, &root->client, &root->server);
 
     root->client.gameSystem.defaultCamera.aspectRatio = platform->mainWin.width/platform->mainWin.height;
     root->client.gameSystem.defaultCamera.FOV = 75.0f;
@@ -92,14 +88,6 @@ void aike_init(AikePlatform *platform)
         tess_gen_lookup_cache_for_package(&root->client.assetSystem, packageName);
     }
 
-    tess_refresh_package_list(&root->server.assetSystem);
-    count = buf_len(root->server.assetSystem.packageList);
-    for(int i = 0; i < count; i++) {
-        TStr *packageName = root->server.assetSystem.packageList[i];
-        printf("Generating (server) lookup cache for package '%s'\n", packageName->cstr);
-        tess_gen_lookup_cache_for_package(&root->server.assetSystem, packageName);
-    }
-
     if (enet_initialize () != 0)
     {
         fprintf (stderr, "An error occurred while initializing ENet.\n");
@@ -109,10 +97,6 @@ void aike_init(AikePlatform *platform)
     printf("client as %p server as %p\r\n", &root->client.assetSystem, &root->server.assetSystem);
 
     DEBUG_END_FRAME();
-
-    /*for(int i = 0; i < 1000; i++) {
-        scheduler_queue_task(test_task, (void*)i);
-    }*/
 }
 
 void aike_deinit(AikePlatform *platform)

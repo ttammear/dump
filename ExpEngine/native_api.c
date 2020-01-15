@@ -28,3 +28,4 @@ void native_set_gamemode_title(GameServer *gs, const char *title) {
 
 void native_set_max_players(GameServer *gs, int maxPlayers) {
 }
+

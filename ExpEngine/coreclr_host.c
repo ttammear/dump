@@ -67,7 +67,8 @@ static coreclr_create_delegate_ptr coreclr_create_delegate;
 
 // TODO: platform independent
 bool coreclr_loadlib() {
-    void *clrLib = dlopen("/usr/share/dotnet/shared/Microsoft.NETCore.App/2.2.3/libcoreclr.so",RTLD_NOW | RTLD_LOCAL);
+    // TODO: this directory changes when updates happen
+    void *clrLib = dlopen("./coreclr/libcoreclr.so",RTLD_NOW | RTLD_LOCAL);
     // TODO: dlclose
     if(clrLib == NULL) {
         return false;
@@ -82,10 +83,26 @@ bool coreclr_loadlib() {
 }
 
 void coreclr_init(AikePlatform *platform, GameServer *gsCtx) {
-    const char *libsLoc = "/usr/share/dotnet/shared/Microsoft.NETCore.App/2.2.3/";
+    // TODO: free
+    char *path = (char*)malloc(PATH_MAX);
+    path =  getcwd(path, PATH_MAX);
+    if(path == NULL) {
+        fprintf(stderr, "Failed to get workind directory for .NET assembly directory\r\n");
+        exit(-1);
+    }
+    char *assemblyDir = malloc(strlen(path) + 2);
+    strcpy(assemblyDir, path);
+    strcat(assemblyDir, "/");
+
+    //const char *libsLoc = "/usr/share/dotnet/shared/Microsoft.NETCore.App/2.2.8/";
+    const char *coreClrPath = "coreclr/";
+    char *libsLoc = malloc(strlen(path)+strlen(coreClrPath)+2);
+    strcpy(libsLoc, path);
+    strcat(libsLoc, "/");
+    strcat(libsLoc, coreClrPath);
     char *tpa = add_files_from_directory_tpa_list(platform, libsLoc);
     printf("TPALIST %s\n", tpa);
-    const char *assemblyDir = "/keep/Projects/ExpEngineBuild/";
+    //const char *assemblyDir = "/home/ttammear/Projects/ExpEngineBuild/";
     int len = strlen(assemblyDir)+strlen(libsLoc)+3;
     char *nativeDllSearchDirs = malloc(len);
     nativeDllSearchDirs[0] = 0;
@@ -94,7 +111,7 @@ void coreclr_init(AikePlatform *platform, GameServer *gsCtx) {
     strcat(nativeDllSearchDirs, libsLoc);
     strcat(nativeDllSearchDirs, ":");
     assert(len-1 == strlen(nativeDllSearchDirs));
-    printf("assmbly dirs %s\n", nativeDllSearchDirs);
+    printf(".NET Core runtime assembly directories: %s\n", nativeDllSearchDirs);
 
     const char *propertyKeys[] = {
         "TRUSTED_PLATFORM_ASSEMBLIES",

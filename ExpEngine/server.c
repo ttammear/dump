@@ -35,7 +35,16 @@ void tess_server_init(struct TessServer *server, AikePlatform *platform)
     server->assetSystem.fileSystem = &server->fileSystem;
     server->assetSystem.tstrings = &server->strings;
     server->assetSystem.renderer = NULL;
+    server->assetSystem.isServer = true;
     tess_asset_system_init(&server->assetSystem, &server->arena);
+
+    tess_refresh_package_list(&server->assetSystem);
+    int count = buf_len(server->assetSystem.packageList);
+    for(int i = 0; i < count; i++) {
+        TStr *packageName = server->assetSystem.packageList[i];
+        printf("Generating (server) lookup cache for package '%s'\n", packageName->cstr);
+        tess_gen_lookup_cache_for_package(&server->assetSystem, packageName);
+    }
 
     // Init editor server
     //
@@ -53,6 +62,17 @@ void tess_server_init(struct TessServer *server, AikePlatform *platform)
     server->gameServer.assetSystem = &server->assetSystem;
     server->gameServer.strings = &server->strings;
     game_server_init(&server->gameServer);
+
+    server->gameServer.gameSystem.assetSystem = &server->assetSystem;
+    POOL_FROM_ARENA(server->gameServer.gameSystem.entityPool, &server->arena, TESS_MAX_ENTITIES);
+    server->gameServer.gameSystem.activeEntities = NULL;
+    server->gameServer.gameSystem.renderSystem = NULL;
+    server->gameServer.gameSystem.activeCamera = NULL;
+    server->gameServer.gameSystem.tstrings = &server->strings;
+    tess_world_init(&server->gameServer.gameSystem);
+
+    server->assetSystem.physics = server->gameServer.physics;
+    server->gameServer.gameSystem.physics = server->gameServer.physics;
 }
 
 void tess_server_destroy(struct TessServer *server)
@@ -94,7 +114,7 @@ void tess_create_editor_server(struct TessEditorServer *eserver, struct TessFixe
 
     TessAssetSystem *as = eserver->assetSystem;
     TessStrings *strings = eserver->tstrings;
-    TStr *sponzaStr = tess_intern_string(strings, "ViceCity/Mall");
+    TStr *sponzaStr = tess_intern_string(strings, "ViceCity/Airport");
     eserver->mapReference = add_asset_reference(as, sponzaStr);
     while(!tess_is_asset_loaded(as, sponzaStr)) {
         scheduler_yield();
