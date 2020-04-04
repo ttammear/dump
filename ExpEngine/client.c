@@ -41,8 +41,12 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess->gameSystem.renderSystem = &tess->renderSystem;
     tess->gameSystem.activeCamera = &tess->gameSystem.defaultCamera;
     tess->gameSystem.tstrings = &tess->strings;
-    tess->gameSystem.physics = NULL;
+    uint32_t size = create_physx_physics(NULL);
+    tess->gameSystem.physics = malloc(size);
+    create_physx_physics(tess->gameSystem.physics);
+    tess->gameSystem.physics->init(tess->gameSystem.physics, false);
     tess_world_init(&tess->gameSystem);
+    tess->assetSystem.physics = tess->gameSystem.physics; 
 
     // Init input
     //

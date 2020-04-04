@@ -46,3 +46,15 @@ void first_person_update(FirstPersonController *c, float dt, FirstPersonControls
 
     physx_controller_move(c->phys, c->characterController, combinedMovement, dt);
 }
+
+
+ void first_person_controller_init(FirstPersonController *fpc, TessPhysicsSystem *ps, V3 pos, void *usrPtr) {
+     fpc->phys = ps;
+     fpc->characterController = physx_create_capsule_controller(ps, pos, usrPtr);
+     fpc->velocity = (V3){0.0f, 0.0f, 0.0f};
+ }
+
+void first_person_controller_destroy(FirstPersonController *fpc) {
+    physx_destroy_capsule_controller(fpc->phys, fpc->characterController);
+    fpc->characterController = NULL;
+}

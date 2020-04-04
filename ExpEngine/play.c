@@ -61,7 +61,12 @@ game_client_start:
     gclient->inputSystem.platform = gclient->platform;
     tess_input_init(&gclient->inputSystem);
 
+    gclient->localCharacter.characterController = NULL;
+
     memset(&gclient->inputConfig, 0, sizeof(ClientInputConfig));
+    memset(gclient->inputHistory, 0, sizeof(gclient->inputHistory));
+
+    gclient->physics = gclient->client->gameSystem.physics;
 
     gclient->eClient = enet_host_create(NULL, 1, 3, 0, 0);
     if(NULL == gclient->eClient)
@@ -301,6 +306,21 @@ void notify_world_ready(GameClient *gc) {
     enet_peer_send(gc->eServerPeer, 0, packet);
 }
 
+void local_spawn(GameClient *gc, V3 pos) {
+    first_person_controller_init(&gc->localCharacter, gc->physics, pos, 0x0);
+    if(gc->localCharacter.characterController != NULL) {
+        fprintf(stderr, "Overwriting localCharacter when it's not NULL, possible memory leak!!!\r\n");
+    }
+}
+
+void local_despawn(GameClient *gc) {
+    if(gc->localCharacter.characterController != NULL) {
+        first_person_controller_destroy(&gc->localCharacter);
+    }
+    printf("I got destroyed!!!\r\n");
+}
+
+
 void process_packet(GameClient *gc, void *data, size_t dataLen)
 {
     ByteStream stream;
@@ -447,11 +467,22 @@ void process_packet(GameClient *gc, void *data, size_t dataLen)
             } break;
         case Game_Server_Command_Player_Reflection:
             {
-                V3 pos;
+                /*V3 pos;
                 success &= stream_read_v3(&stream, &pos);
                 v3_add(&pos, pos, (V3){0.0f, 1.5f, 0.0f});
                 TessCamera *cam = &gc->client->gameSystem.defaultCamera;
-                cam->position = pos;
+                cam->position = pos;*/
+            } break;
+        case Game_Server_Command_Player_Spawn:
+            {
+                V3 pos;
+                // TODO: rotation
+                stream_read_v3(&stream, &pos);
+                local_spawn(gc, pos);
+            } break;
+        case Game_Server_Command_Player_Despawn:
+            {
+                local_despawn(gc);
             } break;
         default:
             break;
@@ -578,9 +609,12 @@ void game_client_tick(GameClient *gclient) {
 
     // TODO: compose update packet (input, events)
 
+    // calculate input bitfield to send and store
     ClientInputConfig *ic = &gclient->inputConfig;
     int inputBitfieldLen = (ic->trackedKeyCount/8) + (ic->trackedKeyCount%8 != 0);
-    uint8_t bitfield[256];
+    uint8_t bitfield[MAX_TRACKED_KEY_BYTES];
+    // TODO: don't allow this to happen! (64 keys should be plenty..)
+    assert(ic->trackedKeyCount <= MAX_TRACKED_KEY_BYTES);
     memset(bitfield, 0, inputBitfieldLen);
     for(int i = 0; i < ic->trackedKeyCount; i++) {
         int idx = i/8;
@@ -589,7 +623,13 @@ void game_client_tick(GameClient *gclient) {
         bitfield[idx] |= (val<<bit);
         //printf("%d", val);
     }
-    //printf(" (%d bytes)\r\n", inputBitfieldLen);
+
+    // store to input history
+    int historyIdx = gclient->tickId % MAX_INPUT_HISTORY_FRAMES;
+    for(int i = 0; i < MAX_TRACKED_KEY_BYTES; i++) {
+        gclient->inputHistory[historyIdx].keyBits[i] = bitfield[i];
+    }
+    gclient->inputHistory[historyIdx].tickId = gclient->tickId;
 
     GameClientEvent e;
     for(int i = 0; i < ic->eventKeyCount; i++) {
@@ -682,6 +722,28 @@ void play_update(TessClient *client, double dt, uint16_t frameId)
             v3_sub(&cam->position, cam->position, right);
     }
 
+    // TODO: fix timestep!!!!!
+    physx_simulate(gc->physics, dt);
+    if(gc->localCharacter.characterController != NULL) {
+        FirstPersonControls ctrl = {
+            .forward = key(input, AIKE_KEY_W),
+            .backward = key(input, AIKE_KEY_S),
+            .right = key(input, AIKE_KEY_D),
+            .left = key(input, AIKE_KEY_A),
+            .jump = key_down(input, AIKE_KEY_SPACE),
+            .yawRad = gc->camRot.x,
+        };
+        // TODO: move this to firstpersoncontroller.c
+        first_person_update(&gc->localCharacter, dt, &ctrl);
+    }
+
+    V3 pos;
+    void *usrPtr;
+    uint32_t count = physx_get_controllers(gc->physics, &pos, &usrPtr, 1);
+    if(count == 1) {
+        cam->position = pos;
+    }
+
     V2 scaledMouseD;
     v2_scale(&scaledMouseD, TT_PI32/180.0f, input->mouseDelta);
     v2_add(&gc->camRot, gc->camRot, scaledMouseD);
@@ -696,10 +758,11 @@ void play_update(TessClient *client, double dt, uint16_t frameId)
 
     if(key(input, AIKE_KEY_ESC))
     {
+        local_despawn(gc);
         game_exit(&client->gameClient);
     }
 
-    int count = buf_len(gc->dynEntities);
+    count = buf_len(gc->dynEntities);
     for(int i = 0; i < count; i++)
     {
         GameClientDynEntity *dent = gc->dynEntities[i];

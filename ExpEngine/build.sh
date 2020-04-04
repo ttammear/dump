@@ -11,7 +11,7 @@ cd ..
 
 set -e
 
-CFLAGS='-Wno-multichar -pthread -std=c11 -ffast-math -O0 -gdwarf-5 -DAIKE_X86'
+CFLAGS='-Wno-multichar -pthread -std=c11 -ffast-math -O0 -gdwarf-5 -DAIKE_X86 -DLINUX_USE_KERNEL_AIO'
 LFLAGS=''
 COMFLAGS=''
 CC='clang'

@@ -5,7 +5,7 @@
 
 typedef struct TessPhysicsSystem {
     uint32_t (*get_size)();
-    void (*init)(struct TessPhysicsSystem *ps);
+    void (*init)(struct TessPhysicsSystem *ps, bool debugServer);
     void (*destroy)(struct TessPhysicsSystem *ps);
 } TessPhysicsSystem;
 
@@ -17,7 +17,7 @@ typedef void* CPxShape;
 extern "C" {
 #endif
 uint32_t create_physx_physics(TessPhysicsSystem *ps);
-void physics_system_init(TessPhysicsSystem *ps);
+void physics_system_init(TessPhysicsSystem *ps, bool debugServer);
 void physics_system_destroy(TessPhysicsSystem *ps);
 void physx_simulate(TessPhysicsSystem *ps, double dt);
 CPxRigidActor physx_create_static_body_with_shapes(TessPhysicsSystem *ps, V3 pos, Quat rot, V3 scale, uint32_t shapeCount, CPxShape *shapes, void *usrPtr);

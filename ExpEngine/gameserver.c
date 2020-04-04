@@ -94,7 +94,7 @@ void game_server_init(GameServer *gs)
     uint32_t size = create_physx_physics(NULL);
     gs->physics = malloc(size);
     create_physx_physics(gs->physics);
-    gs->physics->init(gs->physics);
+    gs->physics->init(gs->physics, false);
 
     assert(gs->mapAssetId); // Managed code should set map assetId
     // load map (colliders and other server side stuff)
@@ -272,6 +272,39 @@ void game_server_send_player_reflection(GameServer *gs, ServerPeer *peer) {
     stack_pop(gs->tempStack);
 }
 
+void game_server_send_player_spawn(GameServer *gs, ServerPeer *speer) {
+    ServerPlayer *p = &speer->player;
+    if(p->status != Server_Player_Status_Created) {
+        fprintf(stderr, "Trying to send spawn message to player when not spawned!\r\n");
+        return;
+    }
+    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
+    ByteStream stream;
+    init_byte_stream(&stream, mem, 65536);
+    auto dyn = &gs->dynEntityPool[p->dynId];
+    stream_write_uint16(&stream, Game_Server_Command_Player_Spawn);
+    stream_write_v3(&stream, dyn->position);
+    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), 0);
+    enet_peer_send(speer->ePeer, 2, packet);
+    stack_pop(gs->tempStack);
+}
+
+void game_server_send_player_despawn(GameServer *gs, ServerPeer *speer) {
+    ServerPlayer *p = &speer->player;
+    if(p->status == Server_Player_Status_Created) {
+        fprintf(stderr, "Trying to send despawn message to player when stil spawned!\r\n");
+        return;
+    }
+    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
+    ByteStream stream;
+    init_byte_stream(&stream, mem, 65536);
+    auto dyn = &gs->dynEntityPool[p->dynId];
+    stream_write_uint16(&stream, Game_Server_Command_Player_Despawn);
+    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), 0);
+    enet_peer_send(speer->ePeer, 2, packet);
+    stack_pop(gs->tempStack);
+}
+
 GameServerDynEntity* game_server_create_dyn(GameServer *gs, uint32_t objectId, V3 pos, Quat rot)
 {
     auto ent = pool_allocate(gs->dynEntityPool);
@@ -405,17 +438,16 @@ void game_server_create_player(GameServer *gs, ServerPlayer *sp) {
 
     GameServerDynEntity *ent = game_server_create_dyn(gs, 200, pos, QUAT_IDENTITY);
     ent->scale = (V3){0.5f, 1.8f, 0.5f};
-    auto controller = physx_create_capsule_controller(p, pos, (void*)(intptr_t)(0x80000000|ent->id));
-    sp->fpc.phys = p;
-    sp->fpc.characterController = controller;
-    sp->fpc.velocity = (V3){0.0f, 0.0f, 0.0f};
+    first_person_controller_init(&sp->fpc, p, pos, (void*)(intptr_t)(0x80000000|ent->id));
     sp->status = Server_Player_Status_Created;
     sp->dynId = ent->id;
+
     
     // reset input
     sp->input.sphericalState = (V2){0.0f, 0.0f};
     memset(sp->input.keyStates, 0, sizeof(sp->input.keyStates));
     sp->input.pendingEventCount = 0;
+
 }
 
 void game_server_destroy_player(GameServer *gs, ServerPlayer *sp) {
@@ -457,6 +489,7 @@ void server_process_packet(GameServer *gs, ServerPeer *sp, void* data, size_t da
             {
                 if(sp->player.status == Server_Player_Status_None) {
                     game_server_create_player(gs, &sp->player);
+                    game_server_send_player_spawn(gs, sp);
                 }
                 if((sp->flags&Server_Peer_Flag_World_Ready) == 0) {
                     game_server_send_all_dyn_create(gs, sp);
@@ -609,6 +642,7 @@ void game_server_update(GameServer *gs, double dt)
 
                     if(speer->player.status == Server_Player_Status_Created) {
                         game_server_destroy_player(gs, &speer->player);
+                        game_server_send_player_despawn(gs, speer);
                     }
 
                     int idx = buf_find_idx(gs->connectedPeers, speer);

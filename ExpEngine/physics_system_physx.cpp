@@ -6,10 +6,12 @@
 
 using namespace physx;
 
+static PxFoundation *foundation;
+
 typedef struct TessPhysXSystem {
     TessPhysicsSystem tphysics; // MUST BE FIRST!
 
-    PxFoundation *foundation;
+    //PxFoundation *foundation;
     PxPhysics *physics;
     PxPvd *pvd;
     PxScene *scene;
@@ -125,7 +127,7 @@ uint32_t create_physx_physics(TessPhysicsSystem *ps) {
 }
 
 
-void physics_system_init(TessPhysicsSystem *ps) {
+void physics_system_init(TessPhysicsSystem *ps, bool debugServer) {
     static PxDefaultErrorCallback gDefaultErrorCallback;
     static PxDefaultAllocator gDefaultAllocatorCallback;
 
@@ -133,18 +135,23 @@ void physics_system_init(TessPhysicsSystem *ps) {
     pxs->gContactReportCallback = new ContactReportCallback();
     pxs->gContactReportCallback->physics = pxs;
 
-    auto foundation = PxCreateFoundation(PX_PHYSICS_VERSION, gDefaultAllocatorCallback, gDefaultErrorCallback);
     if(foundation == nullptr) {
-        fprintf(stderr, "PxCreateFoundation failed!\r\n");
-        exit(-1);
+        foundation = PxCreateFoundation(PX_PHYSICS_VERSION, gDefaultAllocatorCallback, gDefaultErrorCallback);
+        if(foundation == nullptr) {
+            fprintf(stderr, "PxCreateFoundation failed!\r\n");
+            exit(-1);
+        }
     }
 
     bool recordMemoryAllocations = true;
-    auto pvd = PxCreatePvd(*foundation);
-    auto transport = PxDefaultPvdSocketTransportCreate("localhost", 5425, 100);
-    //auto transport = PxDefaultPvdFileTransportCreate("out2.pxd2");
-    assert(transport != NULL);
-    bool pvdConnected = pvd->connect(*transport, PxPvdInstrumentationFlag::eALL);
+    PxPvd *pvd = nullptr;
+    if(debugServer) {
+        pvd = PxCreatePvd(*foundation);
+        auto transport = PxDefaultPvdSocketTransportCreate("localhost", 5425, 100);
+        //auto transport = PxDefaultPvdFileTransportCreate("out2.pxd2");
+        assert(transport != NULL);
+        bool pvdConnected = pvd->connect(*transport, PxPvdInstrumentationFlag::eALL);
+    }
 
 
     auto physics = PxCreatePhysics(PX_PHYSICS_VERSION, *foundation, PxTolerancesScale(), recordMemoryAllocations, pvd);
@@ -153,7 +160,9 @@ void physics_system_init(TessPhysicsSystem *ps) {
         exit(-1);
     }
 
-    PxInitExtensions(*physics, pvd);
+    if(pvd != nullptr) {
+        PxInitExtensions(*physics, pvd);
+    }
     
     PxSceneDesc sceneDesc(physics->getTolerancesScale());
     sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
@@ -175,7 +184,7 @@ void physics_system_init(TessPhysicsSystem *ps) {
         exit(-1);
     }
     
-    pxs->foundation = foundation;
+    //pxs->foundation = foundation;
     pxs->physics = physics;
     pxs->pvd = pvd;
     pxs->scene = scene;
@@ -410,7 +419,8 @@ void physics_system_destroy(TessPhysicsSystem *ps) {
         pxs->pvd->release();
     }
 
-    pxs->foundation->release();
+    //pxs->foundation->release();
+    foundation->release();
     delete pxs->gContactReportCallback;
     memset(ps, 0, sizeof(*ps));
 }

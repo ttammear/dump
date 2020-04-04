@@ -212,9 +212,9 @@ void tess_render_entities(TessGameSystem *gs)
 
 void tess_reset_world(TessGameSystem *gs)
 {
-    /*for(int i = 0; i < buf_len(gs->activeEntities); i++) {
+    for(int i = 0; i < buf_len(gs->activeEntities); i++) {
         tess_destroy_entity(gs, gs->activeEntities[i]->id);
-    }*/
+    }
     for(int i = 0; i < TESS_MAX_OBJECTS; i++) {
         tess_unregister_object(gs, i);
     }

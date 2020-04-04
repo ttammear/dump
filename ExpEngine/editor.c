@@ -550,7 +550,9 @@ void editor_camera_update(TessEditor *editor, float dt)
         if(key(editor->inputSystem, AIKE_KEY_A))
             v3_sub(&position, position, right);
 
-        v2_add(&editor->camRot, editor->camRot, editor->inputSystem->mouseDelta);
+        V2 md;
+        v2_scale(&md, 0.2f, editor->inputSystem->mouseDelta);
+        v2_add(&editor->camRot, editor->camRot, md);
         editor->camRot = make_v2(editor->camRot.x, MAX(editor->camRot.y, -90.0f));
         editor->camRot = make_v2(editor->camRot.x, MIN(editor->camRot.y, 90.0f));
     }

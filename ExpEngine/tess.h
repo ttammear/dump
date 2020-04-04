@@ -679,6 +679,21 @@ typedef struct GameClientEvent {
     };
 } GameClientEvent;
 
+#define MAX_INPUT_HISTORY_FRAMES 10
+#define MAX_TRACKED_KEY_BYTES 8
+
+typedef struct ClientFrameInput {
+    uint8_t keyBits[MAX_TRACKED_KEY_BYTES];
+    uint32_t tickId;
+} ClientFrameInput;
+
+typedef struct FirstPersonController {
+    V3 velocity;
+    CPxController characterController;
+    TessPhysicsSystem *phys;
+} FirstPersonController;
+
+
 typedef struct GameClient
 {
     ENetHost *eClient;
@@ -689,6 +704,9 @@ typedef struct GameClient
     double tickRate;
     double tickProgress;
     int tickId;
+
+    // max 64 bits per frame
+    ClientFrameInput inputHistory[MAX_INPUT_HISTORY_FRAMES];
 
     char ipStr[256];
     uint16_t port;
@@ -703,6 +721,8 @@ typedef struct GameClient
 
     V2 camRot;
 
+    FirstPersonController localCharacter;
+
     GameClientDynEntity **dynEntities;
     GameClientDynEntity *dynEntityPool;
 
@@ -710,6 +730,9 @@ typedef struct GameClient
 
     // NOTE: this is input system for server tracked inputs
     // local client uses different input system (to decouple from server tickrate)
+
+    TessPhysicsSystem *physics;
+
     TessInputSystem inputSystem;
 
     struct TessStrings *strings;
@@ -831,6 +854,8 @@ enum GameServerCommand
     Game_Server_Command_Server_Property_Response,
     Game_Server_Command_Server_Input_Config,
     Game_Server_Command_Player_Reflection,
+    Game_Server_Command_Player_Spawn,
+    Game_Server_Command_Player_Despawn,
 };
 
 enum ServerPeerFlag {
@@ -857,12 +882,6 @@ typedef struct FirstPersonControls {
     bool jump;
     float yawRad;
 }FirstPersonControls;
-
-typedef struct FirstPersonController {
-    V3 velocity;
-    CPxController characterController;
-    TessPhysicsSystem *phys;
-} FirstPersonController;
 
 typedef struct ServerPlayer
 {
@@ -940,6 +959,9 @@ typedef struct TessServer
     AikePlatform *platform;
 } TessServer;
 
+void first_person_update(FirstPersonController *c, float dt, FirstPersonControls *i);
+void first_person_controller_init(FirstPersonController *fpc, TessPhysicsSystem *ps, V3 pos, void *usrPtr);
+void first_person_controller_destroy(FirstPersonController *fpc);
 
 bool tess_load_file(TessFileSystem *fs, const char* fileName, uint32_t pipeline, void *userData);
 
