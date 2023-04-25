@@ -294,6 +294,8 @@ struct UserInterface
     int32_t numFreeViews;
     uint32_t viewFreeList[AIKE_MAX_VIEWS];
     AikeViewState viewPool[AIKE_MAX_VIEWS];
+
+    Mat3 windowToView; // TODO: maybe screen instead?
 };
 
 

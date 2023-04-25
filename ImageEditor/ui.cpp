@@ -363,7 +363,7 @@ static bool context_menu_create_proc(void* ptr)
     else return false;
 }
 
-static void draw_image_view(Rect viewRect, Rect windowRect,ImageView *state)
+static void draw_image_view(Rect viewRect, Rect windowRect, ImageView *state)
 {
     // Draw background checkerboard pattern
     //
@@ -419,9 +419,21 @@ static void draw_image_view(Rect viewRect, Rect windowRect,ImageView *state)
     Vec2 curCenterPosition((viewRect.width / (2.0f*rscale)), (viewRect.height / (2.0f*rscale)));
     Vec2 offset = state->imageSpaceCenter - curCenterPosition;
 
-    Mat3 mat = Mat3::offsetAndScale(offset*-1.0f, rscale);
-    renderer_push_matrix(g_renderer, &mat);
+    char buf[1024];
 
+    Mat3 imageToView = Mat3::translateAndScale(offset*-1.0f, Vec2(rscale, rscale));
+    float invScale = 1.0f/rscale;
+    Mat3 viewToImage = Mat3::scaleAndTranslate(Vec2(invScale, invScale), offset);
+    renderer_push_matrix(g_renderer, &imageToView);
+
+    if(mousehere)
+    {
+        // TODO: should be relative to the current window
+        Vec3 viewMousePos(g_input->mousePos.x, g_input->mousePos.y, 1.0f);
+        viewMousePos = g_ui->windowToView * viewMousePos;
+        Vec3 imageMousePos = viewToImage * viewMousePos;
+        printf("mouse at %d %d (view %d %d)\n", (int)imageMousePos.x, (int)imageMousePos.y, (int)viewMousePos.x, (int)viewMousePos.y);
+    }
 
     // draw image tiles
     //
@@ -474,8 +486,9 @@ static void draw_view(Rect viewRect, AikeViewState *viewState)
     localViewRect.x0 = 0.0f;
     localViewRect.y0 = 0.0f;
 
-    Mat3 mat = Mat3::translate(Vec2(viewRect.x0, viewRect.y0));
-    renderer_push_matrix(g_renderer, &mat);
+    Mat3 v2w = Mat3::translate(Vec2(viewRect.x0, viewRect.y0));
+    g_ui->windowToView = Mat3::translate(Vec2(-viewRect.x0, -viewRect.y0));
+    renderer_push_matrix(g_renderer, &v2w);
 
     switch(viewState->type)
     {
