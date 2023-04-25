@@ -1,0 +1,9 @@
+# VIM swap file
+*.swp
+*.swo
+
+*~
+*.out
+*.clocignore
+countlines.sh
+
