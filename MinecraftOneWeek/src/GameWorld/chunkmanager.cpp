@@ -25,7 +25,7 @@ ChunkManager::~ChunkManager()
     loadedChunks.clear();
 }
 
-#include <SDL2/SDL.h>
+#include <chrono>
 
 bool ChunkManager::loadChunk(IVec3 chunkId)
 {
@@ -33,15 +33,15 @@ bool ChunkManager::loadChunk(IVec3 chunkId)
     if(fchunk == loadedChunks.end())
     {
         Chunk *chunk;
-        chunk = new Chunk(blockStore, world, chunkId, 16);
-        //unsigned int start = SDL_GetTicks();
-        //static unsigned int sum;
-        //static unsigned int count;
+        chunk = new Chunk(blockStore, world, chunkId);
+        auto start = std::chrono::high_resolution_clock::now();
+        static unsigned int sum;
+        static unsigned int count;
         chunk->regenerateMesh();
-        //unsigned int dif = SDL_GetTicks()-start;
-        //sum+=dif;
-        //count++;
-        //printf("regenerate %dms (avg %d)\n", dif, sum/count);
+        unsigned int dif = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - start).count();
+        sum+=dif;
+        count++;
+        printf("regenerate %dus (avg %d)\n", dif, sum/count);
         loadedChunks.insert({chunkId, chunk});
         //printf("Load chunk %d %d %d\n", chunkId.x, chunkId.y, chunkId.z);
         return true;
@@ -92,8 +92,8 @@ void ChunkManager::update()
     for(int i = -5; i < 6; i++)
     for(int j = -5; j < 6; j++)
     {
-        IVec3 upper(camChunk.x + i*16, -16, camChunk.z + j*16);
-        IVec3 lower(camChunk.x + i*16,   0, camChunk.z + j*16);
+        IVec3 upper(camChunk.x + i*CHUNK_SIZE, -CHUNK_SIZE, camChunk.z + j*CHUNK_SIZE);
+        IVec3 lower(camChunk.x + i*CHUNK_SIZE,   0, camChunk.z + j*CHUNK_SIZE);
         if(!loadedSomething)
         {
             loadedSomething = loadedSomething || loadChunk(upper);

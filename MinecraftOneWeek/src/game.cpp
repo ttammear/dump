@@ -62,7 +62,7 @@ void Game::simulate(Renderer *renderer, float dt)
 
         // texture
         
-        atlas = new TextureArray(16, 16, 4, 257);
+        atlas = new TextureArray(16, 16, 4, 256);
 
         int width, height, comps;
         unsigned char *data;
@@ -83,7 +83,11 @@ void Game::simulate(Renderer *renderer, float dt)
             {
                 memcpy(&texData[x*16*4], &data[(i*16+x)*width*4 + (j*16)*4], 64);
             }
-            atlas->copyLayer(texData, 16, 16, 4, i*16+j+1);
+            int idx = i*16+j+1; // layer index
+            if(idx < 256) // opengl 3.3 only guarantees 256 layers, we don't use the last one anyways
+            {
+                atlas->copyLayer(texData, 16, 16, 4, idx);
+            }
         }
         stbi_image_free(data);
 

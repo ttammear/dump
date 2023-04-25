@@ -39,6 +39,8 @@ public:
     ~World();
 
     class ChunkData* getOrCreateChunkData(IVec3 chunkId);
+    void fillFromSingleChunk(IVec3 startBlockId, IVec3 counts, IVec3 arrayOffsets, uint8_t *data);
+    void fillBlockCache(IVec3 originBlock, int size, uint8_t *data);
     uint8_t getBlockId(IVec3 block);
     uint8_t setBlockId(IVec3 block, uint8_t newId);
     bool lineCast(RaycastHit& hit, Vec3 start, Vec3 end);

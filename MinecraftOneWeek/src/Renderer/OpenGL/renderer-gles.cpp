@@ -170,8 +170,7 @@ Renderer::~Renderer()
 void Renderer::clearScreen(Vec4 color)
 {
     glClearColor(color.r, color.g, color.b, color.a);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glClear(GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
 bool CheckShaderCompileStatus(const char *sname, GLint shader)
@@ -266,6 +265,7 @@ void Renderer::checkTextureArray(TextureArray *texarr)
         GLuint gltex;
         glGenTextures(1, &gltex);
         glBindTexture(GL_TEXTURE_2D_ARRAY, gltex);
+        printf("Create 3D texture %dx%d layers: %d\n", texarr->width, texarr->height, texarr->layers);
         glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, texarr->width, texarr->height, texarr->layers, 0, GL_RGBA, GL_UNSIGNED_BYTE, texarr->data);
         assert(texarr->components == 3 || texarr->components == 4);
         GLuint format = texarr->components == 3 ? GL_RGB : GL_RGBA;
@@ -426,9 +426,15 @@ void Renderer::renderMesh(Mesh *mesh, Material *material, Mat4 *model_to_world, 
     lightDir = lightDir.normalized();
     Vec3 diffuse(0.5f, 0.5f, 0.40f);
     Vec4 fogColor(0.8f, 0.8f, 0.8f, 1.0f);
-    glUniform3fv(lightLoc, 1, (GLfloat*)&lightDir);
-    glUniform3fv(diffuseLLoc, 1, (GLfloat*)&diffuse);
-    glUniform4fv(fogColorLoc, 1, (GLfloat*)&fogColor);
+    if(lightLoc != -1) { // -1 is valid "does not exist" value but some genius has broken it in webgl
+        glUniform3fv(lightLoc, 1, (GLfloat*)&lightDir);
+    }
+    if(diffuseLLoc != -1) {
+        glUniform3fv(diffuseLLoc, 1, (GLfloat*)&diffuse);
+    }
+    if(fogColorLoc != -1) {
+        glUniform4fv(fogColorLoc, 1, (GLfloat*)&fogColor);
+    }
 
     int texUnit = 0;
     for (auto it = material->textures.begin(); it != material->textures.end(); ++it)
@@ -539,7 +545,7 @@ void Renderer::presentFrame(SDL_Renderer* sdlRenderer)
     if(gerror != 0)
     {
         printf("GL error %x\n", gerror);
-        assert(false);
+        //assert(false);
     }
 
     SDL_RenderPresent(sdlRenderer);

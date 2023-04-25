@@ -1,8 +1,10 @@
 #include "world.h"
 #include <math.h>
+#include <assert.h>
 
 #include "../Maths/maths.h"
 #include "../camera.h"
+#include "../macros.h"
 
 World::World(Renderer *renderer, BlockStore *blockStore, Camera *cam)
     : chunkManager(renderer, cam, blockStore, this), worldGenerator(this)
@@ -44,9 +46,10 @@ ChunkData* World::getOrCreateChunkData(IVec3 chunkId)
     return ret;
 }
 
+
 uint8_t World::getBlockId(IVec3 block)
 {
-    IVec3 chunkId = Chunk::getChunkId(block);
+    IVec3 chunkId = Chunk::getStoreChunkId(block);
     IVec3 localOffset(block.x - chunkId.x, block.y - chunkId.y, block.z - chunkId.z);
     auto fchunk = this->chunks.find(chunkId);
     
@@ -57,9 +60,77 @@ uint8_t World::getBlockId(IVec3 block)
     return ret;
 }
 
+void World::fillFromSingleChunk(IVec3 startBlockId, IVec3 counts, IVec3 arrayOffsets, uint8_t *data)
+{
+    int xo, yo, zo, im, jm, km;
+    const int s = CHUNK_STORE_SIZE;
+    IVec3 lo = Chunk::getStoreLocalOffset(startBlockId);
+    ChunkData *cdata = getOrCreateChunkData(Chunk::getStoreChunkId(startBlockId)); 
+    assert(Chunk::getStoreChunkId(startBlockId) == Chunk::getStoreChunkId(startBlockId + counts + IVec3(-1, -1, -1)));
+    im = (lo.x+counts.x)*s*s;
+    jm = (lo.y+counts.y)*s;
+    km = lo.z+counts.z;
+    assert(lo.x < 16 && lo.y < 16 && lo.z < 16);
+    for(int i = lo.x*s*s, xo = 0; i < im; i+=s*s, xo += arrayOffsets.x)
+    for(int j = lo.y*s, yo = 0; j < jm; j+=s, yo += arrayOffsets.y)
+    for(int k = lo.z, zo = 0; k < km; k++, zo += arrayOffsets.z)
+    {
+        data[xo+yo+zo] = cdata->data[i+j+k];
+    }
+}
+
+void World::fillBlockCache(IVec3 originBlock, int size, uint8_t *data)
+{
+    assert(size < 16*16);
+    IVec3 chunkId = Chunk::getStoreChunkId(originBlock);
+    IVec3 localOffset = Chunk::getStoreLocalOffset(originBlock);
+
+    struct AxisSection {
+        int start;
+        int count;
+    };
+
+    // remaining block count in origin chunk
+    int cx = MIN(CHUNK_STORE_SIZE - localOffset.x, size), 
+        cy = MIN(CHUNK_STORE_SIZE - localOffset.y, size), 
+        cz = MIN(CHUNK_STORE_SIZE - localOffset.z, size);
+
+    AxisSection xs[16], ys[16], zs[16];
+    int xc = 1, yc = 1, zc = 1;
+    xs[0] = {originBlock.x, cx};
+    ys[0] = {originBlock.y, cy};
+    zs[0] = {originBlock.z, cz};
+
+    while(cx < size) {
+        xs[xc].start = originBlock.x + cx;
+        cx += (xs[xc++].count = MIN(size-cx, CHUNK_STORE_SIZE));
+    }
+
+    while(cy < size) {
+        ys[yc].start = originBlock.y + cy;
+        cy += (ys[yc++].count = MIN(size - cy, CHUNK_STORE_SIZE));
+    }
+
+    while(cz < size) {
+        zs[zc].start = originBlock.z + cz;
+        cz += (zs[zc++].count = MIN(size - cz, CHUNK_STORE_SIZE));
+    }
+
+    for(int i = 0; i < xc; i++)
+    for(int j = 0; j < yc; j++)
+    for(int k = 0; k < zc; k++)
+    {
+        IVec3 curOrigin(xs[i].start, ys[j].start, zs[k].start);
+        IVec3 counts(xs[i].count, ys[j].count, zs[k].count);
+        uint8_t *curData = data + ((curOrigin.x - originBlock.x)*size*size + (curOrigin.y - originBlock.y)*size + (curOrigin.z - originBlock.z));
+        assert(curData < (data + size*size*size));
+        fillFromSingleChunk(curOrigin, counts, IVec3(size*size, size, 1), curData);
+    }
+}
+
 uint8_t World::setBlockId(IVec3 block, uint8_t newId)
 {
-    IVec3 chunkId = Chunk::getChunkId(block);
+    IVec3 chunkId = Chunk::getStoreChunkId(block);
     IVec3 localOffset(block.x - chunkId.x, block.y - chunkId.y, block.z - chunkId.z);
     
     ChunkData *cdata = getOrCreateChunkData(chunkId);

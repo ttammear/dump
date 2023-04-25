@@ -41,9 +41,14 @@ inline float clamp01(float a)
 
 // TODO: I don't think this is how it should be done!
 
+#define PERLIN_OX 400.654321f
+#define PERLIN_OY 200.654321f
+#define PERLIN_FREQ 0.00531415f
+#define PERLIN_SCALE 200.0f
+
 static int calcBlockId(IVec3 position)
 {
-    float biomef = perlin2D(Vec3(position.x+400.654321f, position.z+200.654321f, 0.123456f), 0.00531415f)*200.0f + 200.0f;
+    float biomef = perlin2D(Vec3(position.x+PERLIN_OX, position.z+PERLIN_OY, 0), PERLIN_FREQ)*PERLIN_SCALE + PERLIN_SCALE;
     
     int biomei = (int)biomef/100.0f;
     assert(biomei >= 0 && biomei < 4);
@@ -85,6 +90,16 @@ static int calcBlockId(IVec3 position)
         return 0;
 }
 
+/*#ifdef USE_SSE2
+static int calcBlockId4_SSE2(IVec3 position)
+{
+    float biomefv[4];
+    for(int i = 0; i < 4; i++)
+        biomefv[i] = perlin2D(Vec3(position.x+PERLIN_OX, position.z+PERLIN_OY+i, 0), PERLIN_FREQ)*PERLIN_SCALE+PERLIN_SCALE;
+    __m128 biomef = _mm_set_ps(biomefv[0], biomefv[1], biomefv[2], biomefv[3]);
+}
+#endif*/
+
 void WorldGenerator::addTree(IVec3 block, int height, int leafsize, int seed)
 {
     // trunk
@@ -115,14 +130,14 @@ void WorldGenerator::fillChunk(IVec3 offset)
     uint32_t treeCount = 0;
 
     uint32_t chunkSeed;
-    uint8_t xs = offset.x / 16;
-    uint8_t ys = offset.y / 16;
-    uint8_t zs = offset.z / 16;
+    uint8_t xs = offset.x / CHUNK_STORE_SIZE;
+    uint8_t ys = offset.y / CHUNK_STORE_SIZE;
+    uint8_t zs = offset.z / CHUNK_STORE_SIZE;
     chunkSeed = xs | ((ys & 1023) << 10) | ((zs & 1023) << 20);
 
     srand(chunkSeed);
 
-    const int chunkSize = 16;
+    const int chunkSize = CHUNK_STORE_SIZE;
     for(int i = 0; i < chunkSize; i++)
     for(int j = 0; j < chunkSize; j++)
     for(int k = 0; k < chunkSize; k++)

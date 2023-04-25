@@ -43,10 +43,18 @@ void Application::start()
         abort();
     }
 
-    printf("Applicatin was run from: %s\n", SDL_GetBasePath());
+    printf("Application was run from: %s\n", SDL_GetBasePath());
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
     SDL_RendererInfo displayRendererInfo;
     SDL_CreateWindowAndRenderer(1024, 768, SDL_WINDOW_OPENGL, &displayWindow, &displayRenderer);
+
+
+    //SDL_GLContext ctx = SDL_GL_CreateContext(displayWindow); // TODO: delete?
+    //SDL_GL_MakeCurrent(displayWindow, ctx);
+
     SDL_GetRendererInfo(displayRenderer, &displayRendererInfo);
     if((displayRendererInfo.flags & (SDL_RENDERER_ACCELERATED|SDL_RENDERER_TARGETTEXTURE)) != (SDL_RENDERER_ACCELERATED|SDL_RENDERER_TARGETTEXTURE))
     {
@@ -63,13 +71,17 @@ void Application::start()
     emscripten_set_pointerlockchange_callback(NULL, NULL, true, pointerLockChanged);
 #endif
 
+    GLenum err = glewInit();
+    printf("GL_VERSION: %s\n", glGetString(GL_VERSION));
+    if(GLEW_OK != err) {
+        printf("GLEW init failed!\n");
+    }
+
     this->mainRenderer = new Renderer(1024.0f, 768.0f);
     this->game = new Game();
     this->game->window = this->displayWindow;
     this->startTime = SDL_GetTicks();
     initialized = true;
-
-    glewInit();
 }
 
 void Application::doEvents()

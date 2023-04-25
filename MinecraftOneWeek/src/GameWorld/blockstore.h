@@ -31,7 +31,7 @@ public:
         blocks[blockId] = block;
     }
 
-    Block *getBlock(int blockId)
+    inline Block *getBlock(int blockId)
     {
         assert(blockId < 256);
         if(FLAGSET(blockFlags[blockId], Flags::Initialized))
