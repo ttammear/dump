@@ -144,55 +144,8 @@ void World::destroyEntity(Entity *entity)
     entity->reset();
 }
 
-/*bool World::lineCast(RaycastHit &hit, Vec3 start, Vec3 end)
-{
-    const float step = 0.01f;
-    int steps = (start-end).length() / step;
-    float progress = 0.0f;
-
-    Vec3 ray = (end - start).normalized();
-
-    IVec3 lastBlock;
-    for(int i = 0; i < steps; i++)
-    {
-        Vec3 point = start + progress*ray;
-        IVec3 blockV((int)myfloorf(point.x), (int)myfloorf(point.y), (int)myfloorf(point.z));
-        if(!(blockV == lastBlock))
-        {
-            uint8_t bid = getBlockId(blockV);    
-            if(bid != 0 && bid != 9)
-            {
-                hit.point = point;
-                hit.block = blockV;
-                
-                // determine block face TODO: seems buggy sometimes!
-                float offsetx = fabs(blockV.x - point.x);
-                float offsety = fabs(blockV.y - point.y);
-                float offsetz = fabs(blockV.z - point.z);
-                Vec3 offset0(fabs(0.0f - offsetx), fabs(0.0f - offsety), fabs(0.0f - offsetz));
-                Vec3 offset1(fabs(1.0f - offsetx), fabs(1.0f - offsety), fabs(1.0f - offsetz));
-                Vec3 minOffset(mymin(offset0.x, offset1.x), mymin(offset0.y, offset1.y), mymin(offset0.z, offset1.z));
-                if(minOffset.x < minOffset.y && minOffset.x < minOffset.z)
-                    hit.faceDirection = (offset0.x < offset1.x ? IVec3(-1, 0, 0) : IVec3(1, 0, 0));
-                else if(minOffset.y < minOffset.z)
-                    hit.faceDirection = (offset0.y < offset1.y ? IVec3(0, -1, 0) : IVec3(0, 1, 0));
-                else
-                    hit.faceDirection = (offset0.z < offset1.z ? IVec3(0, 0, -1) : IVec3(0, 0, 1));
-
-                return true;
-            }
-            lastBlock = blockV;
-        }
-        progress += step;
-    }
-    return false;
-}*/
-
 void World::update(float dt, Camera *cam)
 {
-    //chunkManager.viewerPosition = cam->transform.position;
-    //chunkManager.update();
-
     timePassed += (double)dt;
 
     bool result, again;
@@ -204,7 +157,7 @@ void World::update(float dt, Camera *cam)
         {
             PlayerInput pinput;
             player.getInputFunc(player.usrPtr, &pinput);
-            player.player->update(dt, Vec2(0.0f, 0.0f), pinput);
+            player.player->update(pinput);
         }
 
         result = physics->simulate(again);

@@ -183,7 +183,7 @@ void Game::simulate(Renderer *renderer, double dt)
         pinput.jump = state[SDL_SCANCODE_SPACE];
         auto rot = Quaternion::AngleAxis(camRot.x, Vec3(0.0f, 1.0f, 0.0f)) * Quaternion::AngleAxis(camRot.y, Vec3(1.0f, 0.0f, 0.0f));
         pinput.rotation = rot;
-        player.update(dt, mouseDelta, pinput);
+        player.update(pinput);
     }
 
     world->update(dt, activeCam);

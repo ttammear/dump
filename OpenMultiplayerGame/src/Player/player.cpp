@@ -25,7 +25,7 @@ void Player::deinit()
     delete character;
 }
 
-void Player::update(float dt, Vec2 mouseDelta, PlayerInput &input)
+void Player::update(PlayerInput &input)
 {
     if(!this->isActive)
         return;

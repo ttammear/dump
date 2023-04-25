@@ -20,7 +20,7 @@ public:
     Player();
     void init(class World *world);
     void deinit();
-    void update(float dt, Vec2 mouseDelta, PlayerInput& input);
+    void update(PlayerInput& input);
     void setActive(bool active);
     void setPosition(Vec3 *pos);
 

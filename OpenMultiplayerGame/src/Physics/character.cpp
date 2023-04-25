@@ -101,11 +101,11 @@ void BtCharacter::setActive(bool active)
     auto btWorld = world->physics->world;
     if(active)
     {
-        btWorld->addAction(kinematicController);
+        btWorld->addAction(this);
     }
     else
     {
-        btWorld->removeAction(kinematicController);
+        btWorld->removeAction(this);
     }
     entity->active = active;
     isActive = active;
