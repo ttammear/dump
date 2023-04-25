@@ -7,10 +7,8 @@ void* null_allocator(void *usrData, size_t size) {
     return NULL;
 }
 
-// TODO: coro_destroy?
-void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *client, TessServer *server) {
-    coro_create(&ctx->mainCtx, NULL, NULL, NULL, 0);
-
+#ifdef TESS_CLIENT
+void scheduler_init_client(TessScheduler *ctx, TessFixedArena *arena, struct TessClient *client) {
     void *mem = fixed_arena_push_size(arena, 1024*1024, 64);
     assert(mem);
     ctx->editorStack = mem;
@@ -21,46 +19,12 @@ void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *clien
     ctx->gameStack = mem;
     ctx->gameStackSize = 1024*1024;
 
-    mem = fixed_arena_push_size(arena, 1024*1024, 64);
-    assert(mem);
-    ctx->editorServerStack = mem;
-    ctx->editorServerStackSize = 1024*1024;
-
-    ctx->waitingTaskSet = kh_init(64);
-
-    // TODO: this is only so high because the asset system is too dumb to resolve
-    // dependency graphs in a resource friendly manner!
-    // SO CHANGE THIS ONCE THAT IS NO LONGER TRUE
-    const int maxTasks = 300;
-    // TODO: use protected stack in debug builds!
-    const int taskStackSize = 20*4096;
-    ctx->taskQueueHead = NULL;
-    ctx->taskQueueTail = NULL;
-    ctx->yieldedTasksHead = NULL;
-    ctx->yieldedTasksTail = NULL;
-    ctx->freeTasks = NULL;
-    pool_init_with_memory(ctx->ctxPool, malloc(pool_calc_size(ctx->ctxPool, maxTasks)), maxTasks);
-    pool_set_allocator(ctx->ctxPool, null_allocator); // TODO: review
-    ctx->taskMemory = malloc(taskStackSize*maxTasks);
-    ctx->taskMemorySize = taskStackSize;
-
-    ctx->client = client;
-    
     coro_create(&ctx->gameCtx, (void(*)(void*))game_client_coroutine, &client->gameClient, ctx->gameStack, ctx->gameStackSize); 
     coro_create(&ctx->editorCtx, (void(*)(void*))editor_coroutine, &client->editor, ctx->editorStack, ctx->editorStackSize);
-    coro_create(&ctx->editorServerCtx, editor_server_coroutine, &server->editorServer, ctx->editorServerStack, ctx->editorServerStackSize);
-    g_scheduler = ctx;
+    ctx->client = client;
 }
 
-void scheduler_set_mode(u32 mode) {
-   g_scheduler->mode = mode; 
-}
-
-void scheduler_assert_task() {
-   assert(g_scheduler->state == SCHEDULER_STATE_TASK);
-};
-
-static void do_main_task() {
+static void do_main_client_task() {
     PROF_BLOCK();
     TessScheduler *s = g_scheduler;
     // do client 
@@ -84,18 +48,80 @@ static void do_main_task() {
             break;
     }
     // do editor server
-    s->state = SCHEDULER_STATE_EDITOR_SERVER;
-    coro_transfer(&s->mainCtx, &s->editorServerCtx);
+    /*s->state = SCHEDULER_STATE_EDITOR_SERVER;
+    coro_transfer(&s->mainCtx, &s->editorServerCtx);*/
     // do pending tasks
     scheduler_start_pending_tasks(); 
 }
+
+
+#endif
+
+//#ifdef TESS_SERVER
+void scheduler_init_server(TessScheduler *ctx, TessFixedArena *arena, TessServer *server) {
+    void *mem = fixed_arena_push_size(arena, 1024*1024, 64);
+    assert(mem);
+    ctx->editorServerStack = mem;
+    ctx->editorServerStackSize = 1024*1024;
+    coro_create(&ctx->editorServerCtx, editor_server_coroutine, &server->editorServer, ctx->editorServerStack, ctx->editorServerStackSize);
+}
+//#endif
+
+// TODO: coro_destroy?
+void scheduler_init(TessScheduler *ctx, AikePlatform *platform, struct TessClient *client, TessServer *server) {
+    coro_create(&ctx->mainCtx, NULL, NULL, NULL, 0);
+
+    fixed_arena_init(platform, &ctx->arena, 2*1024*1024);
+
+    ctx->waitingTaskSet = kh_init(64);
+
+    // TODO: this is only so high because the asset system is too dumb to resolve
+    // dependency graphs in a resource friendly manner!
+    // SO CHANGE THIS ONCE THAT IS NO LONGER TRUE
+    const int maxTasks = 300;
+    // TODO: use protected stack in debug builds!
+    const int taskStackSize = 20*4096;
+    ctx->taskQueueHead = NULL;
+    ctx->taskQueueTail = NULL;
+    ctx->yieldedTasksHead = NULL;
+    ctx->yieldedTasksTail = NULL;
+    ctx->freeTasks = NULL;
+    pool_init_with_memory(ctx->ctxPool, malloc(pool_calc_size(ctx->ctxPool, maxTasks)), maxTasks);
+    pool_set_allocator(ctx->ctxPool, null_allocator); // TODO: review
+    ctx->taskMemory = malloc(taskStackSize*maxTasks);
+    ctx->taskMemorySize = taskStackSize;
+
+    ctx->client = NULL;
+
+#ifdef TESS_CLIENT
+    scheduler_init_client(ctx, &ctx->arena, client);
+#endif
+
+#ifdef TESS_SERVER
+    scheduler_init_server(ctx, &ctx->arena, server);
+#endif
+    
+    g_scheduler = ctx;
+}
+
+void scheduler_set_mode(u32 mode) {
+   g_scheduler->mode = mode; 
+}
+
+void scheduler_assert_task() {
+   assert(g_scheduler->state == SCHEDULER_STATE_TASK);
+};
 
 void scheduler_yield() {
     TessScheduler *s = g_scheduler;
     YieldedTask *task;
     switch(s->state) {
         case SCHEDULER_STATE_MAIN:
-            do_main_task();
+#ifdef TESS_CLIENT
+            do_main_client_task();
+#else
+            scheduler_start_pending_tasks(); 
+#endif
             break;
         case SCHEDULER_STATE_EDITOR:
             s->state = SCHEDULER_STATE_MAIN;

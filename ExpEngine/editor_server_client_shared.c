@@ -125,7 +125,10 @@ typedef struct ByteStream
     curLoc = stream_get_offset(&stream);
 
 void editor_server_process_client_command(struct TessEditorServer *server, struct TessEditorServerClient *client, uint32_t cmd, uint8_t *data, uint32_t dataSize);
+
+#ifdef TESS_CLIENT
 void editor_client_process_command(struct TessEditor *editor, uint16_t cmd, uint8_t *data, uint32_t size);
+#endif
 
 void init_byte_stream(struct ByteStream *stream, void *buf, size_t len)
 {
@@ -363,9 +366,12 @@ void editor_flush_command(struct TessEditorCommandBuf *cmdbuf)
 
     if(cmdbuf->isServer)
         editor_server_process_client_command((struct TessEditorServer*)cmdbuf->usrPtr, (struct TessEditorServerClient *)cmdbuf->usrClientPtr, cmd, stream.cur, nLeft);
-    else
+    else {
+#if TESS_CLIENT
         editor_client_process_command((struct TessEditor*)cmdbuf->usrPtr, cmd, stream.cur, nLeft);
     cmdbuf->currentCommandBytes = 0;
+#endif
+    }
 }
 
 void editor_append_cmd_data(struct TessEditorCommandBuf *cmdbuf, uint8_t *data, uint32_t nBytes)

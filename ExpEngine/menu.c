@@ -16,7 +16,7 @@ void tess_main_menu_init(struct TessMainMenu *menu)
     menu->statusStr = "";
 }
 
-void draw_game_debug_ui(TessClient *client, TessServer *server);
+void draw_game_debug_ui(TessClient *client/*, TessServer *server*/);
 
 void draw_main_menu(struct TessMainMenu *menu, struct nk_context *ctx)
 {
@@ -45,7 +45,7 @@ void draw_main_menu(struct TessMainMenu *menu, struct nk_context *ctx)
     }
     nk_end(ctx);
 
-    draw_game_debug_ui(menu->client, menu->server);
+    draw_game_debug_ui(menu->client/*, menu->server*/);
 }
 
 void draw_editor_connect_menu(struct TessMainMenu *menu, struct nk_context *ctx)

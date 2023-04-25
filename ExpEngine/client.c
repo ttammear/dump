@@ -1,8 +1,7 @@
-void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *renderer, TessServer *server)
+void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *renderer)
 {
     memset(tess, 0, sizeof(TessClient));
     tess->platform = platform;
-    tess->server = server;
 
     fixed_arena_init(platform, &tess->arena, 30 * 1024 * 1024); 
 
@@ -71,7 +70,6 @@ void tess_client_init(TessClient *tess, AikePlatform *platform, Renderer *render
     tess->mainMenu.uiSystem = &tess->uiSystem;
     tess->mainMenu.inputSystem = &tess->inputSystem;
     tess->mainMenu.client = tess;
-    tess->mainMenu.server = server;
     tess_main_menu_init(&tess->mainMenu);
 
     // Init editor

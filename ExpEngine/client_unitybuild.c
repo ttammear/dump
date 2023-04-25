@@ -94,6 +94,10 @@ KHASH_MAP_INIT_INT64(uint32, uint32_t)
 #include "menu.c"
 
 #include "editor_server_client_shared.c"
+
+#include "GameserverMsg/game_client_structs.c"
+#include "GameserverMsg/game_server_structs.c"
+
 #include "play.c"
 
 // TODO: get rid of this! (move to platform layer!)
@@ -115,7 +119,7 @@ KHASH_MAP_INIT_INT64(uint32, uint32_t)
 #include "scheduler.c"
 
 #include "game.c"
-#include "fib.c"
+#include "client_app.c"
 
 #include "opengl_renderer.h"
 #include "opengl_renderer.c"

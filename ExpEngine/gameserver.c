@@ -1,41 +1,3 @@
-/*
-Packets contain commands
-    uint16_t commandId;
-    uint8_t data[];
-
-Command load map
-    uint8_t assetIdLen;
-    char assetId[];
-
-Command reset world - unloads everything (map, entities, all)
-    [no data]
-
-Command create dynamic entities
-    uint16_t createCount;
-    struct
-    {
-        uint32_t objectId;
-        uint32_t entityId;
-        V3 position;
-        Quat rotation;
-    } entities[];
-
-Command destroy dynamic entities
-    uint16_t destroyCount;
-    uint32_t entityIds[];
-    
-Command update dynamic entities
-   uint16_t updateCount;
-   struct
-   {
-        uint32_t entityId;
-        uint16_t seq;
-        V3 position;
-        Quat rotation;
-   } entities[]; 
-
-*/
-
 void game_server_update_input_config(ServerInputConfig *si) {
     int tid = 0;
     for(int i = 0; i < SERVER_MAX_INPUTS; i++) {
@@ -87,6 +49,7 @@ void game_server_default_input_config(ServerInputConfig *si) {
 
 void game_server_init(GameServer *gs)
 {
+    gs->mapAssetId = NULL;
     coreclr_init(gs->platform, gs);
 
     game_server_default_input_config(&gs->inputConfig);
@@ -96,7 +59,7 @@ void game_server_init(GameServer *gs)
     create_physx_physics(gs->physics);
     gs->physics->init(gs->physics, false);
 
-    assert(gs->mapAssetId); // Managed code should set map assetId
+    assert(gs->mapAssetId != NULL); // Managed code should set map assetId
     // load map (colliders and other server side stuff)
     gs->mapReference = add_asset_reference(gs->assetSystem, gs->mapAssetId);    
     gs->mapStatus = 1;
@@ -171,138 +134,79 @@ void game_server_destroy(GameServer *gs)
 
 void game_server_send_all_dyn_create(GameServer *gs, ServerPeer *speer)
 {
-    uint8_t *mem = stack_push(gs->tempStack, 65536, 4); 
-        
-    ByteStream stream;
-    init_byte_stream(&stream, mem, 65536);
-    stream_write_uint16(&stream, Game_Server_Command_Create_DynEntities);
-    uint32_t countLoc = stream_get_offset(&stream);
-    stream_write_uint16(&stream, 0);
-
-    uint32_t count = buf_len(gs->dynEntities);
-    uint32_t writtenCount = 0;
-    uint32_t size;
-    for(int i = 0; i < count; i++)
-    {
-        bool success = true;
+    MsgCreateDynEntities msg;
+    int writeId = 0;
+    for(int i = 0; i < msg.count; i++) {
         GameServerDynEntity *ent = gs->dynEntities[i];
-        // player self server state is sent separately
-        bool send =  speer->player.status != Server_Player_Status_Created
-                || speer->player.dynId != ent->id;
-        if(send) {
-            success &= stream_write_uint32(&stream, ent->objectId);
-            success &= stream_write_uint32(&stream, ent->id);
-            success &= stream_write_v3(&stream, ent->position);
-            success &= stream_write_v3(&stream, ent->scale);
-            success &= stream_write_quat(&stream, ent->rotation);
-            if(success)
-            {
-                size = stream_get_offset(&stream);
-                writtenCount++;
-            }
-        }
-        if(!success || i+1 >= count) // if did not fit or last element, send packet
-        {
-            stream_go_to_offset(&stream, countLoc);
-            assert(writtenCount < 65536);
-            stream_write_uint16(&stream, writtenCount);
+        auto went = msg.entities + writeId;
+        went->objectId = ent->objectId;
+        went->entityId = ent->id;
+        went->position = ent->position;
+        went->scale = ent->scale;
+        went->rotation = ent->rotation;
 
-            ENetPacket *packet = enet_packet_create(stream.start, size, ENET_PACKET_FLAG_RELIABLE);
-            enet_peer_send(speer->ePeer, 1, packet);
-
-            writtenCount = 0;
-            if(!success) i--;// if did not fit force to reiterate current (we flushed so it fits now)
+        writeId ++;
+        if(writeId >= ARRAY_COUNT(msg.entities)) {
+            msg.count = writeId;
+            writeId = 0;
+            server_message_send(gs->tempStack, &msg, speer->ePeer);
         }
     }
-
-    stack_pop(gs->tempStack);
+    if(writeId > 0) {
+        msg.count = writeId;
+        server_message_send(gs->tempStack, &msg, speer->ePeer);
+    }
 }
 
 void game_server_send_dyn_create(GameServer *gs, ServerPeer *speer, GameServerDynEntity *entity)
 {
-    /*if(speer->player.status == Server_Player_Status_Created
-            && speer->player.dynId == entity->id) {
-        return;
-    }*/
-    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
-
-    ByteStream stream;
-    init_byte_stream(&stream, mem, 65536);
-    stream_write_uint16(&stream, Game_Server_Command_Create_DynEntities);
-    stream_write_uint16(&stream, 1);
-    stream_write_uint32(&stream, entity->objectId);
-    stream_write_uint32(&stream, entity->id);
-    stream_write_v3(&stream, entity->position);
-    stream_write_v3(&stream, entity->scale);
-    stream_write_quat(&stream, entity->rotation);
-    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), ENET_PACKET_FLAG_RELIABLE);
-    enet_peer_send(speer->ePeer, 1, packet);
-
-    stack_pop(gs->tempStack);
+    MsgCreateDynEntities msg;
+    msg.count = 1;
+    msg.entities[0].objectId = entity->objectId;
+    msg.entities[0].entityId = entity->id;
+    msg.entities[0].position = entity->position;
+    msg.entities[0].scale = entity->scale;
+    msg.entities[0].rotation = entity->rotation;
+    server_message_send(gs->tempStack, &msg, speer->ePeer);
 }
 
 void game_server_send_dyn_destroy(GameServer *gs, ServerPeer *speer, GameServerDynEntity *entity)
 {
-    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
-
-    ByteStream stream;
-    init_byte_stream(&stream, mem, 65536);
-    stream_write_uint16(&stream, Game_Server_Command_Destroy_DynEntities);
-    stream_write_uint16(&stream, 1);
-    stream_write_uint32(&stream, entity->id);
-    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), ENET_PACKET_FLAG_RELIABLE);
-    enet_peer_send(speer->ePeer, 1, packet);
-
-    stack_pop(gs->tempStack); 
+    MsgDestroyDynEntities msg;
+    msg.count = 1;
+    msg.entities[0].entityId = entity->id;
+    server_message_send(gs->tempStack, &msg, speer->ePeer);
 }
 
-void game_server_send_player_reflection(GameServer *gs, ServerPeer *peer) {
+void game_server_send_player_reflection(GameServer *gs, ServerPeer *peer) { 
     ServerPlayer *p = &peer->player;
-    if(p->status != Server_Player_Status_Created) {
-        return;
-    }
-    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
+    MsgPlayerReflection msg;
     auto entity = gs->dynEntityPool + p->dynId;
-    ByteStream stream;
-    init_byte_stream(&stream, mem, 65536);
-    stream_write_uint16(&stream, Game_Server_Command_Player_Reflection);
-    stream_write_v3(&stream, entity->position);
-    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), 0);
-    enet_peer_send(peer->ePeer, 2, packet);
-    stack_pop(gs->tempStack);
+    msg.position = entity->position;
+    server_message_send(gs->tempStack, &msg, peer->ePeer);
 }
 
 void game_server_send_player_spawn(GameServer *gs, ServerPeer *speer) {
+    MsgPlayerSpawn msg;
     ServerPlayer *p = &speer->player;
+    auto dyn = &gs->dynEntityPool[p->dynId];
     if(p->status != Server_Player_Status_Created) {
         fprintf(stderr, "Trying to send spawn message to player when not spawned!\r\n");
         return;
     }
-    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
-    ByteStream stream;
-    init_byte_stream(&stream, mem, 65536);
-    auto dyn = &gs->dynEntityPool[p->dynId];
-    stream_write_uint16(&stream, Game_Server_Command_Player_Spawn);
-    stream_write_v3(&stream, dyn->position);
-    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), 0);
-    enet_peer_send(speer->ePeer, 2, packet);
-    stack_pop(gs->tempStack);
+    msg.position = dyn->position;
+    server_message_send(gs->tempStack, &msg, speer->ePeer);
 }
 
 void game_server_send_player_despawn(GameServer *gs, ServerPeer *speer) {
+    MsgPlayerDespawn msg;
     ServerPlayer *p = &speer->player;
-    if(p->status == Server_Player_Status_Created) {
+    auto dyn = &gs->dynEntityPool[p->dynId];
+    if(p->status != Server_Player_Status_Created) {
         fprintf(stderr, "Trying to send despawn message to player when stil spawned!\r\n");
         return;
     }
-    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
-    ByteStream stream;
-    init_byte_stream(&stream, mem, 65536);
-    auto dyn = &gs->dynEntityPool[p->dynId];
-    stream_write_uint16(&stream, Game_Server_Command_Player_Despawn);
-    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), 0);
-    enet_peer_send(speer->ePeer, 2, packet);
-    stack_pop(gs->tempStack);
+    server_message_send(gs->tempStack, &msg, speer->ePeer);
 }
 
 GameServerDynEntity* game_server_create_dyn(GameServer *gs, uint32_t objectId, V3 pos, Quat rot)
@@ -331,53 +235,37 @@ void game_server_destroy_dyn(GameServer *gs, uint32_t id)
     {
         game_server_send_dyn_destroy(gs, gs->connectedPeers[i], entity);
     }
-    buf_remove_at(gs->dynEntities, id);
+    int idx = buf_find_idx(gs->dynEntities, entity);
+    assert(idx >= 0);
+    buf_remove_at(gs->dynEntities, idx);
     pool_free(gs->dynEntityPool, entity);
 }
 
 void game_server_send_dyn_updates(GameServer *gs, ServerPeer *speer)
 {
-    uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
-
-    ByteStream stream;
-    init_byte_stream(&stream, mem, 65536);
-    stream_write_uint16(&stream, Game_Server_Command_Update_DynEntities);
-    uint32_t countLoc = stream_get_offset(&stream);
-    stream_write_uint16(&stream, 0);
-
+    MsgUpdateDynEntities msg;
     uint32_t count = buf_len(gs->dynEntities);
-    uint32_t writtenCount = 0;
-    uint32_t size;
-    for(int i = 0; i < count; i++)
-    {
-        bool success = true;
-        GameServerDynEntity *ent = gs->dynEntities[i];
-        // TODO: write data
-        success &= stream_write_uint32(&stream, ent->id);
-        success &= stream_write_uint16(&stream, ent->updateSeq);
-        success &= stream_write_v3(&stream, ent->position);
-        success &= stream_write_quat(&stream, ent->rotation);
-       
-        if(success)
-        {
-            size = stream_get_offset(&stream);
-            writtenCount++;
-        }
-        if(!success || i+1 >= count)
-        {
-            stream_go_to_offset(&stream, countLoc);
-            assert(writtenCount < 65536);
-            stream_write_uint16(&stream, writtenCount);
+    uint32_t writeId = 0;
+    for(int i = 0; i < count; i++) {
+        auto ent = gs->dynEntities[i];
+        auto went = msg.entities + writeId;
+        went->entityId = ent->id;
+        went->sequence = ent->updateSeq;
+        went->position = ent->position;
+        went->rotation = ent->rotation;
 
-            ENetPacket *packet = enet_packet_create(stream.start, size, ENET_PACKET_FLAG_RELIABLE);
-            enet_peer_send(speer->ePeer, 0, packet);
-
-            writtenCount = 0;
-            if(!success) i--; 
+        writeId++;
+        if(writeId >= ARRAY_COUNT(msg.entities)) {
+            msg.count = writeId;
+            writeId = 0;
+            server_message_send(gs->tempStack, &msg, speer->ePeer);
         }
     }
-
-    stack_pop(gs->tempStack);
+    if(writeId > 0) {
+        msg.count = writeId;
+        writeId = 0;
+        server_message_send(gs->tempStack, &msg, speer->ePeer);
+    }
 }
 
 void server_send_property(GameServer *gs, ServerPeer *sp, uint8_t prop) {
@@ -406,19 +294,14 @@ void server_send_property(GameServer *gs, ServerPeer *sp, uint8_t prop) {
 
 void server_send_input_config(GameServer *gs, ServerPeer *sp) {
     uint8_t *mem = stack_push(gs->tempStack, 65536, 4);
-    ByteStream stream;
-    init_byte_stream(&stream, mem, 65536);
-    stream_write_uint16(&stream, Game_Server_Command_Server_Input_Config);
-    uint8_t count = gs->inputConfig.inputCount;
-    stream_write_uint8(&stream, count);
-    for(int i = 0; i < count; i++) {
-        stream_write_uint8(&stream, gs->inputConfig.inputs[i].type);
-        stream_write_uint8(&stream, gs->inputConfig.inputs[i].tag);
-        stream_write_uint8(&stream, gs->inputConfig.inputs[i].flags);
+    MsgServerInputConfig ic;
+    ic.count = gs->inputConfig.inputCount;
+    for(int i = 0; i < ic.count; i++) {
+        ic.inputs[i].type = gs->inputConfig.inputs[i].type;
+        ic.inputs[i].tag = gs->inputConfig.inputs[i].tag;
+        ic.inputs[i].flags = gs->inputConfig.inputs[i].flags;
     }
-    ENetPacket *packet = enet_packet_create(stream.start, stream_get_offset(&stream), ENET_PACKET_FLAG_RELIABLE);
-    enet_peer_send(sp->ePeer, 1, packet);
-    stack_pop(gs->tempStack);
+    server_message_send(gs->tempStack, &ic, sp->ePeer);
 }
 
 void server_queue_input_event(GameServer *gs, ServerPeer *sp, ServerPlayerInputEvent* e) {
@@ -442,7 +325,6 @@ void game_server_create_player(GameServer *gs, ServerPlayer *sp) {
     sp->status = Server_Player_Status_Created;
     sp->dynId = ent->id;
 
-    
     // reset input
     sp->input.sphericalState = (V2){0.0f, 0.0f};
     memset(sp->input.keyStates, 0, sizeof(sp->input.keyStates));
@@ -754,4 +636,21 @@ void game_server_update(GameServer *gs, double dt)
 
         gs->updateProgress -= rate;
     }
+}
+
+static void message_get_server_properties(MsgGetServerProperties *msg, void *usrPtr) {
+}
+static void message_client_world_ready(MsgClientWorldReady *msg, void *usrPtr) {
+}
+static void message_get_server_inputs(MsgGetServerInputs *msg, void *usrPtr) {
+}
+static void message_update_reliable(MsgUpdateReliable *msg, void *usrPtr) {
+}
+static void message_update_unreliable(MsgUpdateUnreliable *msg, void *usrPtr) {
+}
+
+static void server_send_data(uint8_t *data, uint32_t len, void *usrPtr) {
+    ENetPeer *p = (ENetPeer*)usrPtr;
+    ENetPacket *packet = enet_packet_create(data, len, ENET_PACKET_FLAG_RELIABLE);
+    enet_peer_send(p, 1, packet);
 }

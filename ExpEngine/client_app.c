@@ -1,21 +1,21 @@
 
-typedef struct TessRoot
+typedef struct TessClientRoot
 {
     TessScheduler scheduler;
     struct TessClient client;
-    TessServer server;
+    //TessServer server;
     AikeMemoryBlock *rootBlock;
     bool loaded; // TODO: remove this hack
     //aike_thread_local struct ProfilerState *t_profState;
     uintptr_t g_profStates[10];
     struct ProfilerState *main_profState;
-} TessRoot;
+} TessClientRoot;
 
 void aike_update_window(AikePlatform *platform, AikeWindow *win)
 {
     printf("resize %f %f\n", win->width, win->height);
 
-    TessRoot *root = (TessRoot*)platform->userData;
+    TessClientRoot *root = (TessClientRoot*)platform->userData;
     if(root != NULL)
     {
         // TODO: this is here because we dont have render targets yet
@@ -51,22 +51,22 @@ void aike_init(AikePlatform *platform)
 
     Renderer *renderer = create_renderer(RENDERER_TYPE_OPENGL, platform);
 
-    AikeMemoryBlock *rootBlock = platform->allocate_memory(platform, sizeof(TessRoot), 0);
-    TessRoot *root = (TessRoot*)rootBlock->memory;
+    AikeMemoryBlock *rootBlock = platform->allocate_memory(platform, sizeof(TessClientRoot), 0);
+    TessClientRoot *root = (TessClientRoot*)rootBlock->memory;
     root->rootBlock = rootBlock;
     root->loaded = false;
     platform->userData = root;
 
-    tess_client_init(&root->client, platform, renderer, &root->server);
+    tess_client_init(&root->client, platform, renderer);
 
     // TODO: ... no
     root->client.renderSystem.rtW = platform->mainWin.width;
     root->client.renderSystem.rtH = platform->mainWin.height;
 
     // TODO: scheduler should not use client's arena
-    scheduler_init(&root->scheduler, &root->client.arena, &root->client, &root->server);
+    scheduler_init(&root->scheduler, platform, &root->client, NULL);
 
-    tess_server_init(&root->server, platform);
+    //tess_server_init(&root->server, platform);
 
 
     root->client.gameSystem.defaultCamera.aspectRatio = platform->mainWin.width/platform->mainWin.height;
@@ -94,14 +94,14 @@ void aike_init(AikePlatform *platform)
         assert(0);
     }
 
-    printf("client as %p server as %p\r\n", &root->client.assetSystem, &root->server.assetSystem);
+    printf("client as %p server as %p\r\n", &root->client.assetSystem, NULL);
 
     DEBUG_END_FRAME();
 }
 
 void aike_deinit(AikePlatform *platform)
 {
-    TessRoot *root = (TessRoot*)platform->userData;
+    TessClientRoot *root = (TessClientRoot*)platform->userData;
 
     enet_deinitialize();
 
@@ -110,7 +110,7 @@ void aike_deinit(AikePlatform *platform)
 
     platform->destroy_async_io(platform);
 
-    tess_server_destroy(&root->server);
+    //tess_server_destroy(&root->server);
     tess_client_destroy(&root->client);
     platform->free_memory(platform, root->rootBlock);
     platform->userData = NULL;
@@ -123,7 +123,7 @@ void aike_update(AikePlatform *platform)
     DEBUG_START_FRAME();
     PROF_START_STR("aike_update");
 
-    TessRoot *root = (TessRoot*)platform->userData;
+    TessClientRoot *root = (TessClientRoot*)platform->userData;
     tess_process_io_events(&root->client.fileSystem);
 
     process_render_messages(&root->client.renderSystem);
@@ -145,7 +145,7 @@ void aike_update(AikePlatform *platform)
         tess_client_begin_frame(&root->client);
 
         //tess_update_editor_server(&root->server.editorServer);
-        game_server_update(&root->server.gameServer, platform->dt);
+        //game_server_update(&root->server.gameServer, platform->dt);
 
         scheduler_yield();
         tess_client_end_frame(&root->client);
@@ -156,7 +156,7 @@ void aike_update(AikePlatform *platform)
 
 void aike_begin_hot_reload(AikePlatform *platform)
 {
-    TessRoot *root = (TessRoot*)platform->userData;
+    TessClientRoot *root = (TessClientRoot*)platform->userData;
     stop_renderer(root->client.renderSystem.renderer);
 
     for(int i = 0; i < ARRAY_COUNT(g_profStates); i++)
@@ -166,7 +166,7 @@ void aike_begin_hot_reload(AikePlatform *platform)
 
 void aike_end_hot_reload(AikePlatform *platform)
 {
-    TessRoot *root = (TessRoot*)platform->userData;
+    TessClientRoot *root = (TessClientRoot*)platform->userData;
     start_renderer(root->client.renderSystem.renderer);
 
     for(int i = 0; i < ARRAY_COUNT(g_profStates); i++)

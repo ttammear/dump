@@ -152,6 +152,8 @@ typedef struct TessScheduler {
     uint32_t taskMemorySize;
 
     struct TessClient *client;
+    
+    TessFixedArena arena;
 
     // three contexts: editor, game, menu(mainCtx)
     coro_context mainCtx;
@@ -486,6 +488,8 @@ typedef struct TessRenderSystem
 
 // --------------- UI ---------------------
 
+#ifndef TESS_HEADLESS
+
 typedef struct {
     uint32_t state; // 0 - nothing selected, 1 - package selected, 2 - asset selected no confirm
     TStr *packageName;
@@ -517,6 +521,8 @@ typedef struct TessUISystem
     struct AikePlatform *platform;
 } TessUISystem;
 
+#endif
+
 // --------------- PHYSICS ----------------
 
 #include "physics.h"
@@ -540,8 +546,8 @@ typedef struct TessMainMenu
     struct TessUISystem *uiSystem;
     struct TessInputSystem *inputSystem;
     struct TessClient *client;
-    struct TessServer *server;
 } TessMainMenu;
+
 
 // --------------- EDITOR ------------------
 
@@ -558,6 +564,19 @@ typedef struct TessEditorCommandBuf // network command buffer
     uint32_t currentCommandSize;
     uint8_t currentCommand[TESS_EDITOR_SERVER_MAX_COMMAND_SIZE];
 } TessEditorCommandBuf;
+
+typedef struct FirstPersonController {
+    V3 velocity;
+    CPxController characterController;
+    TessPhysicsSystem *phys;
+} FirstPersonController;
+
+typedef enum GameClientEventType {
+    Game_Client_Event_Key_Down,
+    Game_Client_Event_Key_Up,
+} GameClientEventType;
+
+#ifdef TESS_CLIENT
 
 typedef struct TessEditorEntity
 {
@@ -665,11 +684,6 @@ typedef enum GameClientFlags {
     Game_Client_Flag_Have_Map_AssetId = 1<<0,
 } GameClientFlags;
 
-typedef enum GameClientEventType {
-    Game_Client_Event_Key_Down,
-    Game_Client_Event_Key_Up,
-} GameClientEventType;
-
 typedef struct GameClientEvent {
     uint8_t type;
     union {
@@ -686,13 +700,6 @@ typedef struct ClientFrameInput {
     uint8_t keyBits[MAX_TRACKED_KEY_BYTES];
     uint32_t tickId;
 } ClientFrameInput;
-
-typedef struct FirstPersonController {
-    V3 velocity;
-    CPxController characterController;
-    TessPhysicsSystem *phys;
-} FirstPersonController;
-
 
 typedef struct GameClient
 {
@@ -742,7 +749,11 @@ typedef struct GameClient
     struct AikePlatform *platform;
 } GameClient;
 
+#endif
+
 // --------------- STATE --------------
+
+#ifdef TESS_CLIENT
 
 enum TessClientMode
 {
@@ -771,10 +782,9 @@ typedef struct TessClient
     TessFixedArena arena;
 
     AikePlatform *platform;
-
-    // TODO: get rid??
-    struct TessServer *server;
 } TessClient;
+
+#endif
 
 // Server
 
@@ -1013,20 +1023,24 @@ void tess_input_init(struct TessInputSystem *input);
 void tess_input_begin(struct TessInputSystem *input);
 void tess_input_end(struct TessInputSystem *input);
 
+#ifdef TESS_CLIENT
 void tess_ui_init(struct TessUISystem *ui);
 void tess_ui_destroy(struct TessUISystem *ui);
 void tess_ui_begin(struct TessUISystem *ui);
 void tess_ui_end(struct TessUISystem *ui);
 
 void editor_coroutine(TessEditor *editor);
-void tess_render_entities(struct TessGameSystem *gs);
 
 void tess_main_menu_init(struct TessMainMenu *menu);
 void tess_main_menu_update(struct TessMainMenu *menu);
 
 void editor_reset(TessEditor *editor);
+#endif
 
-void scheduler_init(TessScheduler *ctx, TessFixedArena *arena, TessClient *client, TessServer *server);
+
+void tess_render_entities(struct TessGameSystem *gs);
+
+void scheduler_init(TessScheduler *ctx, AikePlatform *platform, struct TessClient *client, TessServer *server);
 void scheduler_yield();
 void scheduler_set_mode(uint32_t mode);
 void scheduler_event(uint32_t type, void *data, struct AsyncTask *usrPtr);
