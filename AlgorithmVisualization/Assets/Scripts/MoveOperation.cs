@@ -36,6 +36,8 @@ using UnityEngine;
 
     public void Update(float dt)
     {
+      if (t > time)
+        _done = true;
       if (Vector3.Distance(curPosition, targetPositon) < 0.05f)
         _done = true;
       if (_done)
@@ -50,19 +52,21 @@ using UnityEngine;
         transform.position = targetPositon;
       }
     }
-
-  public static void UpdateOperations()
+  
+  public static void UpdateOperations(float dt)
   {
     List<MoveOperation> rmops = new List<MoveOperation>();
 		foreach(var mo in mOps)
     {
-      mo.Update(Time.deltaTime);
+      mo.Update(dt);
       if (!mo.keepWaiting)
         rmops.Add(mo);
     }
     foreach (var mo in rmops)
       mOps.Remove(mo);
   }
+
+
 
   public static MoveOperation MoveTransform(CustomTransform transform, Vector3 start, Vector3 target, float time)
   {

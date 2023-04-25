@@ -1,101 +1,407 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 
-public class MarchingCubesAnimation : MonoBehaviour {
+public class MarchingCubesAnimation : MonoBehaviour
+{
 
-  CustomTransform cubeTransform = new CustomTransform();
+    CustomTransform cubeTransform = new CustomTransform();
 
-  void Start() {
-    cubeTransform.position = new Vector3(-1.0f, -1.0f, -1.0f);
-  }
+    public bool offlineRender = false;
 
-  float animationSpeed = 1.0f;
-  static bool done = true;
+    public Vector3 startPosition;
+    public Vector3 startRotation;
 
-  IEnumerator PlayAnimation()
-  {
-    done = false;
-    for (int i = 0; i < 3; i++)
+    public Vector3 bigStart;
+    public Vector3 bigStartRot;
+
+    public Vector3 originalPosition;
+    public Quaternion originalRotation;
+
+    void Start()
     {
-      for (int j = 0; j < 3; j++)
-      {
-        for (int k = 0; k < 3; k++)
+        cubeTransform.position = new Vector3(-1.0f, -1.0f, -1.0f);
+    }
+
+    float animationSpeed = 1.0f;
+
+    int stage = 0;
+
+    const int slowCount = 4;
+    int cornerCounter = 0;
+
+    int[] booleans = new int[8] { 1, 0, 1, 0, 1, 1, 0, 0 };
+    List<Vector3> exampleVerts = new List<Vector3>();
+    bool blueBall = false;
+    Vector3 blueBallPos;
+
+    List<Vector3> lastVerts = new List<Vector3>();
+    List<Vector3> lastVertsInterpolated = new List<Vector3>();
+    List<Vector3> lastVertsAnimated = new List<Vector3>();
+
+    float dist = 1.5f;
+
+
+
+    IEnumerator PlayAnimation()
+    {
+        originalPosition = Camera.main.transform.position;
+        originalRotation = Camera.main.transform.rotation;
+
+        System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
+        sw.Start();
+
+        int label;
+        int counter = 0;
+        label = QuickLabels.ShowLabel(new Vector2(50.0f, 50.0f), "Marching cubes", 50, Color.black);
+        yield return StartCoroutine(OrbitOperation.OrbitTarget(Camera.main.transform, Vector3.zero, 6.0f, 360.0f, 5.0f));
+
+
+        for (int i = 0; i < 3; i++)
         {
-          yield return StartCoroutine(
-            MoveOperation.MoveTransform(
-              cubeTransform,
-              cubeTransform.position,
-              new Vector3(-1.0f + i, -1.0f + j, -1.0f + k),
-              animationSpeed * 1.5f)
-            );
-          yield return new WaitForSecondsRealtime(0.15f * animationSpeed);
-          MarchCube(new Vector3(-1.5f + i, -1.5f + j, -1.5f + k));
-          yield return new WaitForSecondsRealtime(0.15f * animationSpeed);
+            for (int j = 0; j < 3; j++)
+            {
+                for (int k = 0; k < 3; k++)
+                {
+                    yield return StartCoroutine(
+                      MoveOperation.MoveTransform(
+                        cubeTransform,
+                        cubeTransform.position,
+                        new Vector3(-1.0f + i, -1.0f + j, -1.0f + k),
+                        animationSpeed * 1.0f)
+                      );
+                    yield return new CustomWait(0.15 * (double)animationSpeed);
+                    MarchCube(new Vector3(-1.5f + i, -1.5f + j, -1.5f + k));
+                    _vertices.AddRange(lastVerts);
+                    yield return new CustomWait(0.15 * (double)animationSpeed);
+                    counter++;
+                    if (counter >= slowCount)
+                        animationSpeed = 0.2f;
+                }
+            }
         }
-      }
+        animationSpeed = 1.0f;
+        stage = 1;
+        yield return StartCoroutine(OrbitOperation.OrbitTarget(Camera.main.transform, Vector3.zero, 6.0f, 180.0f, 1.5f));
+        stage = 2;
+        yield return StartCoroutine(OrbitOperation.OrbitTarget(Camera.main.transform, Vector3.zero, 6.0f, 180.0f, 1.5f));
+        QuickLabels.HideLabel(label);
+        stage = 3;
+        yield return new CustomWait(0.01);
+        label = QuickLabels.ShowLabel(new Vector2(50.0f, 50.0f), "Implementation", 50, Color.black);
+
+        string text =
+        @"8 booleans are calculated where each boolean represents a cube corner either being " +
+        "inside or outside the volume. These booleans are then combined to a 8 bit bitfield. " +
+        "The bitfield forms a case index with 2⁸=256 possible values.";
+        int textLabel = QuickLabels.ShowLabel(new Vector2(50.0f, 150.0f), text, 40, Color.black, 1200.0f);
+
+
+        yield return new CustomWait(8.0);
+
+        stage = 4;
+        Camera.main.transform.position = startPosition;
+        Camera.main.transform.eulerAngles = startRotation;
+        string booleanString = "";
+        int blabel = -1;
+        yield return new CustomWait(2.0);
+
+
+        for (int j = 0; j < 1; j++)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                cornerCounter = i;
+                booleanString = booleans[i] + booleanString;
+                blabel = QuickLabels.ShowLabel(new Vector2(50.0f, 460.0f), booleanString, 40, Color.black, 200.0f, TextAnchor.UpperRight);
+                yield return StartCoroutine(new CustomWait(0.9));
+                if (blabel != -1)
+                    QuickLabels.HideLabel(blabel);
+            }
+
+            booleanString += " = 53";
+            blabel = QuickLabels.ShowLabel(new Vector2(50.0f, 450.0f), booleanString, 40, Color.black, 300.0f, TextAnchor.UpperRight);
+            yield return StartCoroutine(new CustomWait(5.0));
+
+            booleanString = "";
+            QuickLabels.HideLabel(blabel);
+        }
+
+        stage = 5;
+
+        int[] labels = new int[12];
+
+        QuickLabels.HideLabel(textLabel);
+        text =
+        "All generated vertices lie on the 12 edges of the cube. We use a lookup table where each row of the table " +
+        "contains a list of edge indices for the vertices. Since we have 256 cases we need 256 rows. " +
+        "-1 indicates the end of the sequence.";
+        textLabel = QuickLabels.ShowLabel(new Vector2(50.0f, 150.0f), text, 40, Color.black, 1200.0f);
+
+        text = "triangleTable[53] = {10, 1, 2, 9, 5, 0, 5, 3, 0, 5, 7, 3, -1, -1, -1, -1}";
+        blabel = QuickLabels.ShowLabel(new Vector2(50.0f, 450.0f), text, 40, Color.black, 1200.0f);
+
+        for (int i = 0; i < 12; i++)
+        {
+            Vector3 offset = (edgeVertexOffsets[i, 0] + edgeVertexOffsets[i, 1]) / 2.0f;
+            labels[i] = QuickLabels.Show3DLabel(new Vector3(-0.5f, -0.5f, -0.5f) + offset + Vector3.up * 0.1f + Vector3.right * 0.1f, (i).ToString(), 30, Color.red);
+        }
+        yield return new CustomWait(10.0);
+
+        for (int i = 0; triangleTable[53, i] != -1; i++)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("triangleTable[53] = {");
+            QuickLabels.HideLabel(blabel);
+            for (int j = 0; j < 16; j++)
+            {
+                if (j != i)
+                    sb.Append(triangleTable[53, j] + ", ");
+                else
+                    sb.Append("<b>" + triangleTable[53, j] + "</b>" + ", ");
+            }
+            sb.Remove(sb.Length - 2, 2);
+            sb.Append("}");
+            blabel = QuickLabels.ShowLabel(new Vector3(50.0f, 450.0f), sb.ToString(), 40, Color.black, 1200.0f);
+
+            int vert = triangleTable[53, i];
+            Vector3 offset = (edgeVertexOffsets[vert, 0] + edgeVertexOffsets[vert, 1]) / 2.0f;
+            blueBallPos = new Vector3(-0.5f, -0.5f, -0.5f) + offset;
+            exampleVerts.Add(blueBallPos);
+            blueBall = true;
+            yield return new CustomWait(2.0);
+        }
+
+        yield return new CustomWait(2.0);
+        foreach (var llbl in labels)
+            QuickLabels.Hide3DLabel(llbl);
+        QuickLabels.HideLabel(blabel);
+        QuickLabels.HideLabel(textLabel);
+        text = "The vertices don't have to be in the middle of the edge. If we have a continuous " +
+          "field of values we can interpolate the vertex position along the edge based on the difference " +
+          "between the sample values of the cube corners. In case the difference is 0, the vertex is exactly in the middle of the edge." +
+          "This gives us more accurate final mesh";
+        textLabel = QuickLabels.ShowLabel(new Vector2(50.0f, 150.0f), text, 40, Color.black, 1200.0f);
+        stage = 6;
+        text = "if((d1 - d2) != 0.0)\n    t = d1 / (d1 - d2)\nelse\n    t = 0.5";
+        blabel = QuickLabels.ShowLabel(new Vector2(50.0f, 450.0f), text, 40, Color.black, 1200.0f);
+
+        yield return new CustomWait(15.0);
+        QuickLabels.HideLabel(textLabel);
+        QuickLabels.HideLabel(blabel);
+
+        Camera.main.transform.position = originalPosition;
+        Camera.main.transform.rotation = originalRotation;
+        Camera.main.transform.LookAt(Vector3.zero);
+
+        cubeTransform.position = new Vector3(-1.0f, -1.0f, -1.0f);
+
+        stage = 7;
+        _vertices.Clear();
+        counter = 0;
+        for (int i = 0; i < 3; i++)
+        {
+            for (int j = 0; j < 3; j++)
+            {
+                for (int k = 0; k < 3; k++)
+                {
+                    yield return StartCoroutine(
+                    MoveOperation.MoveTransform(
+                    cubeTransform,
+                    cubeTransform.position,
+                    new Vector3(-1.0f + i, -1.0f + j, -1.0f + k),
+                    animationSpeed * 1.0f)
+                    );
+                    yield return new CustomWait(0.15 * (double)animationSpeed);
+                    MarchCube(new Vector3(-1.5f + i, -1.5f + j, -1.5f + k));
+                    float t = 0;
+                    while (t < 1.0f)
+                    {
+                        lastVertsAnimated.Clear();
+                        for (int l = 0; l < lastVerts.Count; l++)
+                        {
+                            lastVertsAnimated.Add(Vector3.Lerp(lastVerts[l], lastVertsInterpolated[l], Mathf.Min(t, 1.0f)));
+                        }
+                        t += (float)MyTime.dt * (1.0f / animationSpeed);
+                        yield return null;
+                    }
+                    _vertices.AddRange(lastVertsInterpolated);
+                    yield return new CustomWait(0.15 * (double)animationSpeed);
+                    counter++;
+                    if (counter >= 4)
+                        animationSpeed = 0.2f;
+                }
+            }
+        }
+        stage = 8;
+        yield return StartCoroutine(OrbitOperation.OrbitTarget(Camera.main.transform, Vector3.zero, 6.0f, 180.0f, 1.5f));
+        stage = 9;
+        yield return StartCoroutine(OrbitOperation.OrbitTarget(Camera.main.transform, Vector3.zero, 6.0f, 180.0f, 1.5f));
+
+
+        animationSpeed = 0.0f;
+        QuickLabels.HideLabel(label);
+        cubeTransform.position = new Vector3(-8.5f, -8.5f, -8.5f);
+
+        Camera.main.transform.position = bigStart;
+        Camera.main.transform.eulerAngles = bigStartRot;
+
+        _vertices.Clear();
+        dist = 8.0f;
+        stage = 10;
+        for (int i = 0; i < 16; i++)
+        {
+            for (int j = 0; j < 16; j++)
+            {
+                for (int k = 0; k < 16; k++)
+                {
+                    cubeTransform.position = new Vector3(-dist + 0.5f + i, -dist + 0.5f + j, -dist + 0.5f + k);
+                    MarchCube(new Vector3(-dist + i, -dist + j, -dist + k));
+                    _vertices.AddRange(lastVertsInterpolated);
+                    yield return null;
+                    counter++;
+                    if (counter >= 4)
+                        animationSpeed = animationSpeed * 0.2f;
+                }
+            }
+        }
+        stage = 11;
+        yield return StartCoroutine(OrbitOperation.OrbitTarget(Camera.main.transform, Vector3.zero, 6.0f, 180.0f, 1.5f));
+        stage = 12;
+        yield return StartCoroutine(OrbitOperation.OrbitTarget(Camera.main.transform, Vector3.zero, 6.0f, 180.0f, 1.5f));
+
+
+        animationSpeed = animationSpeed * 5.0f;
+
+
+        //var orbit = OrbitOperation.OrbitTarget(Camera.main.transform, Vector3.zero, Vector3.Distance(Vector3.zero, Camera.main.transform.position), 360, 5.0f, true);
+        sw.Stop();
+        Debug.LogFormat("Animation took {0} seconds", sw.Elapsed.TotalSeconds);
+
+        Debug.Break();
+
+        yield return null;
     }
-    done = true;
-  }
 
-  float SampleValue(Vector3 pos)
-  {
-    return Vector3.Distance(Vector3.zero, pos) - 1.5f;
-  }
-
-  List<Vector3> _vertices = new List<Vector3>();
-
-  void MarchCube(Vector3 pos)
-  {
-    int caseIndex = 0; 
-    for(int i = 0; i < 8; i++)
+    float SampleValue(Vector3 pos)
     {
-      float sample = SampleValue(pos + cornerOffsets[i]);
-      if (sample >= 0.0f)
-        caseIndex |= 1 << i;
+        return Vector3.Distance(Vector3.zero, pos) - dist;
     }
-    if (caseIndex == 0 || caseIndex == 0xFF)
-      return;
-    int caseVert = 0;
-    for(int i = 0; i < 5; i++)
+
+    List<Vector3> _vertices = new List<Vector3>();
+
+    void MarchCube(Vector3 pos)
     {
-      for(int tri = 0; tri < 3; tri++)
-      {
-        int edgeCase = triangleTable[caseIndex, caseVert];
-        if (edgeCase == -1)
-          return;
-        Vector3 vert1 = pos + edgeVertexOffsets[edgeCase, 0];
-        Vector3 vert2 = pos + edgeVertexOffsets[edgeCase, 1];
-        Vector3 vertPos = (vert1 + vert2) / 2.0f;
-        _vertices.Add(vertPos);
-        caseVert++;
-      }
+        lastVerts.Clear();
+        lastVertsInterpolated.Clear();
+
+        int caseIndex = 0;
+        for (int i = 0; i < 8; i++)
+        {
+            float sample = SampleValue(pos + cornerOffsets[i]);
+            if (sample >= 0.0f)
+                caseIndex |= 1 << i;
+        }
+        if (caseIndex == 0 || caseIndex == 0xFF)
+            return;
+        int caseVert = 0;
+
+        for (int i = 0; i < 5; i++)
+        {
+            for (int tri = 0; tri < 3; tri++)
+            {
+                int edgeCase = triangleTable[caseIndex, caseVert];
+                if (edgeCase == -1)
+                    return;
+                Vector3 vert1 = pos + edgeVertexOffsets[edgeCase, 0];
+                Vector3 vert2 = pos + edgeVertexOffsets[edgeCase, 1];
+                Vector3 vertPos = (vert1 + vert2) / 2.0f;
+                float s1 = SampleValue(pos + edgeVertexOffsets[edgeCase, 0]);
+                float s2 = SampleValue(pos + edgeVertexOffsets[edgeCase, 1]);
+                float dif = s1 - s2;
+                if (dif == 0.0f)
+                    dif = 0.5f;
+                else
+                    dif = s1 / dif;
+                Vector3 vertPosInterpolated = vert1 + ((vert2 - vert1) * dif);
+
+                lastVerts.Add(vertPos);
+                lastVertsInterpolated.Add(vertPosInterpolated);
+                //_vertices.Add(vertPos);
+                caseVert++;
+            }
+        }
     }
-  }
 
-  // Update is called once per frame
-  void Update() {
-
-    MoveOperation.UpdateOperations();
-
-    if (Input.GetKeyDown(KeyCode.Return))
-      StartCoroutine(PlayAnimation());
-
-    Color col = new Color(0.0f, 1.0f, 0.0f, 0.5f);
-
-    if (!done)
+    // Update is called once per frame
+    void Update()
     {
-      QuickShapes.DrawCube(cubeTransform.position, 0.95f, col);
-      QuickShapes.DrawCubeEdges(cubeTransform.position, 1.0f, 0.04f, Color.black);
-      QuickShapes.DrawGrid3D(new Vector3(-1.5f, -1.5f, -1.5f), 1.0f, 3, 0.02f, Color.red);
-    }
-    if (_vertices.Count >= 3)
-      QuickShapes.DrawTriangleEdges(_vertices, 0.03f, Color.blue);
-  }
 
-  Vector3[] cornerOffsets = new Vector3[8]
-  {
+        //QuickShapes.DrawVertices(mref.vertices, Color.yellow);
+        //Debug.Log("Draw " + mref.vertices.Count);
+
+        MoveOperation.UpdateOperations((float)MyTime.dt);
+        OrbitOperation.UpdateOperations((float)MyTime.dt);
+
+        if (Input.GetKeyDown(KeyCode.Return))
+            StartCoroutine(PlayAnimation());
+
+        Color col = new Color(0.0f, 1.0f, 0.0f, 0.5f);
+
+        if (stage == 0 || stage == 7)
+        {
+            QuickShapes.DrawCube(cubeTransform.position, 0.95f, col);
+            QuickShapes.DrawCubeEdges(cubeTransform.position, 1.0f, 0.04f, Color.black);
+            QuickShapes.DrawGrid3D(new Vector3(-1.5f, -1.5f, -1.5f), 1.0f, 3, 0.02f, Color.red);
+        }
+        if (_vertices.Count >= 3 && (stage < 2 || stage == 7 || stage == 8 || stage == 10 || stage == 11))
+            QuickShapes.DrawTriangleEdges(_vertices, 0.03f, Color.blue);
+        if (_vertices.Count >= 3 && (stage == 2 || stage == 9 || stage == 12))
+            QuickShapes.DrawVertices(_vertices, Color.blue);
+        if (stage == 4)
+        {
+            QuickShapes.DrawCubeEdges(Vector3.zero, 1.0f, 0.02f, Color.black);
+            QuickShapes.DrawSphere(cornerOffsets[cornerCounter] - new Vector3(0.5f, 0.5f, 0.5f), 0.2f, Color.red);
+            for (int i = 0; i < 8; i++)
+            {
+                if (booleans[i] == 1)
+                    QuickShapes.DrawSphere(cornerOffsets[i] - new Vector3(0.5f, 0.5f, 0.5f), 0.1f, Color.green);
+            }
+            //QuickShapes.DrawSphere(Vector3.zero, 1.0f, Color.red);
+        }
+
+        if (stage == 5)
+        {
+            QuickShapes.DrawCubeEdges(Vector3.zero, 1.0f, 0.02f, Color.black);
+            for (int i = 0; i < 12; i++)
+            {
+                Vector3 offset = (edgeVertexOffsets[i, 0] + edgeVertexOffsets[i, 1]) / 2.0f;
+                QuickShapes.DrawSphere(new Vector3(-0.5f, -0.5f, -0.5f) + offset, 0.1f, Color.red);
+            }
+            QuickShapes.DrawTriangleEdges(exampleVerts, 0.02f, Color.blue);
+            if (blueBall)
+                QuickShapes.DrawSphere(blueBallPos, 0.2f, Color.blue);
+
+
+        }
+
+        if (stage == 7)
+        {
+            QuickShapes.DrawTriangleEdges(lastVertsAnimated, 0.03f, Color.blue);
+        }
+        if (stage == 10)
+        {
+            QuickShapes.DrawCube(cubeTransform.position, 0.95f, col);
+            QuickShapes.DrawCubeEdges(cubeTransform.position, 1.0f, 0.04f, Color.black);
+            //QuickShapes.DrawGrid3D(new Vector3(-dist, -dist, -dist), 1.0f, Mathf.RoundToInt(dist)*2, 0.02f, Color.red);
+
+        }
+    }
+
+    Vector3[] cornerOffsets = new Vector3[8]
+    {
     new Vector3(0.0f, 0.0f, 0.0f),
     new Vector3(1.0f, 0.0f, 0.0f),
     new Vector3(1.0f, 1.0f, 0.0f),
@@ -104,10 +410,10 @@ public class MarchingCubesAnimation : MonoBehaviour {
     new Vector3(1.0f, 0.0f, 1.0f),
     new Vector3(1.0f, 1.0f, 1.0f),
     new Vector3(0.0f, 1.0f, 1.0f)
-  };
+    };
 
-  Vector3[,] edgeVertexOffsets = new Vector3[12, 2]
-  {
+    Vector3[,] edgeVertexOffsets = new Vector3[12, 2]
+    {
     { new Vector3(0.0f, 0.0f, 0.0f), new Vector3(1.0f, 0.0f, 0.0f) },
     { new Vector3(1.0f, 0.0f, 0.0f), new Vector3(1.0f, 1.0f, 0.0f) },
     { new Vector3(0.0f, 1.0f, 0.0f), new Vector3(1.0f, 1.0f, 0.0f) },
@@ -120,10 +426,10 @@ public class MarchingCubesAnimation : MonoBehaviour {
     { new Vector3(1.0f, 0.0f, 0.0f), new Vector3(1.0f, 0.0f, 1.0f) },
     { new Vector3(1.0f, 1.0f, 0.0f), new Vector3(1.0f, 1.0f, 1.0f) },
     { new Vector3(0.0f, 1.0f, 0.0f), new Vector3(0.0f, 1.0f, 1.0f) }
-  };
+    };
 
-  int[,] triangleTable = new int[,]
-  {
+    int[,] triangleTable = new int[,]
+    {
     {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
     {0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
     {0, 1, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
@@ -380,5 +686,5 @@ public class MarchingCubesAnimation : MonoBehaviour {
     {0, 9, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
     {0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
     {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}
-  };
+    };
 }

@@ -6,13 +6,42 @@ using UnityEngine;
 
 public class FreeCamera : MonoBehaviour
 {
+  public static FreeCamera Instance;
+
   public const float MoveSpeed = 10.0f;
   public float CurrentMoveSpeed = MoveSpeed;
   float _rotX = 0.0f;
   float _rotY = 0.0f;
 
+  public bool Disabled
+  {
+    get
+    {
+      return _disabled;
+    }
+    set
+    {
+      if(value == false)
+      {
+        _rotY = -Camera.main.transform.eulerAngles.x;
+        _rotX = Camera.main.transform.eulerAngles.y;
+      }
+      _disabled = value;
+    }
+  }
+
+  public bool _disabled = false;
+
+  private void Start()
+  {
+    Instance = this;
+  }
+
   void LateUpdate()
   {
+    if (Disabled)
+      return;
+
     Transform camtrans = Camera.main.transform;
     bool moving = false;
     if (Input.GetKey(KeyCode.W))
