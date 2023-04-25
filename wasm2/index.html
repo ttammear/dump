@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>WebAssembly test</title>
+
+<script>
+var importObject = {
+    env: 
+    {
+        alertStringInJavascript: function(strPtr)
+        {
+            alert(importObject.Asc2Str(strPtr));
+            //alert("test");
+        }
+    }
+};
+
+fetch('program.wasm').then(response => 
+    response.arrayBuffer()
+).then(bytes =>
+    WebAssembly.instantiate(bytes, importObject)
+).then(results => {
+    importObject = results.instance;
+
+    importObject.Asc2Str = function Asc2Str(ptr) {
+        var str = '';		  
+        var i8 = new Uint8Array(this.exports.memory.buffer);
+        for(var i=0; 1; i++) {
+            var ch = i8[ptr + i];
+            if (!ch) 
+                return str;
+            str += String.fromCharCode(ch);
+        }
+        return null;
+    };
+
+    var testResult = importObject.exports.test(11);
+    alert("test returned " + testResult);
+
+    importObject.exports.test2();
+});
+	
+</script>
+
+</head>
+
+<body>
+WebAssemby test...
+</body>
+
+</html>

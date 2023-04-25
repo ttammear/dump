@@ -1,0 +1,153 @@
+ <!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Title of the document</title>
+    <script src="pixi.js"></script>
+    <script>
+    var force2dModule;
+    var errno;
+    const memory = new WebAssembly.Memory({ initial: 256, maximum: 256 });
+    var heap_end;
+
+    var F2dShape = Object.freeze({
+        "None":0, 
+        "Circle":1, 
+        "Box":2 
+    });
+
+    function growMemory(includingAdr)
+    {
+        if(includingAdr <= memory.buffer.byteLength)
+            return true;
+        else
+        {
+            var incBytes = includingAdr - memory.buffer.byteLength;
+            var incPages = Math.ceil(incBytes / 65536);
+            memory.grow(incPages);
+            console.log("Grew heap by " + incPages + " pages, new size " + memory.buffer.byteLength + " bytes");
+            return true;
+        }
+    }
+
+    var importObject = { 
+        imports: { 
+            i: arg => console.log(arg),
+        },
+        Asc2Str: function(ptr) {
+          var str = '';
+          var i8 = new Uint8Array(this.exports.memory.buffer);
+          for(var i=0; 1; i++) {
+            var ch = i8[ptr + i];
+            if (!ch) 
+                return str;
+            str += String.fromCharCode(ch);
+          }
+          return null;
+        },
+        env: {
+            abort: function() { throw "abort() called";},
+            sbrk: function(inc) {
+                if(inc == 0)
+                    return heap_end;
+
+                var newBrk = heap_end + inc;
+                var success = growMemory(newBrk);
+                if(success)
+                {
+                    var ret = heap_end;
+                    heap_end = newBrk;
+                    return ret;
+                }
+
+                return -1;
+            },
+            browser_logConsole: function (strPtr) {
+                var contentText = importObject.Asc2Str(strPtr);
+                console.log(contentText);
+            },
+           'abortStackOverflow': _ => { throw new Error('overflow'); },
+            'table': new WebAssembly.Table({ initial: 0, maximum: 0, element: 'anyfunc' }),
+            '__table_base': 0,
+            'memory': memory,
+            '__memory_base': 1024,
+            'STACKTOP': 0,
+            'STACK_MAX': memory.buffer.byteLength,
+        }
+    };
+
+    function instantiate(bytes, imports) {
+      return WebAssembly.compile(bytes).then(m => new WebAssembly.Instance(m, imports));
+    }
+
+    function start(instance) {
+        heap_end = instance.exports.__heap_base
+        importObject.exports = instance.exports;
+        force2dModule = instance;
+        var ctx = f2dCreateContext(force2dModule);
+        ctx.createStaticBody(ctx, F2dShape.Circle, new F2dV2(1.0, 2.0), 0.0, new F2dV2(1.0, 1.0));
+        ctx.createRigidBody(ctx, F2dShape.Box, new F2dV2(0.0, 0.0), 0.0, new F2dV2(1.0, 1.0), 11.0);
+    }
+
+    fetch('physics.wasm').then(response => response.arrayBuffer())
+    .then(bytes => instantiate(bytes, importObject))
+    .then(instance => start(instance));
+
+    function init(app) {
+        var rect = new PIXI.Graphics();
+        rect.beginFill(0xFF0000);
+        rect.lineStyle(4, 0x000000, 1);
+        rect.drawRect(0, 0, 100, 100);
+        rect.endFill();
+        rect.x = 50;
+        app.stage.addChild(rect);
+    }
+
+    function gameLoop(dt) {
+    }
+
+    function F2dV2(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    function f2dCreateContext(moduleInstance) {
+        var e = moduleInstance.exports;
+        var ctx = {
+            scratchMemoryPtr: e.f2d_get_js_memory(1024),
+            moduleInstance: moduleInstance,
+            handle: e.f2d_create_context(),
+            createStaticBody: function(context, shape, pos, rot, scale) {
+                var bodyId = e.f2d_create_static_body2(this.handle, shape, pos.x, pos.y, rot, scale.x, scale.y);
+            },
+            createRigidBody: function(contxt, shape, pos, rot, scale, mass) {
+                var rbId = e.f2d_create_rigid_body2(this.handle, shape, pos.x, pos.y, rot, scale.x, scale.y, mass);
+            },
+            getBodyUpdates(context) {
+                var countPtr = this.scratchMemoryPtr + 0;
+                var updatesPtr = e.f2d_get_body_updates(context, countPtr);
+                // TODO: read updates!
+            },
+        };
+        return ctx;
+    }
+
+    window.onload = function() {
+        let type = "WebGL"
+        if(!PIXI.utils.isWebGLSupported()){
+          type = "canvas"
+        }
+        PIXI.utils.sayHello(type)
+        let app = new PIXI.Application({width: 512, height: 512});
+        init(app);
+        app.ticker.add(delta => gameLoop(delta));
+        document.body.appendChild(app.view);
+
+    };
+    </script>
+</head>
+
+<body>
+</body>
+
+</html> 
