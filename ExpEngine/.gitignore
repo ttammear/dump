@@ -1,0 +1,8 @@
+# VIM swap file
+*.swp
+*.swo
+
+# third party libs folder
+libs
+libs/
+
