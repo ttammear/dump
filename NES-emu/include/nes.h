@@ -1,5 +1,6 @@
 #pragma once 
 
+#include <stdint.h>
 #include "ttTypes.h"
 
 #define TV_SYSTEM_NTSC  0

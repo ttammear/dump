@@ -4,18 +4,14 @@
 #include <math.h>
 #include <unistd.h>
 
-// SDL stuff
-#include <SDL2/SDL.h>
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
-
 #include <assert.h>
 
+#include <SDL2/SDL.h>
 //#define STB_IMAGE_IMPLEMENTATION
 //#include "libs/stb_image.h"
 #include "ttTypes.h"
 #include "nes.h"
+//#include "../../wasmtest/WebGL.h"
 
 #define FALSE 0
 #define TRUE 1
@@ -46,9 +42,8 @@ void InitAudio()
 
     //audio_pos = wav_buffer;
     //audio_len = wav_length;
-
     if ( SDL_OpenAudio(&audio_spec, NULL) < 0 ){
-	    fprintf(stderr, "Couldn't open audio: %s\n", SDL_GetError());
+	    printf("Couldn't open audio: %s\n", SDL_GetError());
 	    exit(-1);
 	}
 
@@ -119,17 +114,18 @@ void loop()
 
 int main(int argc, char *argv[])
 {
-    if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0)
+    if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO) != 0)
     {
-        fprintf(stderr, "Initializing SDL2 failed: %s\n", SDL_GetError());
+        printf("Initializing SDL2 failed: %s\n", SDL_GetError());
         return -1;
     }
+    printf("error: %s\n", SDL_GetError());
 
     InitAudio();
 
     SDL_Window* displayWindow;
     SDL_RendererInfo displayRendererInfo;
-    displayWindow = SDL_CreateWindow("NES emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600, 0);
+    displayWindow = SDL_CreateWindow("NES emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 256, 240, 0);
     displayRenderer = SDL_CreateRenderer(displayWindow, -1, SDL_RENDERER_SOFTWARE);
 //    SDL_CreateWindowAndRenderer(800, 600, 0, &displayWindow, &displayRenderer);
 /*    SDL_GetRendererInfo(displayRenderer, &displayRendererInfo);
@@ -156,6 +152,7 @@ int main(int argc, char *argv[])
     // void emscripten_set_main_loop(em_callback_func func, int fps, int simulate_infinite_loop);
     emscripten_set_main_loop(loop, 60, 1);
 #else
+    g_running = TRUE;
     while(g_running)
     {
         u32 curTime = SDL_GetTicks();
@@ -167,7 +164,9 @@ int main(int argc, char *argv[])
             usecs = 0;
         }
 
-        usleep(usecs); // TODO: framerate
+        loop();
+        printf("Sleeping %f ms\n", usecs);
+        //usleep(usecs); // TODO: framerate
 
         curTime = SDL_GetTicks();
         //printf("frametime %dms\n", curTime-startTime);

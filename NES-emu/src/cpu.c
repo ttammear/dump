@@ -947,8 +947,8 @@ void cpu_cycle()
             cpu_set_status(src);
             break;
         default:
-            fprintf(stderr, "Execute %s(0x%02x) %s clk: %d\n", inst_to_string(instr), op, adr_mode_to_string(adrMode), clk);
-            fprintf(stderr, "Unknown instruction \n");
+            printf("Execute %s(0x%02x) %s clk: %d\n", inst_to_string(instr), op, adr_mode_to_string(adrMode), clk);
+            printf("Unknown instruction \n");
             assert(FALSE);
             break;
     }

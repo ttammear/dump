@@ -3,7 +3,6 @@
 #include <math.h>
 #include <assert.h>
 #include <stdio.h>
-#include <time.h>
 
 static void apu_half_frame();
 static void apu_quarter_frame();
